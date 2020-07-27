@@ -1,0 +1,7 @@
+# ~~ node
+node_modules/
+dist
+#.eslintrc.js
+#babel.config.js
+
+*.exe
