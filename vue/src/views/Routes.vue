@@ -6,6 +6,10 @@
       </v-col>
     </v-row>
     <v-row>
+      <v-col>Filter for routes</v-col>
+      <v-col>Buttons to create routes</v-col>
+    </v-row>
+    <v-row>
       <v-col xs12 class="text-center" mt-3>
         <v-progress-circular v-if="loading" :size="70" :width="7" color="grey" indeterminate></v-progress-circular>
         <Error v-if="error != null" :error="this.error"></Error>
@@ -35,10 +39,11 @@ export default {
   },
 
   mounted() {
-    console.log("Downloading routes data");
-    console.log(location.origin);
+    // let baseUrl = location.origin;
+    let baseUrl = "http://localhost:9090";
+    console.log(baseUrl);
     axios
-      .get(location.origin + "/v1/info")
+      .get(baseUrl + "/v1/info")
       .then(response => {
         this.info = response.data;
         this.loading = false;

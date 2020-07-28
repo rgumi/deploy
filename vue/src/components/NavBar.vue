@@ -2,11 +2,7 @@
   <div>
     <v-navigation-drawer v-model="sidebar" absolute>
       <v-list nav tile>
-        <v-list-item
-          v-for="item in menuItems"
-          :key="item.title"
-          :to="item.path"
-        >
+        <v-list-item v-for="item in menuItems" :key="item.title" :to="item.path">
           <v-list-item-action>
             <v-icon>{{ item.icon }}</v-icon>
           </v-list-item-action>
@@ -15,14 +11,13 @@
       </v-list>
     </v-navigation-drawer>
     <v-toolbar>
-      <v-app-bar-nav-icon
-        class="hidden-sm-and-up"
-        @click="sidebar = !sidebar"
-      ></v-app-bar-nav-icon>
+      <v-app-bar-nav-icon class="hidden-sm-and-up" @click="sidebar = !sidebar"></v-app-bar-nav-icon>
       <v-toolbar-title>
-        <router-link to="/" tag="span" style="cursor: pointer">{{
+        <router-link to="/" tag="span" style="cursor: pointer">
+          {{
           appTitle
-        }}</router-link>
+          }}
+        </router-link>
       </v-toolbar-title>
       <v-spacer></v-spacer>
       <v-toolbar-items class="hidden-xs-only">
@@ -32,8 +27,7 @@
         </v-btn>
 
         <v-btn text @click="say('clicked')">
-          <v-icon left dark> mdi-more </v-icon>
-          Newsfeed
+          <v-icon left dark>mdi-more</v-icon>Newsfeed
         </v-btn>
       </v-toolbar-items>
     </v-toolbar>
@@ -50,14 +44,14 @@ export default {
       menuItems: [
         { title: "Home", path: "/", icon: "mdi-home" },
         { title: "Dashboard", path: "/dashboard", icon: "mdi-view-dashboard" },
-        { title: "Routes", path: "/routes", icon: "mdi-routes" },
-      ],
+        { title: "Routes", path: "/routes", icon: "mdi-routes" }
+      ]
     };
   },
   methods: {
-    say: (msg) => {
+    say: msg => {
       alert(msg);
-    },
-  },
+    }
+  }
 };
 </script>

@@ -1,16 +1,20 @@
-package config
+package configserver
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/julienschmidt/httprouter"
 )
 
 type Dataset struct {
-	ID    int ``
-	Value string
+	ID     int
+	Value  string
+	From   string
+	To     string
+	Status string
 }
 
 var datasets []Dataset
@@ -18,8 +22,22 @@ var datasets []Dataset
 func init() {
 	for i := 0; i < 10; i++ {
 		ds := Dataset{
-			ID:    i,
-			Value: "Hello World",
+			ID:     i,
+			Value:  "HelloWorldRouting",
+			From:   "/hello",
+			To:     "localhost:8080",
+			Status: "running",
+		}
+		datasets = append(datasets, ds)
+	}
+
+	for i := 10; i < 20; i++ {
+		ds := Dataset{
+			ID:     i,
+			Value:  "HelloWorldRouting",
+			From:   "/hello/world",
+			To:     "http://qde9dp.de.telekom.de:8080",
+			Status: "idle",
 		}
 		datasets = append(datasets, ds)
 	}
@@ -63,4 +81,17 @@ func NotFound(w http.ResponseWriter, r *http.Request) {
 	}
 	// if reqeusts is a direct call to the api return 404
 	w.WriteHeader(404)
+}
+
+func GetRoute(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Println(ps.ByName("id"))
+	i, err := strconv.Atoi(ps.ByName("id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Println(datasets[i])
+	json.NewEncoder(w).Encode(datasets[i])
 }
