@@ -7,6 +7,9 @@ import vuetify from "./plugins/vuetify";
 Vue.config.productionTip = false;
 
 console.log(process.env.BASE_URL);
+
+export const eventBus = new Vue();
+
 new Vue({
   router,
   store,

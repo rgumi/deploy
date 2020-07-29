@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -48,6 +49,9 @@ func GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func GetTestDataset(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Println("Received TestDataset Request")
+	time.Sleep(5000 * time.Millisecond)
+	fmt.Println("Finished Sleeping")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(datasets)
