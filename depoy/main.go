@@ -22,5 +22,5 @@ func main() {
 	router.NotFound = http.HandlerFunc(configserver.NotFound)
 
 	router.HandleMethodNotAllowed = false
-	log.Fatal(http.ListenAndServe(":9090", middleware.LogRequest(router)))
+	log.Fatal(http.ListenAndServe("0.0.0.0:9090", middleware.LogRequest(router)))
 }

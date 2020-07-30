@@ -1,8 +1,8 @@
-<template >
-  <div class="routeWrapper">
+<template>
+  <div class="routeWrapper elevation-3">
     <!-- Info row -->
     <v-row fluid no-gutters dense>
-      <h1>{{route.Value}} ({{ route.ID }})</h1>
+      <h1>{{ route.Value }} ({{ route.ID }})</h1>
       <v-spacer></v-spacer>
       <v-icon class="routeButton">mdi-pencil</v-icon>
       <v-icon class="routeButton">mdi-delete</v-icon>
@@ -14,9 +14,9 @@
       <v-col>
         <v-row fluid class="text">
           <span>
-            {{route.From}}
+            {{ route.From }}
             &#8594;
-            {{route.To}}
+            {{ route.To }}
           </span>
         </v-row>
       </v-col>
@@ -26,14 +26,15 @@
           size="60"
           class="statusIcon"
           :color="this.getIcon(route.Status).color"
-        >{{ this.getIcon(route.Status).icon }}</v-icon>
+          >{{ this.getIcon(route.Status).icon }}</v-icon
+        >
       </v-col>
     </v-row>
     <v-divider></v-divider>
     <!-- Links-->
     <v-row fluid no-gutters dense>
-      <v-btn class="reference" :to="routeLink">Configuration</v-btn>
-      <v-btn class="reference" :to="dashboadLink">Dashboard</v-btn>
+      <v-btn class="ref-left" :to="routeLink">Configuration</v-btn>
+      <v-btn class="ref-right" :to="dashboadLink">Dashboard</v-btn>
     </v-row>
   </div>
 </template>
@@ -42,7 +43,7 @@
 export default {
   name: "routeComponent",
   props: {
-    route: Object
+    route: Object,
   },
   computed: {
     routeLink: function() {
@@ -50,30 +51,23 @@ export default {
     },
     dashboadLink: function() {
       return "/dashboard/" + this.route.ID;
-    }
+    },
   },
   methods: {
     getIcon(status) {
       let icon = this.$store.getters.getIcon(status);
       return icon;
-    }
-  }
+    },
+  },
 };
 </script>
-
 
 <style scoped>
 .routeWrapper {
   min-width: 100%;
-  max-width: 100%;
   height: auto;
-  border: 2px;
-  border-color: rgba(139, 136, 136, 0.87);
-  border-style: solid;
-  margin-bottom: 5px;
-  margin-top: 5px;
-  margin-right: 5px;
-  margin-left: 5px;
+  border-radius: 5px;
+  margin: 5px;
 }
 
 .statusIcon {
@@ -93,8 +87,13 @@ h1 {
   font-size: 2vh;
 }
 
-.reference {
+.ref-right {
   width: 50%;
+  border-radius: 0 0 5px 0;
+}
+.ref-left {
+  width: 50%;
+  border-radius: 0 0 0 5px;
 }
 
 .routeButton {

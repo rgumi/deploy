@@ -2,7 +2,7 @@
   <v-container fluid>
     <v-col>
       <v-row style="margin-bottom: 20px;">
-        <v-btn v-on:click="showRunning = !showRunning">
+        <v-btn @click="showRunning = !showRunning">
           <v-icon
             color="rgba(0, 0, 0, 1)"
             :size="25"
@@ -12,14 +12,16 @@
         </v-btn>
       </v-row>
 
-      <v-row v-for="item in runningRoutes" :key="item.name">
-        <RouteComponent :route="item"></RouteComponent>
-
-        <p v-if="runningRoutes.length < 1">No routes found.</p>
-      </v-row>
+      <p v-if="(runningRoutes.length==0)&&showRunning">No routes found.</p>
+      <div v-if="showRunning">
+        <v-row v-for="item in runningRoutes" :key="item.name">
+          <RouteComponent :route="item"></RouteComponent>
+        </v-row>
+      </div>
       <v-divider style="margin: 4vh"></v-divider>
+
       <v-row style="margin-bottom: 20px;">
-        <v-btn v-on:click="showIdle = !showIdle">
+        <v-btn @click="showIdle = !showIdle">
           <v-icon
             color="rgba(0, 0, 0, 1)"
             :size="25"
@@ -28,10 +30,13 @@
           >mdi-arrow-down-bold-circle-outline</v-icon>Idle Routes
         </v-btn>
       </v-row>
-      <v-row v-for="item in idleRoutes" :key="item.name">
-        <RouteComponent :route="item"></RouteComponent>
-        <p v-if="idleRoutes.length < 1">No routes found.</p>
-      </v-row>
+
+      <p v-if="(idleRoutes.length==0)&&showIdle">No routes found.</p>
+      <div v-if="showIdle">
+        <v-row v-for="item in idleRoutes" :key="item.name">
+          <RouteComponent :route="item"></RouteComponent>
+        </v-row>
+      </div>
     </v-col>
   </v-container>
 </template>
@@ -53,16 +58,10 @@ export default {
   },
   computed: {
     runningRoutes: function() {
-      if (this.showRunning) {
-        return this.data.filter(item => item.Status == "running");
-      }
-      return null;
+      return this.data.filter(item => item.Status == "running");
     },
     idleRoutes: function() {
-      if (this.showIdle) {
-        return this.data.filter(item => item.Status != "running");
-      }
-      return null;
+      return this.data.filter(item => item.Status != "running");
     }
   }
 };

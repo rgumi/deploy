@@ -2,19 +2,17 @@
   <v-app>
     <NavBar />
     <v-main>
-      <v-btn
-        @click="$router.go(-1)"
-        style="z-index: 10;"
-        absolute
-        depressed
-        :elevation="0"
-        link
-        outlined
-        tile
-      >
-        <v-icon color="rgba(0, 0, 0, 1)" :size="25">mdi-arrow-left-bold</v-icon>
-      </v-btn>
-      <router-view keep-alive style="width: 80%;"></router-view>
+      <ButtonText
+        onHoverText="Zurück"
+        btnIcon="mdi-arrow-left-bold"
+        btnEvent="backEvent"
+        @backEvent="$router.go(-1)"
+      ></ButtonText>
+      <transition>
+        <keep-alive :max="5">
+          <router-view keep-alive style="width: 80%;"></router-view>
+        </keep-alive>
+      </transition>
     </v-main>
 
     <EventBar></EventBar>
@@ -26,11 +24,13 @@
 import NavBar from "./components/NavBar";
 import EventBar from "./components/EventHandling/EventBar";
 import { eventBus } from "@/main";
+import ButtonText from "@/components/ButtonText";
 export default {
   name: "App",
   components: {
     NavBar,
-    EventBar
+    EventBar,
+    ButtonText
   },
   data: () => ({
     //
@@ -47,3 +47,13 @@ export default {
   }
 };
 </script>
+
+<style>
+.avoid-clicks {
+  -moz-user-select: none;
+  -khtml-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+</style>

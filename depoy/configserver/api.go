@@ -3,6 +3,7 @@ package configserver
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -20,10 +21,15 @@ type Dataset struct {
 
 var datasets []Dataset
 
-func init() {
+func GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	http.ServeFile(w, r, "public/favicon.ico")
+}
+
+func GetTestDataset(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	datasets = nil
 	for i := 0; i < 10; i++ {
 		ds := Dataset{
-			ID:     i,
+			ID:     rand.Intn(100),
 			Value:  "HelloWorldRouting",
 			From:   "/hello",
 			To:     "localhost:8080",
@@ -34,7 +40,7 @@ func init() {
 
 	for i := 10; i < 20; i++ {
 		ds := Dataset{
-			ID:     i,
+			ID:     rand.Intn(100),
 			Value:  "HelloWorldRouting",
 			From:   "/hello/world",
 			To:     "http://qde9dp.de.telekom.de:8080",
@@ -42,13 +48,6 @@ func init() {
 		}
 		datasets = append(datasets, ds)
 	}
-}
-
-func GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	http.ServeFile(w, r, "public/favicon.ico")
-}
-
-func GetTestDataset(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Println("Received TestDataset Request")
 	time.Sleep(5000 * time.Millisecond)
 	fmt.Println("Finished Sleeping")
@@ -96,6 +95,5 @@ func GetRoute(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Println(datasets[i])
 	json.NewEncoder(w).Encode(datasets[i])
 }

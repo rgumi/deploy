@@ -1,8 +1,12 @@
 <template>
-  <div class="right bar hidden-sm-and-down">
+  <div class="right bar   ">
     <v-list style="padding: 0;">
       <v-list-item v-for="(event, index) in events" :key="index">
-        <EventTile :input="event" :index="index" @removeEvent="removeMe(index)"></EventTile>
+        <EventTile
+          :input="event"
+          :index="index"
+          @removeEvent="removeMe(index)"
+        ></EventTile>
       </v-list-item>
     </v-list>
   </div>
@@ -15,13 +19,13 @@ import { eventBus } from "@/main";
 export default {
   name: "EventBar",
   components: {
-    EventTile
+    EventTile,
   },
   data: () => ({
-    events: []
+    events: [],
   }),
   created() {
-    eventBus.$on("showEvent", event => {
+    eventBus.$on("showEvent", (event) => {
       console.log(event);
       this.events.push(event);
     });
@@ -34,8 +38,8 @@ export default {
     },
     removeMe(index) {
       this.events.splice(index, 1);
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -51,7 +55,6 @@ export default {
 .bar {
   display: fixed;
   margin-top: 8vh;
-  min-width: 220px;
   height: 100%;
   opacity: 0.8;
   padding: 0;
