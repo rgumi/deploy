@@ -1,26 +1,17 @@
 package main
 
 import (
-	"depoy/configserver"
-	"depoy/middleware"
-
-	"log"
-	"net/http"
-
-	"github.com/julienschmidt/httprouter"
+	"depoy/gateway"
+	_ "depoy/gateway"
+	st "depoy/statemgt"
 )
 
 func main() {
-	router := httprouter.New()
+	// load config
 
-	router.Handle("GET", "/v1/info", configserver.SetupHeaders(configserver.GetTestDataset))
-	router.Handle("GET", "/", configserver.GetIndexPage)
-	router.Handle("GET", "/favicon.ico", configserver.GetFavicon)
-	router.ServeFiles("/static/*filepath", http.Dir("public/static"))
+	// init gateway
+	g := gateway.New(":8080")
 
-	router.Handle("GET", "/v1/routes/:id", configserver.SetupHeaders(configserver.GetRoute))
-	router.NotFound = http.HandlerFunc(configserver.NotFound)
-
-	router.HandleMethodNotAllowed = false
-	log.Fatal(http.ListenAndServe("0.0.0.0:9090", middleware.LogRequest(router)))
+	// start service
+	st.Start(":8081", "", g)
 }

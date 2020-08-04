@@ -1,4 +1,4 @@
-package configserver
+package statemgt
 
 import (
 	"encoding/json"
@@ -49,7 +49,8 @@ func GetTestDataset(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 		datasets = append(datasets, ds)
 	}
 	fmt.Println("Received TestDataset Request")
-	time.Sleep(5000 * time.Millisecond)
+
+	time.Sleep(20000 * time.Millisecond)
 	fmt.Println("Finished Sleeping")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -58,8 +59,8 @@ func GetTestDataset(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 
 func GetIndexPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Println("Serving index")
-	fmt.Print("path: " + r.URL.Path[:1])
-	http.ServeFile(w, r, "./public/"+r.URL.Path[1:])
+	fmt.Println(r.URL.Path)
+	http.ServeFile(w, r, "./public/")
 }
 
 func SetupHeaders(h httprouter.Handle) httprouter.Handle {
