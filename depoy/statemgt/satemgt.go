@@ -3,10 +3,10 @@ package statemgt
 import (
 	"depoy/gateway"
 	"depoy/middleware"
-	"log"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 )
 
 func Start(addr, prefix string, g *gateway.Gateway) {
@@ -26,6 +26,9 @@ func Start(addr, prefix string, g *gateway.Gateway) {
 		Addr:    addr,
 		Handler: middleware.LogRequest(router),
 	}
+	log.Debug("Starting gateway")
 	go g.Run()
+
+	log.Debug("Starting statemgt server")
 	log.Fatal(server.ListenAndServe())
 }

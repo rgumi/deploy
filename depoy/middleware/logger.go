@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func LogRequest(handler http.Handler) http.Handler {
@@ -12,7 +13,7 @@ func LogRequest(handler http.Handler) http.Handler {
 
 		defer func() {
 			delta := time.Now().Sub(before)
-			log.Printf("%s %s %s %v\n", r.RemoteAddr, r.Method, r.URL, delta)
+			log.Infof("%s %s %s %v", r.RemoteAddr, r.Method, r.URL, delta)
 		}()
 		handler.ServeHTTP(w, r)
 	})

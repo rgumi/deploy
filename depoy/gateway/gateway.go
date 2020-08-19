@@ -2,13 +2,15 @@ package gateway
 
 import (
 	"depoy/middleware"
+	"depoy/route"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -22,7 +24,7 @@ type Gateway struct {
 	ReadTimeout  int
 	WriteTimeout int
 	Router       *httprouter.Router
-	Routes       map[string]Route
+	Routes       map[string]*route.Route
 }
 
 //New returns a new instance of Gateway
@@ -30,10 +32,11 @@ func New(addr string) *Gateway {
 	g := new(Gateway)
 	g.Addr = addr
 	g.Router = httprouter.New()
+	g.Routes = make(map[string]*route.Route)
 
 	// set defaults
-	g.ReadTimeout = 10000
-	g.WriteTimeout = 10000
+	g.ReadTimeout = 1000
+	g.WriteTimeout = 1000
 
 	return g
 }
@@ -94,7 +97,9 @@ func (g *Gateway) remove(id string) error {
 // registers handles in the router
 // requests will be forwarded to another service, the method does not change the handle
 // therefore the same handle can be used with multiple methods
-func register(router *httprouter.Router, methods []string, path string, handle httprouter.Handle) {
+func register(
+	router *httprouter.Router, methods []string, path string, handle httprouter.Handle) {
+
 	for _, method := range methods {
 		router.Handle(method, path, handle)
 	}
@@ -105,8 +110,10 @@ func register(router *httprouter.Router, methods []string, path string, handle h
 // and replace it with the router of the Gateway
 func (g *Gateway) reload() {
 	newRouter := httprouter.New()
+	log.Debug("Created new router")
 	for _, item := range g.Routes {
-		register(newRouter, item.Methods, item.Src, item.Chain)
+		log.Debug("Registering route on new router")
+		register(newRouter, item.Methods, item.Prefix, item.Handler)
 	}
 	g.Router = newRouter
 }
@@ -114,15 +121,24 @@ func (g *Gateway) reload() {
 // Run starts the HTTP-Server of the Gateway
 func (g *Gateway) Run() {
 	server := http.Server{
-		Addr:    g.Addr,
-		Handler: middleware.LogRequest(g.Router),
+		Addr:              g.Addr,
+		Handler:           http.TimeoutHandler(middleware.LogRequest(g.Router), 2*time.Second, "HTTP Handling Timeout"),
+		WriteTimeout:      time.Duration(g.WriteTimeout) * time.Millisecond,
+		ReadTimeout:       time.Duration(g.ReadTimeout) * time.Millisecond,
+		ReadHeaderTimeout: 2 * time.Second,
+		IdleTimeout:       30 * time.Second,
 	}
+
 	log.Fatal(server.ListenAndServe())
 }
 
 // Register a new route to the gateway
 // A route defines the mapping of an downstream URI to the
 // upstream service
-func (g *Gateway) Register(route *Route) error {
+func (g *Gateway) Register(route *route.Route) error {
+	g.Routes["test"] = route
+
+	register(g.Router, route.Methods, route.Prefix, route.Handler)
+	g.reload()
 	return nil
 }
