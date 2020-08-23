@@ -24,6 +24,14 @@ type UpstreamClient interface {
 	GetClient() *http.Client
 }
 
+func NewClient() UpstreamClient {
+
+	client := new(upstreamClient)
+	client.UseProxy = false
+	client.configClient(100, 10000, 30000, 10000, 10000, true)
+	return client
+}
+
 func (u *upstreamClient) GetClient() *http.Client {
 	return u.Client
 }
@@ -44,6 +52,7 @@ func (uc *upstreamClient) getProxy(_ *http.Request) (*url.URL, error) {
 
 func (uc *upstreamClient) configClient(
 	maxIdleConns,
+	timeoutMs,
 	idleConnTimeoutMs,
 	responseHeaderTimeoutMs,
 	tlsHandshakeTimeoutMs int,
@@ -73,53 +82,48 @@ func (uc *upstreamClient) configClient(
 			IdleConnTimeout:       time.Duration(idleConnTimeoutMs) * time.Millisecond,
 			ResponseHeaderTimeout: time.Duration(responseHeaderTimeoutMs) * time.Millisecond,
 			TLSHandshakeTimeout:   time.Duration(tlsHandshakeTimeoutMs) * time.Millisecond,
-			DisableCompression:    true,
+
+			DisableCompression: true,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: tlsVerify,
 			},
 		},
+		Timeout: time.Duration(timeoutMs) * time.Millisecond,
 	}
-}
-
-func New() UpstreamClient {
-
-	client := new(upstreamClient)
-	client.UseProxy = false
-	client.configClient(100, 30000, 1000, 1000, true)
-	return client
 }
 
 // Send a HTTP message to the upstream client and collect metrics
 func (u *upstreamClient) Send(req *http.Request) (*http.Response, Metric, error) {
 	var m Metric
+	startOfRequest := time.Now()
 
 	trace := &httptrace.ClientTrace{
-		DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
-			m.UpstreamIP = dnsInfo.Addrs
-			log.Debugf("DNS Info: %+v", dnsInfo)
-		},
 		GotConn: func(connInfo httptrace.GotConnInfo) {
-			log.Debugf("Got Conn: %+v", connInfo)
+			m.UpstreamAddr = connInfo.Conn.RemoteAddr().String()
+		},
+		/*
+			DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
+				m.DNSDoneTime = time.Since(startOfRequest).Milliseconds()
+			},
+			ConnectDone: func(network, addr string, err error) {
+				if err == nil {
+					m.ConnDoneTime = time.Since(startOfRequest).Microseconds()
+				}
+			},
+		*/
+		GotFirstResponseByte: func() {
+			m.GotFirstResponseByteTime = time.Since(startOfRequest).Milliseconds()
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
 	// Start Sending
 	log.Debug("Sending request to upstream host")
-	start := time.Now()
 	resp, err := u.Client.Do(req)
 	if err != nil {
-		log.Errorf("Upstream request connection failure")
-		return nil, Metric{}, err
+		return nil, m, err
 	}
 
-	connTime := time.Now().Sub(start)
-
-	log.Debugf("%s %s%s %s %s %d %d %v", req.Proto, req.Method, req.RemoteAddr, req.URL,
-		req.Header.Get("X-Forwarded-For"), resp.StatusCode, resp.ContentLength,
-		connTime)
-
-	m.UpstreamTime = connTime
 	m.UpstreamStatus = resp.StatusCode
 	return resp, m, nil
 }

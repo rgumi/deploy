@@ -1,15 +1,13 @@
 package gateway
 
 import (
-	"depoy/middleware"
 	"depoy/route"
+	"depoy/router"
 	"fmt"
+	"hash/fnv"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -23,98 +21,50 @@ type Gateway struct {
 	Addr         string
 	ReadTimeout  int
 	WriteTimeout int
-	Router       *httprouter.Router
-	Routes       map[string]*route.Route
+	Routes       map[uint32]*route.Route
+	Router       map[string]*router.Router
 }
 
-//New returns a new instance of Gateway
-func New(addr string) *Gateway {
+//NewGateway returns a new instance of Gateway
+func NewGateway(addr string) *Gateway {
 	g := new(Gateway)
 	g.Addr = addr
-	g.Router = httprouter.New()
-	g.Routes = make(map[string]*route.Route)
+	g.Routes = make(map[uint32]*route.Route)
+
+	// map for each HOST
+	g.Router = make(map[string]*router.Router)
+
+	// any HOST router
+	g.Router["*"] = router.NewRouter()
 
 	// set defaults
-	g.ReadTimeout = 1000
-	g.WriteTimeout = 1000
+	g.ReadTimeout = 10000
+	g.WriteTimeout = 10000
 
 	return g
 }
 
-func contains(array []string, sub string) bool {
-	for _, item := range array {
-		if item == sub {
-			return true
+func (g *Gateway) Reload() {
+
+	log.Debug("Creating new Router")
+
+	newRouter := make(map[string]*router.Router)
+	newRouter["*"] = router.NewRouter()
+
+	for _, routeItem := range g.Routes {
+
+		if _, found := newRouter[routeItem.Host]; !found {
+			// host does not exist
+			newRouter[routeItem.Host] = router.NewRouter()
+		}
+
+		// add all routes
+		for _, method := range routeItem.Methods {
+			newRouter[routeItem.Host].AddHandler(method, routeItem.Prefix, routeItem.Handler)
 		}
 	}
-	return false
-}
 
-func formateID(method, path string) string {
-	// remove unwanted "/" to allow for comparison
-	cleanPath := strings.Trim(path, "/")
-	if !contains(AllowedMethods, method) {
-		return ""
-	}
-	return method + cleanPath
-}
-
-func (g *Gateway) routeExists(id string) (bool, error) {
-	for key := range g.Routes {
-		if key == id {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// RouteExists checks if a Route matching the matching and path of
-// the parameters is already configured in the Gateway
-// This is done by checking the Key (method+path) in the Gateway.Routes property
-func (g *Gateway) RouteExists(method, path string) (bool, error) {
-	// get id
-	var id string
-	if id := formateID(method, path); id == "" {
-		return false, fmt.Errorf("Unable to formate ID")
-	}
-	return g.routeExists(id)
-}
-
-// Removes the route from the Gateway.Routes and reloads the HTTP-Server
-func (g *Gateway) remove(id string) error {
-	exists, err := g.routeExists(id)
-	if err != nil {
-		return errors.Wrap(err, "Unable to find route")
-	}
-	if !exists {
-		return fmt.Errorf("Unable to find route")
-	}
-	delete(g.Routes, id)
-	g.reload()
-	return nil
-}
-
-// registers handles in the router
-// requests will be forwarded to another service, the method does not change the handle
-// therefore the same handle can be used with multiple methods
-func register(
-	router *httprouter.Router, methods []string, path string, handle httprouter.Handle) {
-
-	for _, method := range methods {
-		router.Handle(method, path, handle)
-	}
-}
-
-// hot reload the Gateway's HTTP Server
-// initialize a new httprouter with the routes of the Gateway
-// and replace it with the router of the Gateway
-func (g *Gateway) reload() {
-	newRouter := httprouter.New()
-	log.Debug("Created new router")
-	for _, item := range g.Routes {
-		log.Debug("Registering route on new router")
-		register(newRouter, item.Methods, item.Prefix, item.Handler)
-	}
+	// overwrite existing tree with new
 	g.Router = newRouter
 }
 
@@ -122,7 +72,7 @@ func (g *Gateway) reload() {
 func (g *Gateway) Run() {
 	server := http.Server{
 		Addr:              g.Addr,
-		Handler:           http.TimeoutHandler(middleware.LogRequest(g.Router), 2*time.Second, "HTTP Handling Timeout"),
+		Handler:           http.TimeoutHandler(g, 10*time.Second, "HTTP Handling Timeout"),
 		WriteTimeout:      time.Duration(g.WriteTimeout) * time.Millisecond,
 		ReadTimeout:       time.Duration(g.ReadTimeout) * time.Millisecond,
 		ReadHeaderTimeout: 2 * time.Second,
@@ -132,13 +82,57 @@ func (g *Gateway) Run() {
 	log.Fatal(server.ListenAndServe())
 }
 
-// Register a new route to the gateway
-// A route defines the mapping of an downstream URI to the
-// upstream service
-func (g *Gateway) Register(route *route.Route) error {
-	g.Routes["test"] = route
+func getID(route *route.Route) uint32 {
+	rawID := fmt.Sprintf("%s%s", route.Host, route.Prefix)
+	log.Debugf("Created new ID for %v: %s", route, rawID)
 
-	register(g.Router, route.Methods, route.Prefix, route.Handler)
-	g.reload()
+	hash := fnv.New32a()
+	hash.Write([]byte(rawID))
+	log.Debugf("Created new hash for %v: %d", route, hash.Sum32())
+	return hash.Sum32()
+}
+
+func (g *Gateway) checkIfExists(route *route.Route) bool {
+	routeID := getID(route)
+
+	if _, exists := g.Routes[routeID]; exists {
+		return true
+	}
+	return false
+}
+
+func (g *Gateway) RegisterRoute(route *route.Route) error {
+
+	// create id of route
+	if g.checkIfExists(route) {
+		return fmt.Errorf("Route with given host and prefix already exists")
+	}
+
+	// check if route exists
+	g.Routes[getID(route)] = route
+	g.Reload()
+
 	return nil
+}
+
+func (g *Gateway) RemoveRoute(id uint32) {
+	if _, exists := g.Routes[id]; exists {
+		log.Debugf("Removing %d from Gateway.Routes", id)
+
+		delete(g.Routes, id)
+
+		g.Reload()
+	}
+}
+
+func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+
+	if router, found := g.Router[req.Host]; found {
+		log.Debugf("Found explicit match for %s", req.Host)
+		router.ServeHTTP(w, req)
+
+	} else {
+		log.Debugf("Did not find explicit match for %s. Using any Host", req.Host)
+		g.Router["*"].ServeHTTP(w, req)
+	}
 }

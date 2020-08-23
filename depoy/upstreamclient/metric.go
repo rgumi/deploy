@@ -1,24 +1,12 @@
 package upstreamclient
 
-import (
-	"net"
-	"time"
-)
-
 type Metric struct {
-	UpstreamStatus int
-	UpstreamIP     []net.IPAddr
-	UpstreamTime   time.Duration
-}
-
-func (m Metric) GetStatus() int {
-	return m.UpstreamStatus
-}
-
-func (m Metric) GetUpstreamIP() []net.IPAddr {
-	return m.UpstreamIP
-}
-
-func (m Metric) GetUpstreamTime() time.Duration {
-	return m.UpstreamTime
+	Method           string // HTTP-Method
+	UpstreamStatus   int    // Status of the Response of the Upstream-Host
+	DownstreamAddr   string // RemoteAddr of the downstream client
+	UpstreamAddr     string // RemoteAddr of the upstream host
+	ResponseSendTime int64  // Time ellapsed between receiving a response
+	//	from upstream host and sending it to the downstream client
+	GotFirstResponseByteTime int64 // Time ellapsed between sending the request
+	// to upstream client and receiving a response
 }

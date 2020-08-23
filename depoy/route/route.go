@@ -3,13 +3,12 @@ package route
 import (
 	"bytes"
 	"depoy/upstreamclient"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,103 +24,36 @@ type UpstreamClient interface {
 }
 
 type Route struct {
-	Prefix         string
-	Methods        []string
-	Rewrite        string
-	Client         UpstreamClient
-	Targets        []Target
-	ConnectionPool uint
-	ShutdownChan   chan int
-	ConnectionChan chan Connection
-	MetricChan     chan upstreamclient.Metric
-	Strategy       Strategy
-	Handler        httprouter.Handle
+	Prefix     string
+	Methods    []string
+	Host       string
+	Rewrite    string
+	Client     UpstreamClient
+	Targets    []*Target
+	MetricChan chan upstreamclient.Metric
+	Strategy   Strategy
+	Handler    http.HandlerFunc
 }
 
 func (r *Route) SetMetricChannel(ch chan upstreamclient.Metric) {
 	r.MetricChan = ch
 }
 
-func New(prefix, rewrite string, methods []string, connPool uint, strategy Strategy) (*Route, error) {
+func New(prefix, rewrite, host string, methods []string, strategy Strategy) (*Route, error) {
 
 	route := new(Route)
-	client := upstreamclient.New()
+	client := upstreamclient.NewClient()
 	route.Client = client
 	route.Prefix = prefix
 	route.Rewrite = rewrite
 	route.Methods = methods
+	route.Host = host
 	route.Strategy = strategy
 	route.Handler = route.GetExternalHandle()
 
-	route.ConnectionChan = make(chan Connection, 5)
 	route.MetricChan = make(chan upstreamclient.Metric, 5)
-	route.ShutdownChan = make(chan int)
 
-	if connPool <= 0 {
-		return nil, fmt.Errorf("ConnectionPool needs to be atleast 1")
-	}
-	route.ConnectionPool = connPool
 	return route, nil
-}
-
-// Init activates the route by starting the goroutines
-func (r *Route) Init() {
-	// Start connection pool
-	var i uint
-	for i = 0; i < r.ConnectionPool; i++ {
-		go r.upstreamClient()
-	}
-
-	//
-}
-
-func (r *Route) upstreamClient() {
-	for {
-		select {
-		case conn := <-r.ConnectionChan:
-			log.Debugf("%+v", conn.Request)
-
-			// steuere die Verteilung falls zwei Versionen hinter der Route sind!
-			currentTarget := r.Targets[r.Strategy.GetTargetIndex()]
-			log.Debug("Creating new request for upstream client")
-
-			newReq, err := FormateRequest(conn.Request, currentTarget.Addr)
-			if err != nil {
-				log.Error("Failed to formate request")
-				log.Error(err)
-				conn.Response.WriteHeader(503)
-
-			} else {
-				// why is the response written here????
-
-				resp, metrics, err := r.Client.Send(newReq)
-
-				if err != nil {
-					log.Error("Failed to send request to upstream host")
-					log.Error(err)
-					conn.Response.WriteHeader(503)
-
-				} else {
-					log.Debug("Sending response to downstream client")
-					SendResponse(resp, conn.Response)
-					r.MetricChan <- metrics
-				}
-			}
-
-		case _ = <-r.ShutdownChan:
-			log.Debug("[UpstreamClient] Received shutdown signal")
-			return
-		}
-	}
-}
-
-// Shutdown the Route and all its goroutines
-func (r *Route) Shutdown() {
-	log.Debug("Shutting down go routes of Route")
-	var i uint
-	for i = 0; i < r.ConnectionPool; i++ {
-		r.ShutdownChan <- 1
-	}
 }
 
 func SendResponse(resp *http.Response, w http.ResponseWriter) {
@@ -168,39 +100,47 @@ func FormateRequest(old *http.Request, addr string) (*http.Request, error) {
 	return new, nil
 }
 
-func (r *Route) GetHandle() func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Request) {
 
-	return func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-		uuid := uuid.New()
-		log.Debugf("[%s] Received request on route", uuid.String())
+	return func(w http.ResponseWriter, req *http.Request) {
+		log.Debugf("Handler received downstream request")
 
-		r.ConnectionChan <- Connection{
-			Request:  req,
-			Response: w,
-			ID:       uuid,
-		}
-		log.Debugf("[%s] Forwarded request to route", uuid.String())
-		return
-	}
-}
-
-func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-
-	return func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+		// Get the next target depending on the strategy selected
+		// TODO: Change this somehow???!!
 		currentTarget := r.Targets[r.Strategy.GetTargetIndex()]
+
+		// Copies the downstream request into the upstream request
+		// and formats it accordingly
 		newReq, err := FormateRequest(req, currentTarget.Addr)
 		if err != nil {
 			http.Error(w, "Unable to formate new request", 500)
 			return
 		}
+
+		// Send Request to the upstream host
+		// reuses TCP-Connection
 		resp, m, err := r.Client.Send(newReq)
 		if err != nil {
+			log.Errorf(err.Error())
 			http.Error(w, "Unable so send request to upstream client", 503)
 			return
 		}
-		SendResponse(resp, w)
-		r.MetricChan <- m
 
+		// Send the Response to the downstream client
+		sendStart := time.Now()
+		SendResponse(resp, w)
+
+		// Collect important metrics
+		m.ResponseSendTime = time.Since(sendStart).Milliseconds()
+		m.Method = req.Method
+		m.DownstreamAddr = req.RemoteAddr
+
+		// consume metrics
+		currentTarget.MetricChan <- m
 		return
 	}
+}
+
+func (r *Route) AddTarget(target *Target) {
+	r.Targets = append(r.Targets, target)
 }

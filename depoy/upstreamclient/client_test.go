@@ -5,13 +5,11 @@ import (
 	"time"
 )
 
-func Test_UpstreamClient(t *testing.T) {
-
-	// get new instance of client
-
-	uc := New()
-	for i := 0; i < 5; i++ {
-		go uc.Send(nil, nil, "get", "http://localhost:9090")
+func Test_NewClient(t *testing.T) {
+	uc := NewClient()
+	client := uc.GetClient()
+	expectedTimeout := time.Duration(500) * time.Millisecond
+	if client.Timeout != expectedTimeout {
+		t.Errorf("Client is not configured correctly. Got: %v. Expected: %v", client.Timeout, expectedTimeout)
 	}
-	time.Sleep(5 * time.Second)
 }
