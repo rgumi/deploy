@@ -28,7 +28,7 @@ func NewClient() UpstreamClient {
 
 	client := new(upstreamClient)
 	client.UseProxy = false
-	client.configClient(100, 10000, 30000, 10000, 10000, true)
+	client.configClient(100, 2000, 30000, 2000, 2000, true)
 	return client
 }
 

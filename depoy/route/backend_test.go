@@ -50,13 +50,13 @@ func init() {
 
 }
 
-func Test_NewTarget(t *testing.T) {
+func Test_NewBackend(t *testing.T) {
 
-	target := NewTarget("test", testURL)
-	target.SetupScrape(testURL, 5*time.Second)
+	backend := NewBackend("test", testURL)
+	backend.SetupScrape(testURL, 5*time.Second)
 
-	target.AddScrapeMetric("rpc_duration_seconds_count", 3000)
-	target.AddScrapeMetric("rpc_duration_seconds_sum", 2)
+	backend.AddScrapeMetric("rpc_duration_seconds_count", 3000)
+	backend.AddScrapeMetric("rpc_duration_seconds_sum", 2)
 
 	// give it some time to run once
 	time.Sleep(6 * time.Second)
@@ -90,14 +90,18 @@ func Test_getRowFromBodyFloat(t *testing.T) {
 }
 
 func Test_doScrape(t *testing.T) {
-	target := NewTarget("test", testURL)
+	backend := NewBackend("test", testURL)
 
-	target.SetupScrape(testURL, 5*time.Second, scrapeMetrics)
-	target.DoScrape()
+	backend.SetupScrape(testURL, 5*time.Second)
+	backend.AddScrapeMetric("rpc_duration_seconds_count", 3000)
+	backend.AddScrapeMetric("rpc_duration_seconds_sum", 2)
+	backend.DoScrape()
+	backend.DoScrape()
 
-	// this must be 3... 2 Scrapes from first test and 1 from this one
-	exptected := 3
-	if target.ScrapeMetrics[0].ScrapeCounter != exptected {
-		t.Errorf("ScrapeCounter shoul be %d and not %d", exptected, target.ScrapeMetrics[0].ScrapeCounter)
+	time.Sleep(6 * time.Second)
+	// this must be 4 ... 2 from scrapeJob, 2 from DoScrape
+	exptected := 4
+	if backend.ScrapeMetrics[0].ScrapeCounter != exptected {
+		t.Errorf("ScrapeCounter should be %d and not %d", exptected, backend.ScrapeMetrics[0].ScrapeCounter)
 	}
 }

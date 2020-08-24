@@ -26,10 +26,10 @@ func main() {
 		route.NewRoundRobin(2),
 	)
 
-	r1 := route.NewTarget("Test1", "http://localhost:7070")
-	r2 := route.NewTarget("Test2", "http://localhost:9090")
-	r.AddTarget(r1)
-	r.AddTarget(r2)
+	r1 := route.NewBackend("Test1", "http://localhost:7070")
+	r2 := route.NewBackend("Test2", "http://localhost:9090")
+	r.AddBackend(r1)
+	r.AddBackend(r2)
 
 	if err := g.RegisterRoute(r); err != nil {
 		panic(err)

@@ -162,8 +162,8 @@ func (s *StateMgt) UpdateRouteByID(w http.ResponseWriter, req *http.Request, ps 
 		return
 	}
 
-	newRoute.AddTarget(route.NewTarget("Test1", "http://localhost:7070"))
-	newRoute.AddTarget(route.NewTarget("Test2", "http://localhost:9090"))
+	newRoute.AddBackend(route.NewBackend("Test1", "http://localhost:7070"))
+	newRoute.AddBackend(route.NewBackend("Test2", "http://localhost:9090"))
 	if r := s.Gateway.RemoveRoute(uint32(id)); r == nil {
 		w.WriteHeader(200)
 		return

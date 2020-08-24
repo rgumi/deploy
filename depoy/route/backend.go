@@ -29,7 +29,7 @@ type ScrapeMetric struct {
 	ScrapeSum     float64
 }
 
-type Target struct {
+type Backend struct {
 	ID                uuid.UUID                  `json:"id"`
 	Name              string                     `json:"name"`
 	Addr              string                     `json:"addr"`
@@ -46,7 +46,7 @@ type Target struct {
 
 // NewTarget returns a new base Target
 // it has the minimum required configs and misses configs for Scraping
-func NewTarget(name, addr string) *Target {
+func NewBackend(name, addr string) *Backend {
 
 	if name == "" {
 		panic("name cannot be null")
@@ -57,7 +57,7 @@ func NewTarget(name, addr string) *Target {
 		panic(err)
 	}
 
-	target := &Target{
+	backend := &Backend{
 		ID:         uuid.New(),
 		Name:       name,
 		Addr:       url.String(),
@@ -67,13 +67,13 @@ func NewTarget(name, addr string) *Target {
 		Scrape:     false,
 	}
 
-	go target.MetricListener()
-	return target
+	go backend.MetricListener()
+	return backend
 }
 
 // AddScrapeMetric adds a new scrape metric to the target which will be scraped
 // by the scrapejob
-func (t *Target) AddScrapeMetric(name string, threshhold float64) error {
+func (t *Backend) AddScrapeMetric(name string, threshhold float64) error {
 	if name == "" {
 		return fmt.Errorf("Name cannot null")
 	}
@@ -89,7 +89,7 @@ func (t *Target) AddScrapeMetric(name string, threshhold float64) error {
 }
 
 // MetricListener changes the state of target depending on its application state
-func (t *Target) MetricListener() {
+func (t *Backend) MetricListener() {
 
 	for {
 		select {
@@ -106,7 +106,7 @@ func (t *Target) MetricListener() {
 // SetupScrape is used to add all missing configs to the Taget object
 // this is required if Prometheus endpoints want to be scraped
 // ScrapeMetrics need to be added before using AddScrapeMetric
-func (t *Target) SetupScrape(
+func (t *Backend) SetupScrape(
 	addr string,
 	interval time.Duration) error {
 
@@ -122,12 +122,12 @@ func (t *Target) SetupScrape(
 	return nil
 }
 
-func (t *Target) handleError(err error) {
+func (t *Backend) handleError(err error) {
 	// do something with error
 	panic(err)
 }
 
-func (t *Target) scrapeJob() {
+func (t *Backend) scrapeJob() {
 	for {
 		select {
 		case _ = <-t.KillChan:
@@ -144,7 +144,7 @@ func (t *Target) scrapeJob() {
 
 // DoScrape executes a scrape on the target and writes the collectes
 // metrics to the ScrapeMetric object
-func (t *Target) DoScrape() {
+func (t *Backend) DoScrape() {
 
 	client := http.DefaultClient
 

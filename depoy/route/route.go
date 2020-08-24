@@ -30,9 +30,9 @@ type Route struct {
 	Host     string         `json:"host"`
 	Rewrite  string         `json:"rewrite"`
 	Client   UpstreamClient `json:"-"`
-	Targets  []*Target      `json:"targets"`
+	Backends []*Backend     `json:"backends"`
 	Strategy Strategy       `json:"-"`
-	handler  http.HandlerFunc
+	Handler  http.HandlerFunc
 }
 
 func New(prefix, rewrite, host string, methods []string, strategy Strategy) (*Route, error) {
@@ -51,13 +51,13 @@ func New(prefix, rewrite, host string, methods []string, strategy Strategy) (*Ro
 	route.Methods = methods
 	route.Host = host
 	route.Strategy = strategy
-	route.handler = route.GetExternalHandle()
+	route.Handler = route.GetExternalHandle()
 
 	return route, nil
 }
 
 func (r *Route) GetHandler() http.HandlerFunc {
-	return r.handler
+	return r.Handler
 }
 
 func sendResponse(resp *http.Response, w http.ResponseWriter) {
@@ -111,7 +111,7 @@ func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Reques
 
 		// Get the next target depending on the strategy selected
 		// TODO: Change this somehow???!!
-		currentTarget := r.Targets[r.Strategy.GetTargetIndex()]
+		currentTarget := r.Backends[r.Strategy.GetTargetIndex()]
 
 		// rewrite the url
 		// rewrite == "" => no rewrite
@@ -156,6 +156,6 @@ func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Reques
 	}
 }
 
-func (r *Route) AddTarget(target *Target) {
-	r.Targets = append(r.Targets, target)
+func (r *Route) AddBackend(backend *Backend) {
+	r.Backends = append(r.Backends, backend)
 }
