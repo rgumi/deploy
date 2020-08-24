@@ -46,7 +46,7 @@ func NewGateway(addr string) *Gateway {
 
 func (g *Gateway) Reload() {
 
-	log.Debug("Creating new Router")
+	log.Info("Reloading backend")
 
 	newRouter := make(map[string]*router.Router)
 	newRouter["*"] = router.NewRouter()
@@ -60,7 +60,7 @@ func (g *Gateway) Reload() {
 
 		// add all routes
 		for _, method := range routeItem.Methods {
-			newRouter[routeItem.Host].AddHandler(method, routeItem.Prefix, routeItem.Handler)
+			newRouter[routeItem.Host].AddHandler(method, routeItem.Prefix, routeItem.GetHandler())
 		}
 	}
 
@@ -84,11 +84,9 @@ func (g *Gateway) Run() {
 
 func getID(route *route.Route) uint32 {
 	rawID := fmt.Sprintf("%s%s", route.Host, route.Prefix)
-	log.Debugf("Created new ID for %v: %s", route, rawID)
-
 	hash := fnv.New32a()
 	hash.Write([]byte(rawID))
-	log.Debugf("Created new hash for %v: %d", route, hash.Sum32())
+	log.Debugf("Created new hash for %v. Hash: %d", route, hash.Sum32())
 	return hash.Sum32()
 }
 
@@ -115,14 +113,16 @@ func (g *Gateway) RegisterRoute(route *route.Route) error {
 	return nil
 }
 
-func (g *Gateway) RemoveRoute(id uint32) {
-	if _, exists := g.Routes[id]; exists {
+func (g *Gateway) RemoveRoute(id uint32) *route.Route {
+	if route, exists := g.Routes[id]; exists {
 		log.Debugf("Removing %d from Gateway.Routes", id)
 
 		delete(g.Routes, id)
 
 		g.Reload()
+		return route
 	}
+	return nil
 }
 
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -135,4 +135,12 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		log.Debugf("Did not find explicit match for %s. Using any Host", req.Host)
 		g.Router["*"].ServeHTTP(w, req)
 	}
+}
+
+func (g *Gateway) GetRouteByID(id uint32) *route.Route {
+	return g.Routes[id]
+}
+
+func (g *Gateway) GetRoutes() map[uint32]*route.Route {
+	return g.Routes
 }

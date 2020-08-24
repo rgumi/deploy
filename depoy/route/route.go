@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,19 +25,14 @@ type UpstreamClient interface {
 }
 
 type Route struct {
-	Prefix     string
-	Methods    []string
-	Host       string
-	Rewrite    string
-	Client     UpstreamClient
-	Targets    []*Target
-	MetricChan chan upstreamclient.Metric
-	Strategy   Strategy
-	Handler    http.HandlerFunc
-}
-
-func (r *Route) SetMetricChannel(ch chan upstreamclient.Metric) {
-	r.MetricChan = ch
+	Prefix   string         `json:"prefix"`
+	Methods  []string       `json:"methods"`
+	Host     string         `json:"host"`
+	Rewrite  string         `json:"rewrite"`
+	Client   UpstreamClient `json:"-"`
+	Targets  []*Target      `json:"targets"`
+	Strategy Strategy       `json:"-"`
+	handler  http.HandlerFunc
 }
 
 func New(prefix, rewrite, host string, methods []string, strategy Strategy) (*Route, error) {
@@ -44,19 +40,27 @@ func New(prefix, rewrite, host string, methods []string, strategy Strategy) (*Ro
 	route := new(Route)
 	client := upstreamclient.NewClient()
 	route.Client = client
+
+	// fix prefix if prefix does not end with /
+	if prefix[len(prefix)-1] != '/' {
+		prefix += "/"
+	}
+
 	route.Prefix = prefix
 	route.Rewrite = rewrite
 	route.Methods = methods
 	route.Host = host
 	route.Strategy = strategy
-	route.Handler = route.GetExternalHandle()
-
-	route.MetricChan = make(chan upstreamclient.Metric, 5)
+	route.handler = route.GetExternalHandle()
 
 	return route, nil
 }
 
-func SendResponse(resp *http.Response, w http.ResponseWriter) {
+func (r *Route) GetHandler() http.HandlerFunc {
+	return r.handler
+}
+
+func sendResponse(resp *http.Response, w http.ResponseWriter) {
 	b, err := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()
 
@@ -71,7 +75,7 @@ func SendResponse(resp *http.Response, w http.ResponseWriter) {
 	w.Write(b)
 }
 
-func FormateRequest(old *http.Request, addr string) (*http.Request, error) {
+func formateRequest(old *http.Request, addr string) (*http.Request, error) {
 	b, err := ioutil.ReadAll(old.Body)
 
 	if err != nil {
@@ -109,9 +113,20 @@ func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Reques
 		// TODO: Change this somehow???!!
 		currentTarget := r.Targets[r.Strategy.GetTargetIndex()]
 
+		// rewrite the url
+		// rewrite == "" => no rewrite
+		// rewrite == "/" => replace prefix with /
+		url := req.URL.String()
+
+		if r.Rewrite != "" {
+			url = strings.Replace(url, r.Prefix, r.Rewrite, -1)
+			log.Debugf("Rewriting upstream URL from %s to %s", req.URL.String(), url)
+		}
+		url = currentTarget.Addr + url
+
 		// Copies the downstream request into the upstream request
 		// and formats it accordingly
-		newReq, err := FormateRequest(req, currentTarget.Addr)
+		newReq, err := formateRequest(req, url)
 		if err != nil {
 			http.Error(w, "Unable to formate new request", 500)
 			return
@@ -128,7 +143,7 @@ func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Reques
 
 		// Send the Response to the downstream client
 		sendStart := time.Now()
-		SendResponse(resp, w)
+		sendResponse(resp, w)
 
 		// Collect important metrics
 		m.ResponseSendTime = time.Since(sendStart).Milliseconds()

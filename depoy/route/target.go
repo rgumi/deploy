@@ -30,27 +30,31 @@ type ScrapeMetric struct {
 }
 
 type Target struct {
-	ID                uuid.UUID
-	Name              string
-	Addr              string
-	MetricChan        chan upstreamclient.Metric
-	KillChan          chan int
-	Active            bool
-	Scrape            bool
-	ScrapeFailCounter int
-	ScrapeAddr        string
-	ScrapeMetrics     []*ScrapeMetric
-	ScrapeInterval    time.Duration
+	ID                uuid.UUID                  `json:"id"`
+	Name              string                     `json:"name"`
+	Addr              string                     `json:"addr"`
+	MetricChan        chan upstreamclient.Metric `json:"-"`
+	KillChan          chan int                   `json:"-"`
+	State             string                     // {Good, Medium, Bad} depending on the current state of metrics
+	Active            bool                       `json:"active"`
+	Scrape            bool                       `json:"scrape"`
+	ScrapeFailCounter int                        `json:"scrape_fail_counter"`
+	ScrapeAddr        string                     `json:"scrape_addr"`
+	ScrapeMetrics     []*ScrapeMetric            `json:"scrape_metrics"`
+	ScrapeInterval    time.Duration              `json:"scrape_interval"`
 }
 
-func NewTarget(name, addr string) (*Target, error) {
+// NewTarget returns a new base Target
+// it has the minimum required configs and misses configs for Scraping
+func NewTarget(name, addr string) *Target {
 
 	if name == "" {
-		return nil, fmt.Errorf("Name cannot be null")
+		panic("name cannot be null")
 	}
+
 	url, err := url.Parse(addr)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	target := &Target{
@@ -60,10 +64,11 @@ func NewTarget(name, addr string) (*Target, error) {
 		MetricChan: make(chan upstreamclient.Metric),
 		KillChan:   make(chan int),
 		Active:     true,
+		Scrape:     false,
 	}
 
 	go target.MetricListener()
-	return target, nil
+	return target
 }
 
 // AddScrapeMetric adds a new scrape metric to the target which will be scraped
@@ -98,15 +103,20 @@ func (t *Target) MetricListener() {
 	}
 }
 
-func (t *Target) SetupScrape(addr string, interval time.Duration, scrapeMetrics []*ScrapeMetric) error {
+// SetupScrape is used to add all missing configs to the Taget object
+// this is required if Prometheus endpoints want to be scraped
+// ScrapeMetrics need to be added before using AddScrapeMetric
+func (t *Target) SetupScrape(
+	addr string,
+	interval time.Duration) error {
+
 	url, err := url.Parse(addr)
 	if err != nil {
 		return err
 	}
 	t.ScrapeAddr = url.String()
-	t.Scrape = true
 	t.ScrapeInterval = interval
-	t.ScrapeMetrics = scrapeMetrics
+	t.Scrape = true
 
 	go t.scrapeJob()
 	return nil
@@ -159,7 +169,6 @@ func (t *Target) DoScrape() {
 			t.handleError(err)
 			return
 		}
-
 		scrapeMetric.ScrapeCounter++
 		scrapeMetric.ScrapeSum += value
 	}
@@ -199,9 +208,13 @@ func parseFloat(str string) (float64, error) {
 	return baseVal * math.Pow10(int(expVal)), nil
 }
 
+// getRowFromBody reads the body line by line (sep=\n) and checks if the given pattern
+// exists. Returns the value that indeicated by the pattern
+// Prometheus format: pattern *space* value
 func getRowFromBody(body io.Reader, pattern string) (float64, error) {
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
+
 		// Prometheus scrape format is metricName space metricValue
 		substrings := strings.Split(scanner.Text(), " ")
 

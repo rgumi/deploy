@@ -52,11 +52,11 @@ func init() {
 
 func Test_NewTarget(t *testing.T) {
 
-	target, err := NewTarget("test", testURL)
-	if err != nil {
-		t.Error(err.Error())
-	}
-	target.SetupScrape(testURL, 5*time.Second, scrapeMetrics)
+	target := NewTarget("test", testURL)
+	target.SetupScrape(testURL, 5*time.Second)
+
+	target.AddScrapeMetric("rpc_duration_seconds_count", 3000)
+	target.AddScrapeMetric("rpc_duration_seconds_sum", 2)
 
 	// give it some time to run once
 	time.Sleep(6 * time.Second)
@@ -90,10 +90,7 @@ func Test_getRowFromBodyFloat(t *testing.T) {
 }
 
 func Test_doScrape(t *testing.T) {
-	target, err := NewTarget("test", testURL)
-	if err != nil {
-		t.Error(err.Error())
-	}
+	target := NewTarget("test", testURL)
 
 	target.SetupScrape(testURL, 5*time.Second, scrapeMetrics)
 	target.DoScrape()

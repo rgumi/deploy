@@ -1,14 +1,17 @@
 package statemgt
 
 import (
+	"depoy/route"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 )
 
 type Dataset struct {
@@ -25,7 +28,7 @@ func GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	http.ServeFile(w, r, "public/favicon.ico")
 }
 
-func GetTestDataset(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func GetTestDataset(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	datasets = nil
 	for i := 0; i < 10; i++ {
 		ds := Dataset{
@@ -57,9 +60,7 @@ func GetTestDataset(w http.ResponseWriter, r *http.Request, ps httprouter.Params
 	json.NewEncoder(w).Encode(datasets)
 }
 
-func GetIndexPage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Println("Serving index")
-	fmt.Println(r.URL.Path)
+func GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	http.ServeFile(w, r, "./public/")
 }
 
@@ -68,11 +69,6 @@ func SetupHeaders(h httprouter.Handle) httprouter.Handle {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		h(w, r, ps)
 	}
-}
-
-func ServeStaticFiles(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Print("path: " + r.URL.Path[:1])
-	http.ServeFile(w, r, "./public/"+r.URL.Path[1:])
 }
 
 func NotFound(w http.ResponseWriter, r *http.Request) {
@@ -87,14 +83,119 @@ func NotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
 }
 
-func GetRoute(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Println(ps.ByName("id"))
-	i, err := strconv.Atoi(ps.ByName("id"))
+func (s *StateMgt) GetRouteByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id, err := strconv.ParseUint(ps.ByName("id"), 10, 32)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		log.Errorf(err.Error())
+		http.Error(w, "id is invalid", 400)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(datasets[i])
+	route := s.Gateway.GetRouteByID(uint32(id))
+	if route == nil {
+		w.WriteHeader(404)
+		return
+	}
+	bJson, err := json.Marshal(route)
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable to marshal route", 500)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(bJson)
+}
+
+func (s *StateMgt) GetAllRoutes(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+
+	routes := s.Gateway.GetRoutes()
+	if routes == nil {
+		w.WriteHeader(404)
+		return
+	}
+	bJson, err := json.Marshal(routes)
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable to marshal route", 500)
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(bJson)
+}
+
+func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+
+	w.WriteHeader(200)
+}
+
+func (s *StateMgt) UpdateRouteByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id, err := strconv.ParseUint(ps.ByName("id"), 10, 32)
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "id is invalid", 400)
+		return
+	}
+
+	incRoute := new(route.Route)
+	bJSON, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable to read body", 400)
+		return
+	}
+	req.Body.Close()
+
+	if err = json.Unmarshal(bJSON, incRoute); err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable to unmarshal body into struct", 400)
+		return
+	}
+	newRoute, err := route.New(
+		incRoute.Prefix, incRoute.Rewrite, incRoute.Host, incRoute.Methods,
+		route.NewRoundRobin(2))
+
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable toreplace route", 400)
+		return
+	}
+
+	newRoute.AddTarget(route.NewTarget("Test1", "http://localhost:7070"))
+	newRoute.AddTarget(route.NewTarget("Test2", "http://localhost:9090"))
+	if r := s.Gateway.RemoveRoute(uint32(id)); r == nil {
+		w.WriteHeader(200)
+		return
+	}
+
+	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable toreplace route", 400)
+		return
+	}
+	w.WriteHeader(200)
+}
+
+func (s *StateMgt) DeleteRouteByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	id, err := strconv.ParseUint(ps.ByName("id"), 10, 32)
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "id is invalid", 400)
+		return
+	}
+	route := s.Gateway.RemoveRoute(uint32(id))
+	if route == nil {
+		w.WriteHeader(200)
+		return
+	}
+	bJSON, err := json.Marshal(route)
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable to marshal route", 500)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(bJSON)
 }

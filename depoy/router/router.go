@@ -124,17 +124,26 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// therefore no connections can hangup and server crashes are very unlikely
 	defer func() {
 		if e := recover(); e != nil {
-			log.Debugf("Recovered in Router: %v", e)
+			log.Errorf("Recovered in Router: %v", e)
 			r.ErrorHandler(w, req, e.(error))
 		}
 	}()
 
 	if _, found := r.tree[req.Method]; found {
-
 		if _, h, found := r.tree[req.Method].LongestPrefix(req.URL.String()); found {
 			h.(http.HandlerFunc)(w, req)
 			return
 		}
 	}
 	r.NotFoundHandler(w, req)
+}
+
+func (r *Router) ServeFiles(path string, root http.FileSystem) {
+	fileServer := http.FileServer(root)
+
+	r.AddHandler("GET", path, func(w http.ResponseWriter, req *http.Request) {
+		// get the file from the URL => remove handler prefix from URL
+		req.URL.Path = strings.Split(req.URL.Path, path)[1]
+		fileServer.ServeHTTP(w, req)
+	})
 }
