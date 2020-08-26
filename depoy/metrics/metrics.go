@@ -153,11 +153,14 @@ func contains(s []string, e string) bool {
 	return false
 }
 
-func (m *MetricsRepository) Monitor(backendID uuid.UUID, timeout time.Duration) error {
-	if backend, ok := m.Backends[backendID]; ok {
+// Monitor stats the monitor loop which checks every $timeout interval
+// if an alert needs to be sent
+// $activeFor defines for how long a threshhold needs to be reached to
+// send an alert
+func (m *MetricsRepository) Monitor(
+	backendID uuid.UUID, timeout time.Duration, activeFor time.Duration) error {
 
-		// for long has an alarm be active/not active to change state
-		activeFor := 500 * time.Millisecond
+	if backend, ok := m.Backends[backendID]; ok {
 
 		for {
 			select {

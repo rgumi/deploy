@@ -152,7 +152,7 @@ func Test_Monitor(t *testing.T) {
 		t.Error("RegisterBackend should not have returned an error")
 	}
 
-	go metricRepo.Monitor(backend1, time.Duration(2)*time.Second)
+	go metricRepo.Monitor(backend1, 2*time.Second, 1*time.Second)
 
 	go func() {
 		for {
