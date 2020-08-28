@@ -1,11 +1,12 @@
 package gateway
 
 import (
+	"depoy/metrics"
 	"depoy/route"
 	"depoy/router"
 	"fmt"
-	"hash/fnv"
 	"net/http"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -18,18 +19,24 @@ var (
 
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
+	mux          sync.Mutex
 	Addr         string
 	ReadTimeout  int
 	WriteTimeout int
-	Routes       map[uint32]*route.Route
+	Routes       map[string]*route.Route // name => route. Name is unique
 	Router       map[string]*router.Router
+	MetricsRepo  *metrics.Repository
 }
 
 //NewGateway returns a new instance of Gateway
 func NewGateway(addr string) *Gateway {
 	g := new(Gateway)
+	_, g.MetricsRepo = metrics.NewMetricsRepository(nil, 5*time.Second)
+
+	go g.MetricsRepo.Listen()
+
 	g.Addr = addr
-	g.Routes = make(map[uint32]*route.Route)
+	g.Routes = make(map[string]*route.Route)
 
 	// map for each HOST
 	g.Router = make(map[string]*router.Router)
@@ -82,42 +89,78 @@ func (g *Gateway) Run() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func getID(route *route.Route) uint32 {
-	rawID := fmt.Sprintf("%s%s", route.Host, route.Prefix)
-	hash := fnv.New32a()
-	hash.Write([]byte(rawID))
-	log.Debugf("Created new hash for %v. Hash: %d", route, hash.Sum32())
-	return hash.Sum32()
-}
+func (g *Gateway) checkIfExists(newRoute *route.Route) error {
 
-func (g *Gateway) checkIfExists(route *route.Route) bool {
-	routeID := getID(route)
-
-	if _, exists := g.Routes[routeID]; exists {
-		return true
+	for routeName, route := range g.Routes {
+		if routeName == newRoute.Name {
+			return fmt.Errorf("Route with name %s already exists", routeName)
+		}
+		if route.Prefix == newRoute.Prefix && route.Host == newRoute.Host {
+			return fmt.Errorf(
+				"Route with combination of prefix (%s) and host (%s) already exist. Existing Route: %s",
+				route.Prefix, route.Host, routeName)
+		}
 	}
-	return false
-}
-
-func (g *Gateway) RegisterRoute(route *route.Route) error {
-
-	// create id of route
-	if g.checkIfExists(route) {
-		return fmt.Errorf("Route with given host and prefix already exists")
-	}
-
-	// check if route exists
-	g.Routes[getID(route)] = route
-	g.Reload()
-
 	return nil
 }
 
-func (g *Gateway) RemoveRoute(id uint32) *route.Route {
-	if route, exists := g.Routes[id]; exists {
-		log.Debugf("Removing %d from Gateway.Routes", id)
+func (g *Gateway) RegisterRoute(route *route.Route) error {
+	var err error
 
-		delete(g.Routes, id)
+	g.mux.Lock()
+	defer g.mux.Unlock()
+
+	if route.Name == "" {
+		return fmt.Errorf("Route.Name cannot be empty")
+	}
+
+	// create id of route
+	if err = g.checkIfExists(route); err != nil {
+		return err
+	}
+
+	route.MetricsChan = g.MetricsRepo.InChannel
+
+	if len(route.Backends) == 0 {
+		log.Warnf("Route %s has no backends configured for it", route.Name)
+
+	} else {
+		for _, backend := range route.Backends {
+			log.Debugf("Registering %v of Route %s to MetricsRepository", backend.ID, route.Name)
+
+			// register the backend
+			backend.AlertChan, err = g.MetricsRepo.RegisterBackend(
+				backend.ID, backend.ScrapeURL, backend.ScrapeMetrics)
+
+			if err != nil {
+				return err
+			}
+
+			// start monitoring the registered backend
+			go g.MetricsRepo.Monitor(backend.ID, 5*time.Second, 10*time.Second)
+			if err != nil {
+				return err
+			}
+
+			// starts listening on alertChan
+			go backend.Monitor()
+		}
+	}
+
+	g.Routes[route.Name] = route
+	g.Reload()
+	return nil
+}
+
+func (g *Gateway) RemoveRoute(name string) *route.Route {
+
+	g.mux.Lock()
+	defer g.mux.Unlock()
+
+	if route, exists := g.Routes[name]; exists {
+		log.Debugf("Removing %s from Gateway.Routes", name)
+
+		delete(g.Routes, name)
 
 		g.Reload()
 		return route
@@ -137,10 +180,10 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (g *Gateway) GetRouteByID(id uint32) *route.Route {
-	return g.Routes[id]
+func (g *Gateway) GetRouteByName(name string) *route.Route {
+	return g.Routes[name]
 }
 
-func (g *Gateway) GetRoutes() map[uint32]*route.Route {
+func (g *Gateway) GetRoutes() map[string]*route.Route {
 	return g.Routes
 }

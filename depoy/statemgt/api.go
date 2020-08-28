@@ -2,12 +2,12 @@ package statemgt
 
 import (
 	"depoy/route"
+	"depoy/upstreamclient"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -83,14 +83,10 @@ func NotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
 }
 
-func (s *StateMgt) GetRouteByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id, err := strconv.ParseUint(ps.ByName("id"), 10, 32)
-	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "id is invalid", 400)
-		return
-	}
-	route := s.Gateway.GetRouteByID(uint32(id))
+func (s *StateMgt) GetRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+
+	name := ps.ByName("name")
+	route := s.Gateway.GetRouteByName(name)
 	if route == nil {
 		w.WriteHeader(404)
 		return
@@ -130,13 +126,9 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 	w.WriteHeader(200)
 }
 
-func (s *StateMgt) UpdateRouteByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id, err := strconv.ParseUint(ps.ByName("id"), 10, 32)
-	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "id is invalid", 400)
-		return
-	}
+func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+
+	name := ps.ByName("name")
 
 	incRoute := new(route.Route)
 	bJSON, err := ioutil.ReadAll(req.Body)
@@ -153,8 +145,8 @@ func (s *StateMgt) UpdateRouteByID(w http.ResponseWriter, req *http.Request, ps 
 		return
 	}
 	newRoute, err := route.New(
-		incRoute.Prefix, incRoute.Rewrite, incRoute.Host, incRoute.Methods,
-		route.NewRoundRobin(2))
+		incRoute.Name, incRoute.Prefix, incRoute.Rewrite, incRoute.Host, incRoute.Methods,
+		upstreamclient.NewClient())
 
 	if err != nil {
 		log.Errorf(err.Error())
@@ -162,9 +154,10 @@ func (s *StateMgt) UpdateRouteByID(w http.ResponseWriter, req *http.Request, ps 
 		return
 	}
 
-	newRoute.AddBackend(route.NewBackend("Test1", "http://localhost:7070"))
-	newRoute.AddBackend(route.NewBackend("Test2", "http://localhost:9090"))
-	if r := s.Gateway.RemoveRoute(uint32(id)); r == nil {
+	newRoute.AddBackend("Test1", "http://localhost:7070", "", nil, 25)
+	newRoute.AddBackend("Test2", "http://localhost:9090", "", nil, 75)
+
+	if r := s.Gateway.RemoveRoute(name); r == nil {
 		w.WriteHeader(200)
 		return
 	}
@@ -177,14 +170,9 @@ func (s *StateMgt) UpdateRouteByID(w http.ResponseWriter, req *http.Request, ps 
 	w.WriteHeader(200)
 }
 
-func (s *StateMgt) DeleteRouteByID(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	id, err := strconv.ParseUint(ps.ByName("id"), 10, 32)
-	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "id is invalid", 400)
-		return
-	}
-	route := s.Gateway.RemoveRoute(uint32(id))
+func (s *StateMgt) DeleteRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	name := ps.ByName("name")
+	route := s.Gateway.RemoveRoute(name)
 	if route == nil {
 		w.WriteHeader(200)
 		return

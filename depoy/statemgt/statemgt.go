@@ -33,11 +33,11 @@ func (s *StateMgt) Start() {
 	router.Handle("GET", "/v1/info", SetupHeaders(GetTestDataset))
 
 	// gateway routes
-	router.Handle("GET", "/v1/routes/:id", SetupHeaders(s.GetRouteByID))
+	router.Handle("GET", "/v1/routes/:name", SetupHeaders(s.GetRouteByName))
 	router.Handle("GET", "/v1/routes/", SetupHeaders(s.GetAllRoutes))
 	router.Handle("POST", "/v1/routes/", SetupHeaders(s.CreateRoute))
-	router.Handle("PUT", "/v1/routes/:id", SetupHeaders(s.UpdateRouteByID))
-	router.Handle("DELETE", "/v1/routes/:id", SetupHeaders(s.DeleteRouteByID))
+	router.Handle("PUT", "/v1/routes/:name", SetupHeaders(s.UpdateRouteByName))
+	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
 
 	// etc
 	router.NotFound = http.HandlerFunc(NotFound)

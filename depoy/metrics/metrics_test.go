@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var metricRepo *MetricsRepository
+var metricRepo *Repository
 var metricChan chan<- Metrics
 var backend1 = uuid.New()
 
@@ -48,6 +48,7 @@ func init() {
 	}
 }
 
+/*
 var testdataAlarm = map[string]float64{
 	"rpc_duration_seconds_sum":   3,
 	"rpc_duration_seconds_count": 3001,
@@ -68,6 +69,7 @@ func (t *TestStorage) Write(id uuid.UUID, data map[string]float64) {
 func (t *TestStorage) Read(uuid.UUID) map[string]float64 {
 	return t.data
 }
+*/
 
 func Test_NewMetricsRepository(t *testing.T) {
 	metricChan, metricRepo = NewMetricsRepository(testStorage, 2*time.Second)
@@ -75,7 +77,7 @@ func Test_NewMetricsRepository(t *testing.T) {
 	go metricRepo.Listen()
 	metrics1 := Metrics{
 		BackendID:           backend1,
-		clientFailResponses: 1234,
+		UpstreamRequestTime: 1234,
 	}
 
 	metricChan <- metrics1

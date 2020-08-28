@@ -16,6 +16,31 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Test
+
+var testdataAlarm = map[string]float64{
+	"rpc_duration_seconds_sum":   3,
+	"rpc_duration_seconds_count": 3001,
+}
+
+var testdataResolved = map[string]float64{
+	"rpc_duration_seconds_sum":   1,
+	"rpc_duration_seconds_count": 2001,
+}
+
+type TestStorage struct {
+	data map[uuid.UUID]map[string]float64
+}
+
+func (t *TestStorage) Write(id uuid.UUID, data map[string]float64) {
+	t.data[id] = data
+}
+func (t *TestStorage) Read(id uuid.UUID) map[string]float64 {
+	return t.data[id]
+}
+
+// TestEnde
+
 type Storage interface {
 	Write(uuid.UUID, map[string]float64)
 	Read(uuid.UUID) map[string]float64
@@ -23,20 +48,23 @@ type Storage interface {
 
 type Alert struct {
 	Type       string
+	BackendID  uuid.UUID
 	Metric     string
-	threshhold float64
-	value      float64
-	startTime  time.Time
-	endTime    time.Time
-	sendTime   time.Time
+	Threshhold float64
+	Value      float64
+	StartTime  time.Time
+	EndTime    time.Time
+	SendTime   time.Time
 }
 
 type Metrics struct {
-	BackendID           uuid.UUID
-	okResponses         int
-	serverFailResponses int
-	clientFailResponses int
-	redirectResponses   int
+	BackendID            uuid.UUID
+	ResponseStatus       int
+	RequestMethod        string
+	UpstreamResponseTime int64
+	UpstreamRequestTime  int64
+	UpstreamAddr         string
+	DownstreamAddr       string
 }
 
 type ScrapeMetrics struct {
@@ -45,21 +73,22 @@ type ScrapeMetrics struct {
 }
 
 type Backend struct {
-	ID             uuid.UUID
-	ScrapeURL      string
-	Errors         int
-	nextTimeout    time.Duration
-	ScrapeMetrics  map[string]float64 // metricName threshhold
-	AlertChannel   chan Alert
-	stopMonitoring chan int
-	activeAlerts   map[string]*Alert
+	ID                  uuid.UUID
+	ScrapeURL           string
+	Errors              int
+	nextTimeout         time.Duration
+	MetricThreshholds   map[string]float64 // metricName threshhold
+	AlertChannel        chan Alert
+	stopMonitoring      chan int
+	activeAlerts        map[string]*Alert
+	pufferMetricStorage []map[string]float64
 }
 
 func (b *Backend) QuitMonitoring() {
 	b.stopMonitoring <- 1
 }
 
-type MetricsRepository struct {
+type Repository struct {
 	storage              Storage
 	ScrapeInterval       time.Duration
 	client               *http.Client
@@ -72,13 +101,14 @@ type MetricsRepository struct {
 
 // NewMetricsRepository creates a new instance of NewMetricsRepository
 // return a channel for Metrics
-func NewMetricsRepository(storage Storage, scrapeInterval time.Duration) (chan<- Metrics, *MetricsRepository) {
+func NewMetricsRepository(storage Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
 	channel := make(chan Metrics, 10)
 	scrapeMetricsChannel := make(chan ScrapeMetrics, 10)
 	// do something with the sql.Conn
-
-	return channel, &MetricsRepository{
-		storage:              storage,
+	thisStorage := new(TestStorage)
+	thisStorage.data = make(map[uuid.UUID]map[string]float64)
+	return channel, &Repository{
+		storage:              thisStorage,
 		ScrapeInterval:       scrapeInterval,
 		client:               http.DefaultClient,
 		InChannel:            channel,
@@ -90,10 +120,10 @@ func NewMetricsRepository(storage Storage, scrapeInterval time.Duration) (chan<-
 }
 
 // RegisterBackend adds a new instance to the ScrapingJob
-func (m *MetricsRepository) RegisterBackend(
+func (m *Repository) RegisterBackend(
 	backendID uuid.UUID,
 	scrapeURL string,
-	scrapeMetrics map[string]float64) (<-chan Alert, error) {
+	metricThreshholds map[string]float64) (<-chan Alert, error) {
 
 	// check if backendID is already configured
 	for key := range m.Backends {
@@ -102,22 +132,25 @@ func (m *MetricsRepository) RegisterBackend(
 		}
 	}
 
-	newBackend := new(Backend)
-	newBackend.AlertChannel = make(chan Alert)
-	newBackend.stopMonitoring = make(chan int, 2)
-	newBackend.activeAlerts = make(map[string]*Alert)
-	newBackend.ID = backendID
-	newBackend.ScrapeURL = scrapeURL
-	newBackend.ScrapeMetrics = scrapeMetrics
+	newBackend := &Backend{
+		ID:                  backendID,
+		ScrapeURL:           scrapeURL,
+		Errors:              0,
+		nextTimeout:         0,
+		MetricThreshholds:   metricThreshholds,
+		AlertChannel:        make(chan Alert),
+		stopMonitoring:      make(chan int, 2),
+		activeAlerts:        make(map[string]*Alert),
+		pufferMetricStorage: []map[string]float64{},
+	}
 
 	// append to the list
 	m.Backends[backendID] = newBackend
-
 	return newBackend.AlertChannel, nil
 }
 
 // RemoveBackend removes the instance with backendID from the scrapeList
-func (m *MetricsRepository) RemoveBackend(backendID uuid.UUID) error {
+func (m *Repository) RemoveBackend(backendID uuid.UUID) error {
 
 	log.Debugf("Received RemoveScrapeInstance for ID: %v", backendID)
 
@@ -134,7 +167,7 @@ func (m *MetricsRepository) RemoveBackend(backendID uuid.UUID) error {
 }
 
 // Stop cancels the Listen()-Loop and channels are no longer read
-func (m *MetricsRepository) Stop() {
+func (m *Repository) Stop() {
 	log.Debug("Shutting down listening loop")
 	m.shutdown <- 1
 	m.stopScraping <- 1
@@ -157,10 +190,11 @@ func contains(s []string, e string) bool {
 // if an alert needs to be sent
 // $activeFor defines for how long a threshhold needs to be reached to
 // send an alert
-func (m *MetricsRepository) Monitor(
+func (m *Repository) Monitor(
 	backendID uuid.UUID, timeout time.Duration, activeFor time.Duration) error {
 
 	if backend, ok := m.Backends[backendID]; ok {
+		log.Debugf("Starting monitoring of backend %v", backend.ID)
 
 		for {
 			select {
@@ -174,29 +208,30 @@ func (m *MetricsRepository) Monitor(
 
 				// loop over every metric that was collected
 				// collected := map[string]float64
-				for metricName, value := range collected {
+				for metricName, threshhold := range backend.MetricThreshholds {
 
 					// get the treshhold for this metric
 					// this has to exist otherwise it would not have been collected
-					threshhold := backend.ScrapeMetrics[metricName]
+					currentValue := collected[metricName]
 
 					// check if an alert already exists for this metric
 					if alert, ok := backend.activeAlerts[metricName]; ok {
 						// alert exists already
 						// check if it is still active
-						if value > threshhold {
+						if currentValue > threshhold {
+							log.Debugf("Threshhold still reached for Alert %v", alert)
 							// threshhold is still reached and alert remains up
 							// goto next metric
 
 							// update value to current value
-							alert.value = value
+							alert.Value = currentValue
 
 							// check if alert existed for long enough to send an alert
 							now := time.Now()
-							if now.After(alert.startTime.Add(activeFor)) && alert.sendTime.IsZero() {
-
+							if now.After(alert.StartTime.Add(activeFor)) && alert.SendTime.IsZero() {
+								log.Debugf("Sending alarm for %v", alert)
 								alert.Type = "Alarming"
-								alert.sendTime = now
+								alert.SendTime = now
 								backend.AlertChannel <- *alert
 								log.Debugf("Send alarm for %v", alert)
 							}
@@ -207,12 +242,13 @@ func (m *MetricsRepository) Monitor(
 
 						// treshhold is no longer reached
 
-						if alert.endTime.IsZero() {
-							alert.endTime = time.Now()
+						if alert.EndTime.IsZero() {
+							alert.EndTime = time.Now()
 						}
 
-						if time.Now().After(alert.endTime.Add(activeFor)) {
+						if time.Now().After(alert.EndTime.Add(activeFor)) {
 							alert.Type = "Resolved"
+							alert.Value = currentValue
 							backend.AlertChannel <- *alert
 							delete(backend.activeAlerts, metricName)
 
@@ -224,12 +260,14 @@ func (m *MetricsRepository) Monitor(
 
 					// new alarm for metric
 
-					if value > threshhold {
+					if currentValue > threshhold {
 						alert := &Alert{
 							Type:       "Pending",
-							threshhold: threshhold,
-							value:      value,
-							startTime:  time.Now(),
+							BackendID:  backend.ID,
+							Metric:     metricName,
+							Threshhold: threshhold,
+							Value:      currentValue,
+							StartTime:  time.Now(),
 						}
 						backend.activeAlerts[metricName] = alert
 
@@ -248,22 +286,28 @@ func (m *MetricsRepository) Monitor(
 
 // Listen listens on all channels and adds Metrics to the storage
 // alarms when a treshhold is reached
-func (m *MetricsRepository) Listen() {
+func (m *Repository) Listen() {
 
 	// start the scraping Loop
 	go m.jobLoop()
 
 	for {
 		select {
+		// received the metrics struct with backendID and all metrics
 		case metrics := <-m.InChannel:
-			// persist this
-			data := make(map[string]float64)
-			data["firstbytereceived"] = float64(metrics.clientFailResponses)
+
+			log.Debug(metrics)
+			data := map[string]float64{
+				"UpstreamResponseTime": float64(metrics.UpstreamResponseTime),
+				"ResponseStatus":       float64(metrics.ResponseStatus),
+			}
 			m.storage.Write(metrics.BackendID, data)
+			// save metrics in buffer and then merge after $interval
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:
-			// persist this
-			m.storage.Write(scrapeMetrics.BackendID, scrapeMetrics.Metrics)
+
+			log.Debug(scrapeMetrics)
+			// save metrics in buffer and then merge after $interval
 
 		case _ = <-m.shutdown:
 			return
@@ -274,7 +318,7 @@ func (m *MetricsRepository) Listen() {
 
 // scrapeJob scraped the given instance, extracts the defined metrics
 // and pushes them into the scrapeMetricsChannel
-func (m *MetricsRepository) scrapeJob(instance *Backend) {
+func (m *Repository) scrapeJob(instance *Backend) {
 
 	// timeout if last scrape was an error
 	time.Sleep(instance.nextTimeout)
@@ -307,7 +351,7 @@ func (m *MetricsRepository) scrapeJob(instance *Backend) {
 		Metrics:   map[string]float64{},
 	}
 
-	for name := range instance.ScrapeMetrics {
+	for name := range instance.MetricThreshholds {
 		bodyReader := bytes.NewReader(body)
 		value, err := getRowFromBody(bodyReader, name)
 		if err != nil {
@@ -322,7 +366,7 @@ func (m *MetricsRepository) scrapeJob(instance *Backend) {
 
 // jobLoop is a loop which executes all ScrapeInstances and waits ScrapeInterval
 // for each ScrapeInstance a goroutine scrapeJob is started
-func (m *MetricsRepository) jobLoop() {
+func (m *Repository) jobLoop() {
 
 	// loop over all scrapeInstances, get metrics and then sleep
 	for {
@@ -333,7 +377,9 @@ func (m *MetricsRepository) jobLoop() {
 		default:
 			time.Sleep(m.ScrapeInterval)
 			for _, instance := range m.Backends {
-				go m.scrapeJob(instance)
+				if instance.ScrapeURL != "" {
+					go m.scrapeJob(instance)
+				}
 			}
 		}
 	}

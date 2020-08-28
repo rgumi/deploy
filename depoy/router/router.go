@@ -135,15 +135,6 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
+	log.Warnf("Unable to find matching handle for '%s => %s' in Router", req.Method, req.URL.String())
 	r.NotFoundHandler(w, req)
-}
-
-func (r *Router) ServeFiles(path string, root http.FileSystem) {
-	fileServer := http.FileServer(root)
-
-	r.AddHandler("GET", path, func(w http.ResponseWriter, req *http.Request) {
-		// get the file from the URL => remove handler prefix from URL
-		req.URL.Path = strings.Split(req.URL.Path, path)[1]
-		fileServer.ServeHTTP(w, req)
-	})
 }

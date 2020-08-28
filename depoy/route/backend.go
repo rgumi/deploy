@@ -1,55 +1,46 @@
 package route
 
 import (
-	"bufio"
-	"bytes"
-	"depoy/upstreamclient"
+	"depoy/metrics"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"math"
-	"net/http"
 	"net/url"
-	"strconv"
-	"strings"
-	"time"
+	"sync"
 
 	"github.com/google/uuid"
+
 	log "github.com/sirupsen/logrus"
 )
 
-// ScrapeMetric is the object which defines what metrics should be evaluated
-// after a scrape is executed succesfully
-// this metric is collected by matching ScrapeMetric.Name with scraped Prometheus
-// string row by row and saving the corrosponding value
-type ScrapeMetric struct {
-	Name          string
-	Threshhold    float64
-	ScrapeCounter int
-	ScrapeSum     float64
-}
-
 type Backend struct {
-	ID                uuid.UUID                  `json:"id"`
-	Name              string                     `json:"name"`
-	Addr              string                     `json:"addr"`
-	MetricChan        chan upstreamclient.Metric `json:"-"`
-	KillChan          chan int                   `json:"-"`
-	State             string                     // {Good, Medium, Bad} depending on the current state of metrics
-	Active            bool                       `json:"active"`
-	Scrape            bool                       `json:"scrape"`
-	ScrapeFailCounter int                        `json:"scrape_fail_counter"`
-	ScrapeAddr        string                     `json:"scrape_addr"`
-	ScrapeMetrics     []*ScrapeMetric            `json:"scrape_metrics"`
-	ScrapeInterval    time.Duration              `json:"scrape_interval"`
+	ID             uuid.UUID            `json:"id"`
+	Name           string               `json:"name"`
+	Addr           string               `json:"addr"`
+	Weigth         int                  `json:"weight"`
+	Active         bool                 `json:"active"` // in % (100 max)
+	ScrapeURL      string               `json:"scrape_url"`
+	ScrapeMetrics  map[string]float64   `json:"scrape_metrics"`
+	HealthCheckURL string               `json:"healthcheck_url"`
+	AlertChan      <-chan metrics.Alert `json:"-"`
+	updateWeigth   func()               `json:"-"`
+	mux            sync.Mutex           `json:"-"`
 }
 
-// NewTarget returns a new base Target
+// NewBackend returns a new base Target
 // it has the minimum required configs and misses configs for Scraping
-func NewBackend(name, addr string) *Backend {
+func NewBackend(
+	name, addr, scrapeURL, healthCheckURL string,
+	scrapeMetrics map[string]float64, weight int) *Backend {
 
 	if name == "" {
 		panic("name cannot be null")
+	}
+
+	if healthCheckURL == "" {
+		healthCheckURL = addr + "/"
+	}
+
+	if weight > 100 {
+		panic(fmt.Errorf("Weight cannot be larger than 100(%)"))
 	}
 
 	url, err := url.Parse(addr)
@@ -58,178 +49,53 @@ func NewBackend(name, addr string) *Backend {
 	}
 
 	backend := &Backend{
-		ID:         uuid.New(),
-		Name:       name,
-		Addr:       url.String(),
-		MetricChan: make(chan upstreamclient.Metric),
-		KillChan:   make(chan int),
-		Active:     true,
-		Scrape:     false,
+		ID:             uuid.New(),
+		Name:           name,
+		Addr:           url.String(),
+		Weigth:         weight,
+		Active:         true,
+		ScrapeURL:      scrapeURL,
+		ScrapeMetrics:  scrapeMetrics, // can be nil
+		HealthCheckURL: healthCheckURL,
 	}
 
-	go backend.MetricListener()
 	return backend
 }
 
-// AddScrapeMetric adds a new scrape metric to the target which will be scraped
-// by the scrapejob
-func (t *Backend) AddScrapeMetric(name string, threshhold float64) error {
-	if name == "" {
-		return fmt.Errorf("Name cannot null")
-	}
-	scrapeMetrics := &ScrapeMetric{
-		Name:          name,
-		Threshhold:    threshhold,
-		ScrapeCounter: 0,
-		ScrapeSum:     0,
-	}
-	t.ScrapeMetrics = append(t.ScrapeMetrics, scrapeMetrics)
+func (b *Backend) UpdateStatus(status bool) {
+	b.mux.Lock()
+	defer b.mux.Unlock()
 
-	return nil
-}
-
-// MetricListener changes the state of target depending on its application state
-func (t *Backend) MetricListener() {
-
-	for {
-		select {
-		case _ = <-t.KillChan:
-			return
-
-		case m := <-t.MetricChan:
-			log.Info(m)
-		}
-
-	}
-}
-
-// SetupScrape is used to add all missing configs to the Taget object
-// this is required if Prometheus endpoints want to be scraped
-// ScrapeMetrics need to be added before using AddScrapeMetric
-func (t *Backend) SetupScrape(
-	addr string,
-	interval time.Duration) error {
-
-	url, err := url.Parse(addr)
-	if err != nil {
-		return err
-	}
-	t.ScrapeAddr = url.String()
-	t.ScrapeInterval = interval
-	t.Scrape = true
-
-	go t.scrapeJob()
-	return nil
-}
-
-func (t *Backend) handleError(err error) {
-	// do something with error
-	panic(err)
-}
-
-func (t *Backend) scrapeJob() {
-	for {
-		select {
-		case _ = <-t.KillChan:
-			return
-
-		default:
-			if t.Scrape {
-				t.DoScrape()
-			}
-			time.Sleep(t.ScrapeInterval)
-		}
-	}
-}
-
-// DoScrape executes a scrape on the target and writes the collectes
-// metrics to the ScrapeMetric object
-func (t *Backend) DoScrape() {
-
-	client := http.DefaultClient
-
-	resp, err := client.Get(t.ScrapeAddr)
-	if err != nil {
-		t.handleError(err)
-		return
-	}
-	defer resp.Body.Close()
-
-	// get the body
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.handleError(err)
+	if b.Active == status {
 		return
 	}
 
-	for _, scrapeMetric := range t.ScrapeMetrics {
-		bodyReader := bytes.NewReader(body)
-		value, err := getRowFromBody(bodyReader, scrapeMetric.Name)
-		if err != nil {
-			t.handleError(err)
-			return
-		}
-		scrapeMetric.ScrapeCounter++
-		scrapeMetric.ScrapeSum += value
+	b.Active = status
+	b.updateWeigth()
+
+	if status {
+		log.Warnf("Enabling backend %v: %v", b.ID, b.Active)
+	} else {
+		log.Warnf("Disabling backend %v: %v", b.ID, b.Active)
 	}
+
 }
 
-// Source: https://gist.github.com/yyscamper/5657c360fadd6701580f3c0bcca9f63a
-func parseFloat(str string) (float64, error) {
-	val, err := strconv.ParseFloat(str, 64)
-	if err == nil {
-		return val, nil
+func (b *Backend) Monitor() {
+
+	if b.AlertChan == nil {
+		log.Warn("Backend %v has no AlertChan set", b.ID)
+		return
 	}
 
-	//Some number may be seperated by comma, for example, 23,120,123, so remove the comma firstly
-	str = strings.Replace(str, ",", "", -1)
-
-	//Some number is specifed in scientific notation
-	pos := strings.IndexAny(str, "eE")
-	if pos < 0 {
-		return strconv.ParseFloat(str, 64)
-	}
-
-	var baseVal float64
-	var expVal int64
-
-	baseStr := str[0:pos]
-	baseVal, err = strconv.ParseFloat(baseStr, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	expStr := str[(pos + 1):]
-	expVal, err = strconv.ParseInt(expStr, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return baseVal * math.Pow10(int(expVal)), nil
-}
-
-// getRowFromBody reads the body line by line (sep=\n) and checks if the given pattern
-// exists. Returns the value that indeicated by the pattern
-// Prometheus format: pattern *space* value
-func getRowFromBody(body io.Reader, pattern string) (float64, error) {
-	scanner := bufio.NewScanner(body)
-	for scanner.Scan() {
-
-		// Prometheus scrape format is metricName space metricValue
-		substrings := strings.Split(scanner.Text(), " ")
-
-		// Comment rows start with #
-		if substrings[0] == "#" {
+	for {
+		log.Debugf("Listening for alert on %v", b)
+		alert := <-b.AlertChan
+		log.Warn(alert)
+		if alert.Type == "Alarming" {
+			b.UpdateStatus(false)
 			continue
 		}
-		if substrings[0] == pattern {
-			i, err := parseFloat(substrings[1])
-			if err != nil {
-				return -1, err
-			}
-			return i, nil
-		}
-
+		b.UpdateStatus(true)
 	}
-	return -1, fmt.Errorf("Could not find value for given pattern %s", pattern)
 }

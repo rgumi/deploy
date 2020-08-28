@@ -21,30 +21,23 @@ func testHandle(w http.ResponseWriter, req *http.Request) {
 func init() {
 	log.SetLevel(log.DebugLevel)
 
+	route1.Name = "route1"
 	route1.Host = "example.com"
 	route1.Methods = []string{"GET", "POST", "UPDATE"}
 	route1.Prefix = "/"
 	route1.Handler = testHandle
 
+	route2.Name = "route2"
 	route2.Host = "example.com"
 	route2.Methods = []string{"POST", "UPDATE"}
 	route2.Prefix = "/route2"
 	route2.Handler = testHandle
 
+	route3.Name = "route3"
 	route3.Host = "*"
 	route3.Methods = []string{"GET"}
 	route3.Prefix = "/"
 	route3.Handler = testHandle
-}
-
-func Test_hashFunction(t *testing.T) {
-
-	route1ID := getID(route1)
-	route2ID := getID(route2)
-
-	if route1ID == route2ID {
-		t.Errorf("Hashes are the same but should not")
-	}
 }
 
 func Test_RegisterRoutes(t *testing.T) {
@@ -93,10 +86,10 @@ func Test_RemoveRoute(t *testing.T) {
 	if !exists {
 		t.Error("Handler should exist for router")
 	}
-	routeID := getID(route2)
-	g.RemoveRoute(routeID)
 
-	if g.Routes[getID(route2)] != nil {
+	g.RemoveRoute(route2.Name)
+
+	if g.Routes[route2.Name] != nil {
 		t.Error("Route should not exist as it was just deleted")
 	}
 
@@ -155,7 +148,7 @@ func Test_HandlerOfGatewayNoHandler(t *testing.T) {
 	var req *http.Request
 	var err error
 
-	g.RemoveRoute(getID(route3))
+	g.RemoveRoute(route3.Name)
 
 	// without host
 	rr = httptest.NewRecorder()

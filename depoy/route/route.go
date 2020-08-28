@@ -1,10 +1,10 @@
 package route
 
 import (
-	"bytes"
-	"depoy/upstreamclient"
+	"depoy/metrics"
+	"fmt"
 	"io/ioutil"
-	"net"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -13,45 +13,43 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Request to get total message time (request to gateway --> answer to downstream client)
-type Connection struct {
-	Request  *http.Request
-	Response http.ResponseWriter
-	ID       uuid.UUID
-}
-
 type UpstreamClient interface {
-	Send(*http.Request) (*http.Response, upstreamclient.Metric, error)
+	Send(*http.Request) (*http.Response, metrics.Metrics, error)
 }
 
 type Route struct {
-	Prefix   string         `json:"prefix"`
-	Methods  []string       `json:"methods"`
-	Host     string         `json:"host"`
-	Rewrite  string         `json:"rewrite"`
-	Client   UpstreamClient `json:"-"`
-	Backends []*Backend     `json:"backends"`
-	Strategy Strategy       `json:"-"`
-	Handler  http.HandlerFunc
+	Name            string                 `json:"name"`
+	Prefix          string                 `json:"prefix"`
+	Methods         []string               `json:"methods"`
+	Host            string                 `json:"host"`
+	Rewrite         string                 `json:"rewrite"`
+	Backends        map[uuid.UUID]*Backend `json:"backends"`
+	Client          UpstreamClient         `json:"-"`
+	Handler         http.HandlerFunc       `json:"-"`
+	MetricsChan     chan metrics.Metrics   `json:"-"`
+	WeightSum       int                    `json:"-"`
+	NextTargetDistr []*Backend             `json:"-"`
 }
 
-func New(prefix, rewrite, host string, methods []string, strategy Strategy) (*Route, error) {
+func New(name, prefix, rewrite, host string, methods []string, upstreamClient UpstreamClient) (*Route, error) {
 
 	route := new(Route)
-	client := upstreamclient.NewClient()
+	client := upstreamClient
 	route.Client = client
 
 	// fix prefix if prefix does not end with /
 	if prefix[len(prefix)-1] != '/' {
 		prefix += "/"
 	}
-
+	route.Name = name
 	route.Prefix = prefix
 	route.Rewrite = rewrite
 	route.Methods = methods
 	route.Host = host
-	route.Strategy = strategy
 	route.Handler = route.GetExternalHandle()
+	route.Backends = make(map[uuid.UUID]*Backend)
+
+	go route.RunHealthCheckOnBackends()
 
 	return route, nil
 }
@@ -60,102 +58,187 @@ func (r *Route) GetHandler() http.HandlerFunc {
 	return r.Handler
 }
 
-func sendResponse(resp *http.Response, w http.ResponseWriter) {
-	b, err := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
+func (r *Route) updateWeights() {
+	sum, k := 0, 0
 
-	if err != nil {
-		log.Error("Failed to read response body of upstream response")
-		log.Error(err)
-		http.Error(w, "Could not return response", 500)
-
-		return
+	for _, backend := range r.Backends {
+		if backend.Active {
+			sum += backend.Weigth
+		}
 	}
-	w.WriteHeader(resp.StatusCode)
-	w.Write(b)
+
+	var distr = make([]*Backend, sum)
+
+	for _, backend := range r.Backends {
+		if backend.Active {
+			sum += backend.Weigth
+
+			for i := 0; i < backend.Weigth; i++ {
+				distr[k] = backend
+				k++
+			}
+		}
+	}
+	log.Debugf("Current TargetDistribution: %v", distr)
+
+	r.WeightSum = sum
+	r.NextTargetDistr = distr
 }
 
-func formateRequest(old *http.Request, addr string) (*http.Request, error) {
-	b, err := ioutil.ReadAll(old.Body)
+func (r *Route) getNextBackend() (*Backend, error) {
 
+	numberOfBackends := len(r.NextTargetDistr)
+
+	if numberOfBackends == 0 {
+		return nil, fmt.Errorf("No backend is active")
+	}
+
+	n := rand.Intn(numberOfBackends)
+	backend := r.NextTargetDistr[n]
+
+	/*
+		if !backend.Active {
+			r.updateWeights()
+			backend = r.NextTargetDistr[n]
+		}
+	*/
+	return backend, nil
+}
+
+func (r *Route) sendRequestToUpstream(target *Backend, req *http.Request, body []byte) (*http.Response, error) {
+	url := req.URL.String()
+
+	if r.Rewrite != "" {
+		url = strings.Replace(url, r.Prefix, r.Rewrite, -1)
+	}
+	// Copies the downstream request into the upstream request
+	// and formats it accordingly
+	newReq, _ := formateRequest(req, target.Addr+url, body)
+	/*
+		if err != nil {
+			return nil, err
+		}
+	*/
+
+	// Send Request to the upstream host
+	// reuses TCP-Connection
+	resp, m, err := r.Client.Send(newReq)
 	if err != nil {
-		log.Error("Unable ro read body of downstream request")
-		log.Error(err)
+
+		target.UpdateStatus(false)
+		m.RequestMethod = req.Method
+		m.DownstreamAddr = req.RemoteAddr
+		m.UpstreamAddr = target.Addr
+		m.ResponseStatus = 600
+		m.BackendID = target.ID
+		r.MetricsChan <- m
+
 		return nil, err
 	}
-	defer old.Body.Close()
-	reader := bytes.NewReader(b)
 
-	new, err := http.NewRequest(old.Method, addr, reader)
-	if err != nil {
-		return nil, err
-	}
+	m.RequestMethod = req.Method
+	m.DownstreamAddr = req.RemoteAddr
+	m.UpstreamAddr = target.Addr
+	m.ResponseStatus = resp.StatusCode
+	m.BackendID = target.ID
+	r.MetricsChan <- m
 
-	// setup the X-Forwarded-For header
-	if clientIP, _, err := net.SplitHostPort(old.RemoteAddr); err == nil {
-		appendHostToXForwardHeader(new.Header, clientIP)
-	}
-
-	// Copy all headers from the downstream request to the new upstream request
-	copyHeaders(old.Header, new.Header)
-	// Remove all headers from the new upstream request that are bound to downstream connection
-	delHopHeaders(new.Header)
-
-	return new, nil
+	return resp, nil
 }
 
 func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Request) {
 
 	return func(w http.ResponseWriter, req *http.Request) {
-		log.Debugf("Handler received downstream request")
+		//var err error
+		var b []byte
 
-		// Get the next target depending on the strategy selected
-		// TODO: Change this somehow???!!
-		currentTarget := r.Backends[r.Strategy.GetTargetIndex()]
+		currentTarget, _ := r.getNextBackend()
+		/*
+			if err != nil {
+				log.Errorf("Could not get next backend: %v", err)
+				http.Error(w, "", 503)
 
-		// rewrite the url
-		// rewrite == "" => no rewrite
-		// rewrite == "/" => replace prefix with /
-		url := req.URL.String()
+				return
+			}
+		*/
+		b, _ = ioutil.ReadAll(req.Body)
+		/*
+			if err != nil {
+				log.Errorf("Unable to read body of downstream request: %v", err)
+				http.Error(w, "", 500)
+				return
+			}
+		*/
+		defer req.Body.Close()
 
-		if r.Rewrite != "" {
-			url = strings.Replace(url, r.Prefix, r.Rewrite, -1)
-			log.Debugf("Rewriting upstream URL from %s to %s", req.URL.String(), url)
-		}
-		url = currentTarget.Addr + url
-
-		// Copies the downstream request into the upstream request
-		// and formats it accordingly
-		newReq, err := formateRequest(req, url)
+		resp, err := r.sendRequestToUpstream(currentTarget, req, b)
 		if err != nil {
-			http.Error(w, "Unable to formate new request", 500)
+			log.Warnf("Unable to send request to upstream client: %v", err)
+			http.Error(w, "", 503)
 			return
 		}
-
-		// Send Request to the upstream host
-		// reuses TCP-Connection
-		resp, m, err := r.Client.Send(newReq)
-		if err != nil {
-			log.Errorf(err.Error())
-			http.Error(w, "Unable so send request to upstream client", 503)
-			return
-		}
-
-		// Send the Response to the downstream client
-		sendStart := time.Now()
 		sendResponse(resp, w)
-
-		// Collect important metrics
-		m.ResponseSendTime = time.Since(sendStart).Milliseconds()
-		m.Method = req.Method
-		m.DownstreamAddr = req.RemoteAddr
-
-		// consume metrics
-		currentTarget.MetricChan <- m
-		return
 	}
 }
 
-func (r *Route) AddBackend(backend *Backend) {
-	r.Backends = append(r.Backends, backend)
+// AddBackend adds another backend instance of the route
+// A backend could be another version of the upstream application
+// which then can be routed to
+func (r *Route) AddBackend(name, addr, scrapeURL string, scrapeMetrics map[string]float64, weight int) uuid.UUID {
+
+	backend := NewBackend(name, addr, scrapeURL, "", scrapeMetrics, weight)
+	backend.updateWeigth = r.updateWeights
+	log.Debugf("Added Backend %v to Router %s", backend, r.Name)
+	r.Backends[backend.ID] = backend
+	r.updateWeights()
+
+	return backend.ID
+}
+
+func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth int) error {
+	if backend, found := r.Backends[id]; found {
+		backend.Weigth = newWeigth
+		r.updateWeights()
+		return nil
+	}
+	return fmt.Errorf("Backend with ID %v does not exist", id)
+}
+
+// TODO: make this an alert in metrics.go !!!!
+// otherwise status will never be updated lol
+
+func (r *Route) RunHealthCheckOnBackends() {
+	for {
+		for _, backend := range r.Backends {
+			req, err := http.NewRequest("GET", backend.HealthCheckURL, nil)
+			if err != nil {
+				log.Error(err.Error())
+				continue
+			}
+
+			resp, m, err := r.Client.Send(req)
+			if err != nil {
+				// not worth printing healthcheck error as error
+				log.Debug(err.Error())
+				if backend.Active {
+					backend.UpdateStatus(false)
+				}
+
+				m.RequestMethod = req.Method
+				m.DownstreamAddr = req.RemoteAddr
+				m.ResponseStatus = 600
+				m.BackendID = backend.ID
+				r.MetricsChan <- m
+				continue
+			}
+
+			m.RequestMethod = req.Method
+			m.DownstreamAddr = req.RemoteAddr
+			m.ResponseStatus = resp.StatusCode
+			m.BackendID = backend.ID
+
+			r.MetricsChan <- m
+		}
+		time.Sleep(5 * time.Second)
+	}
 }

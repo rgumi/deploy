@@ -2,6 +2,7 @@ package upstreamclient
 
 import (
 	"crypto/tls"
+	"depoy/metrics"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -20,7 +21,7 @@ type upstreamClient struct {
 	Proxy    string
 }
 type UpstreamClient interface {
-	Send(req *http.Request) (*http.Response, Metric, error)
+	Send(req *http.Request) (*http.Response, metrics.Metrics, error)
 	GetClient() *http.Client
 }
 
@@ -28,7 +29,8 @@ func NewClient() UpstreamClient {
 
 	client := new(upstreamClient)
 	client.UseProxy = false
-	client.configClient(100, 2000, 30000, 2000, 2000, true)
+	client.Proxy = ""
+	client.configClient(100, 1000, 30000, 500, 500, true)
 	return client
 }
 
@@ -93,26 +95,22 @@ func (uc *upstreamClient) configClient(
 }
 
 // Send a HTTP message to the upstream client and collect metrics
-func (u *upstreamClient) Send(req *http.Request) (*http.Response, Metric, error) {
-	var m Metric
+func (u *upstreamClient) Send(req *http.Request) (*http.Response, metrics.Metrics, error) {
+	var m metrics.Metrics
 	startOfRequest := time.Now()
 
 	trace := &httptrace.ClientTrace{
 		GotConn: func(connInfo httptrace.GotConnInfo) {
 			m.UpstreamAddr = connInfo.Conn.RemoteAddr().String()
 		},
-		/*
-			DNSDone: func(dnsInfo httptrace.DNSDoneInfo) {
-				m.DNSDoneTime = time.Since(startOfRequest).Milliseconds()
-			},
-			ConnectDone: func(network, addr string, err error) {
-				if err == nil {
-					m.ConnDoneTime = time.Since(startOfRequest).Microseconds()
-				}
-			},
-		*/
+		ConnectDone: func(network, addr string, err error) {
+			if err == nil {
+				m.UpstreamRequestTime = time.Since(startOfRequest).Milliseconds()
+			}
+		},
+
 		GotFirstResponseByte: func() {
-			m.GotFirstResponseByteTime = time.Since(startOfRequest).Milliseconds()
+			m.UpstreamResponseTime = time.Since(startOfRequest).Milliseconds()
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
@@ -123,7 +121,7 @@ func (u *upstreamClient) Send(req *http.Request) (*http.Response, Metric, error)
 	if err != nil {
 		return nil, m, err
 	}
-
-	m.UpstreamStatus = resp.StatusCode
+	log.Debug("Successfully received response from upstream host")
+	m.ResponseStatus = resp.StatusCode
 	return resp, m, nil
 }
