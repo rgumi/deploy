@@ -12,7 +12,8 @@ import (
 // DefaultMetricThreshholds insert var with the default metric threshholds for response time, status etc.
 var DefaultMetricThreshholds = map[string]float64{
 	"UpstreamResponseTime": 100,
-	"ResponseStatus":       500,
+	"6xxResponse":          0,
+	"5xxResponse":          0.1,
 }
 
 func main() {
@@ -34,8 +35,9 @@ func main() {
 		upstreamclient.NewClient(),
 	)
 
-	r.AddBackend("Test2", "http://localhost:9090", "", DefaultMetricThreshholds, 90)
-	r.AddBackend("Test1", "http://localhost:7070", "", DefaultMetricThreshholds, 10)
+	r.AddBackend("Test1", "http://localhost:7070", "", DefaultMetricThreshholds, 75)
+	r.AddBackend("Test2", "http://localhost:9090", "", DefaultMetricThreshholds, 25)
+	r.AddBackend("Test3", "http://localhost:7070", "", DefaultMetricThreshholds, 75)
 
 	if err := g.RegisterRoute(r); err != nil {
 		panic(err)

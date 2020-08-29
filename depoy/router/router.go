@@ -123,9 +123,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// and returns 500 and the error message to the downstream client
 	// therefore no connections can hangup and server crashes are very unlikely
 	defer func() {
-		if e := recover(); e != nil {
-			log.Errorf("Recovered in Router: %v", e)
-			r.ErrorHandler(w, req, e.(error))
+		if err := recover(); err != nil {
+			log.Warnf("Recovered in Router: %v", err)
+			r.ErrorHandler(w, req, err.(error))
 		}
 	}()
 

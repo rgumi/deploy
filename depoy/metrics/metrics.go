@@ -81,7 +81,7 @@ type Backend struct {
 	AlertChannel        chan Alert
 	stopMonitoring      chan int
 	activeAlerts        map[string]*Alert
-	pufferMetricStorage []map[string]float64
+	pufferMetricStorage map[string][]float64
 }
 
 func (b *Backend) QuitMonitoring() {
@@ -141,7 +141,7 @@ func (m *Repository) RegisterBackend(
 		AlertChannel:        make(chan Alert),
 		stopMonitoring:      make(chan int, 2),
 		activeAlerts:        make(map[string]*Alert),
-		pufferMetricStorage: []map[string]float64{},
+		pufferMetricStorage: map[string][]float64{},
 	}
 
 	// append to the list
@@ -192,6 +192,12 @@ func contains(s []string, e string) bool {
 // send an alert
 func (m *Repository) Monitor(
 	backendID uuid.UUID, timeout time.Duration, activeFor time.Duration) error {
+
+	defer func() {
+		if err := recover(); err != nil {
+			log.Warnf("Closing Monitor for Backend %v with Error: %v", backendID, err)
+		}
+	}()
 
 	if backend, ok := m.Backends[backendID]; ok {
 		log.Debugf("Starting monitoring of backend %v", backend.ID)
@@ -291,23 +297,62 @@ func (m *Repository) Listen() {
 	// start the scraping Loop
 	go m.jobLoop()
 
+	go func() {
+
+		for {
+			for _, backend := range m.Backends {
+				data := map[string]float64{
+					"UpstreamResponseTime": average(backend.pufferMetricStorage["UpstreamResponseTime"]),
+					"CounterResponses":     float64(len(backend.pufferMetricStorage["UpstreamResponseTime"])),
+					"2xxResponse":          relation(backend.pufferMetricStorage["2xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
+					"3xxResponse":          relation(backend.pufferMetricStorage["3xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
+					"4xxResponse":          relation(backend.pufferMetricStorage["4xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
+					"5xxResponse":          relation(backend.pufferMetricStorage["5xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
+					"6xxResponse":          relation(backend.pufferMetricStorage["6xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
+				}
+				// reset storage
+				backend.pufferMetricStorage = map[string][]float64{}
+
+				m.storage.Write(backend.ID, data)
+				fmt.Println(data)
+			}
+
+			// 1s average
+			time.Sleep(10 * time.Second)
+		}
+	}()
+
 	for {
 		select {
 		// received the metrics struct with backendID and all metrics
 		case metrics := <-m.InChannel:
-
 			log.Debug(metrics)
+
+			/*
+				// 600 is returned if the host responded with connection refused
+				if metrics.ResponseStatus == 600 {
+					continue
+				}
+			*/
+
 			data := map[string]float64{
 				"UpstreamResponseTime": float64(metrics.UpstreamResponseTime),
-				"ResponseStatus":       float64(metrics.ResponseStatus),
+				"2xxResponse":          float64(isTrue(metrics.ResponseStatus >= 200 && metrics.ResponseStatus < 300)),
+				"3xxResponse":          float64(isTrue(metrics.ResponseStatus >= 300 && metrics.ResponseStatus < 400)),
+				"4xxResponse":          float64(isTrue(metrics.ResponseStatus >= 400 && metrics.ResponseStatus < 500)),
+				"5xxResponse":          float64(isTrue(metrics.ResponseStatus >= 500 && metrics.ResponseStatus < 600)),
+				"6xxResponse":          float64(isTrue(metrics.ResponseStatus >= 600)),
 			}
-			m.storage.Write(metrics.BackendID, data)
-			// save metrics in buffer and then merge after $interval
+
+			backend := m.Backends[metrics.BackendID]
+
+			for key, val := range data {
+				backend.pufferMetricStorage[key] = append(backend.pufferMetricStorage[key], val)
+			}
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:
 
 			log.Debug(scrapeMetrics)
-			// save metrics in buffer and then merge after $interval
 
 		case _ = <-m.shutdown:
 			return
@@ -444,4 +489,39 @@ func getRowFromBody(body io.Reader, pattern string) (float64, error) {
 
 	}
 	return -1, fmt.Errorf("Could not find value for given pattern %s", pattern)
+}
+
+func appendToMap(puffer map[string][]float64, input map[string]float64) {
+	for key, val := range input {
+		puffer[key] = append(puffer[key], val)
+	}
+}
+
+func average(in []float64) float64 {
+
+	sum := 0.0
+	for _, item := range in {
+		sum += item
+	}
+
+	// Average := SumOfN / n
+	return sum / float64(len(in))
+}
+
+func relation(in []float64, n int) float64 {
+
+	sum := 0.0
+	for _, item := range in {
+		sum += item
+	}
+
+	// Average := SumOfN / n
+	return sum / float64(n)
+}
+
+func isTrue(valid bool) int {
+	if valid {
+		return 1
+	}
+	return 0
 }

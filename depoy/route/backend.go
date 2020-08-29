@@ -28,15 +28,15 @@ type Backend struct {
 // NewBackend returns a new base Target
 // it has the minimum required configs and misses configs for Scraping
 func NewBackend(
-	name, addr, scrapeURL, healthCheckURL string,
+	name, addr, scrapeURL, healthCheckPath string,
 	scrapeMetrics map[string]float64, weight int) *Backend {
 
 	if name == "" {
 		panic("name cannot be null")
 	}
 
-	if healthCheckURL == "" {
-		healthCheckURL = addr + "/"
+	if healthCheckPath == "" {
+		healthCheckPath = addr + "/"
 	}
 
 	if weight > 100 {
@@ -56,7 +56,7 @@ func NewBackend(
 		Active:         true,
 		ScrapeURL:      scrapeURL,
 		ScrapeMetrics:  scrapeMetrics, // can be nil
-		HealthCheckURL: healthCheckURL,
+		HealthCheckURL: healthCheckPath,
 	}
 
 	return backend

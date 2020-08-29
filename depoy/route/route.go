@@ -59,11 +59,27 @@ func (r *Route) GetHandler() http.HandlerFunc {
 }
 
 func (r *Route) updateWeights() {
-	sum, k := 0, 0
 
+	k := 0
+	// listWeights := []int{}
+	listWeights := make([]int, len(r.Backends))
+
+	i := 0
 	for _, backend := range r.Backends {
 		if backend.Active {
-			sum += backend.Weigth
+			listWeights[i] = backend.Weigth
+			i++
+		}
+	}
+
+	// find ggt to reduce list length
+	ggt := GGT(listWeights)
+	log.Debugf("Current GGT of Weights is %d", ggt)
+
+	sum := 0
+	if ggt > 0 {
+		for _, weight := range listWeights {
+			sum += weight / ggt
 		}
 	}
 
@@ -71,17 +87,14 @@ func (r *Route) updateWeights() {
 
 	for _, backend := range r.Backends {
 		if backend.Active {
-			sum += backend.Weigth
-
-			for i := 0; i < backend.Weigth; i++ {
+			for i := 0; i < backend.Weigth/ggt; i++ {
 				distr[k] = backend
 				k++
 			}
 		}
 	}
-	log.Debugf("Current TargetDistribution: %v", distr)
+	log.Warnf("Current TargetDistribution: %v", distr)
 
-	r.WeightSum = sum
 	r.NextTargetDistr = distr
 }
 
@@ -152,15 +165,14 @@ func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Reques
 		//var err error
 		var b []byte
 
-		currentTarget, _ := r.getNextBackend()
-		/*
-			if err != nil {
-				log.Errorf("Could not get next backend: %v", err)
-				http.Error(w, "", 503)
+		currentTarget, err := r.getNextBackend()
+		if err != nil {
+			log.Debugf("Could not get next backend: %v", err)
+			http.Error(w, "No Upstream Host Available", 503)
 
-				return
-			}
-		*/
+			return
+		}
+
 		b, _ = ioutil.ReadAll(req.Body)
 		/*
 			if err != nil {
