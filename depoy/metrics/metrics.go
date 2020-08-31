@@ -310,6 +310,7 @@ func (m *Repository) Listen() {
 					"5xxResponse":          relation(backend.pufferMetricStorage["5xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
 					"6xxResponse":          relation(backend.pufferMetricStorage["6xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
 				}
+
 				// reset storage
 				backend.pufferMetricStorage = map[string][]float64{}
 
@@ -337,11 +338,19 @@ func (m *Repository) Listen() {
 
 			data := map[string]float64{
 				"UpstreamResponseTime": float64(metrics.UpstreamResponseTime),
-				"2xxResponse":          float64(isTrue(metrics.ResponseStatus >= 200 && metrics.ResponseStatus < 300)),
-				"3xxResponse":          float64(isTrue(metrics.ResponseStatus >= 300 && metrics.ResponseStatus < 400)),
-				"4xxResponse":          float64(isTrue(metrics.ResponseStatus >= 400 && metrics.ResponseStatus < 500)),
-				"5xxResponse":          float64(isTrue(metrics.ResponseStatus >= 500 && metrics.ResponseStatus < 600)),
-				"6xxResponse":          float64(isTrue(metrics.ResponseStatus >= 600)),
+			}
+
+			switch status := metrics.ResponseStatus; {
+			case status < 300:
+				data["2xxResponse"] = float64(1)
+			case status < 400:
+				data["3xxResponse"] = float64(1)
+			case status < 500:
+				data["4xxResponse"] = float64(1)
+			case status < 600:
+				data["5xxResponse"] = float64(1)
+			default:
+				data["6xxResponse"] = float64(1)
 			}
 
 			backend := m.Backends[metrics.BackendID]

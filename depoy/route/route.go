@@ -61,8 +61,7 @@ func (r *Route) GetHandler() http.HandlerFunc {
 func (r *Route) updateWeights() {
 
 	k := 0
-	// listWeights := []int{}
-	listWeights := make([]int, len(r.Backends))
+	listWeights := make([]uint8, len(r.Backends))
 
 	i := 0
 	for _, backend := range r.Backends {
@@ -76,7 +75,7 @@ func (r *Route) updateWeights() {
 	ggt := GGT(listWeights)
 	log.Debugf("Current GGT of Weights is %d", ggt)
 
-	sum := 0
+	var sum uint8
 	if ggt > 0 {
 		for _, weight := range listWeights {
 			sum += weight / ggt
@@ -87,7 +86,7 @@ func (r *Route) updateWeights() {
 
 	for _, backend := range r.Backends {
 		if backend.Active {
-			for i := 0; i < backend.Weigth/ggt; i++ {
+			for i := uint8(0); i < backend.Weigth/ggt; i++ {
 				distr[k] = backend
 				k++
 			}
@@ -196,7 +195,7 @@ func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Reques
 // AddBackend adds another backend instance of the route
 // A backend could be another version of the upstream application
 // which then can be routed to
-func (r *Route) AddBackend(name, addr, scrapeURL string, scrapeMetrics map[string]float64, weight int) uuid.UUID {
+func (r *Route) AddBackend(name, addr, scrapeURL string, scrapeMetrics map[string]float64, weight uint8) uuid.UUID {
 
 	backend := NewBackend(name, addr, scrapeURL, "", scrapeMetrics, weight)
 	backend.updateWeigth = r.updateWeights
@@ -207,7 +206,7 @@ func (r *Route) AddBackend(name, addr, scrapeURL string, scrapeMetrics map[strin
 	return backend.ID
 }
 
-func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth int) error {
+func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth uint8) error {
 	if backend, found := r.Backends[id]; found {
 		backend.Weigth = newWeigth
 		r.updateWeights()

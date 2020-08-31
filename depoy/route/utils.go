@@ -92,9 +92,8 @@ func formateRequest(old *http.Request, addr string, body []byte) (*http.Request,
 // GGT receives list of ints of which the ggT needs to be found
 // in []int needs to be initialized as if len(in) < 2 the first value
 // will be returned
-func GGT(in []int) int {
+func GGT(in []uint8) uint8 {
 	count := len(in)
-
 	if count < 2 {
 		return in[0]
 	}
@@ -107,7 +106,7 @@ func GGT(in []int) int {
 }
 
 // https://de.wikipedia.org/wiki/Euklidischer_Algorithmus
-func ggT(a, b int) int {
+func ggT(a, b uint8) uint8 {
 	for b != 0 {
 		t := b
 		b = a % b

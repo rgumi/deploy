@@ -1,6 +1,6 @@
 module depoy
 
-go 1.14
+go 1.15
 
 require (
 	github.com/armon/go-radix v1.0.0

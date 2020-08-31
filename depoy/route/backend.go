@@ -15,7 +15,7 @@ type Backend struct {
 	ID             uuid.UUID            `json:"id"`
 	Name           string               `json:"name"`
 	Addr           string               `json:"addr"`
-	Weigth         int                  `json:"weight"`
+	Weigth         uint8                `json:"weight"`
 	Active         bool                 `json:"active"` // in % (100 max)
 	ScrapeURL      string               `json:"scrape_url"`
 	ScrapeMetrics  map[string]float64   `json:"scrape_metrics"`
@@ -29,7 +29,7 @@ type Backend struct {
 // it has the minimum required configs and misses configs for Scraping
 func NewBackend(
 	name, addr, scrapeURL, healthCheckPath string,
-	scrapeMetrics map[string]float64, weight int) *Backend {
+	scrapeMetrics map[string]float64, weight uint8) *Backend {
 
 	if name == "" {
 		panic("name cannot be null")
