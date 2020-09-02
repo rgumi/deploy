@@ -124,7 +124,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// therefore no connections can hangup and server crashes are very unlikely
 	defer func() {
 		if err := recover(); err != nil {
-			log.Warnf("Recovered in Router: %v", err)
+			log.Infof("Recovered in Router: %v", err)
 			r.ErrorHandler(w, req, err.(error))
 		}
 	}()

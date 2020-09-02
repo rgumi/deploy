@@ -39,6 +39,10 @@ func (s *StateMgt) Start() {
 	router.Handle("PUT", "/v1/routes/:name", SetupHeaders(s.UpdateRouteByName))
 	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
 
+	// monitoring
+	router.Handle("GET", "/v1/monitoring/", SetupHeaders(s.GetMetrics))
+	router.Handle("GET", "/v1/monitoring/data", SetupHeaders(s.GetMetricsData))
+
 	// etc
 	router.NotFound = http.HandlerFunc(NotFound)
 	server := http.Server{

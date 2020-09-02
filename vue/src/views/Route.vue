@@ -11,7 +11,7 @@ export default {
     };
   },
   mounted() {
-    let baseUrl = "http://localhost:9090";
+    let baseUrl = "http://localhost:8081";
     console.log(baseUrl);
     axios
       .get(baseUrl + "/v1/routes/" + this.$route.params.id)

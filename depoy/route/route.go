@@ -138,20 +138,24 @@ func (r *Route) sendRequestToUpstream(target *Backend, req *http.Request, body [
 	if err != nil {
 
 		target.UpdateStatus(false)
+		m.Route = r.Name
 		m.RequestMethod = req.Method
 		m.DownstreamAddr = req.RemoteAddr
 		m.UpstreamAddr = target.Addr
 		m.ResponseStatus = 600
+		m.ContentLength = resp.ContentLength
 		m.BackendID = target.ID
 		r.MetricsChan <- m
 
 		return nil, err
 	}
 
+	m.Route = r.Name
 	m.RequestMethod = req.Method
 	m.DownstreamAddr = req.RemoteAddr
 	m.UpstreamAddr = target.Addr
 	m.ResponseStatus = resp.StatusCode
+	m.ContentLength = resp.ContentLength
 	m.BackendID = target.ID
 	r.MetricsChan <- m
 
@@ -235,17 +239,21 @@ func (r *Route) RunHealthCheckOnBackends() {
 					backend.UpdateStatus(false)
 				}
 
+				m.Route = r.Name
 				m.RequestMethod = req.Method
 				m.DownstreamAddr = req.RemoteAddr
 				m.ResponseStatus = 600
+				m.ContentLength = 0
 				m.BackendID = backend.ID
 				r.MetricsChan <- m
 				continue
 			}
 
+			m.Route = r.Name
 			m.RequestMethod = req.Method
 			m.DownstreamAddr = req.RemoteAddr
 			m.ResponseStatus = resp.StatusCode
+			m.ContentLength = resp.ContentLength
 			m.BackendID = backend.ID
 
 			r.MetricsChan <- m

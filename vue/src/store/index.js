@@ -18,17 +18,17 @@ export default new Vuex.Store({
       },
     },
     loading: true,
-    routes: [],
+    routes: {},
   },
   actions: {},
   mutations: {
     pullRoutes: function(state) {
       // let baseUrl = location.origin;
-      let baseUrl = "http://192.168.0.62:9090";
+      let baseUrl = "http://192.168.0.62:8081";
       console.log(baseUrl);
       state.loading = true;
       axios
-        .get(baseUrl + "/v1/info")
+        .get(baseUrl + "/v1/routes/")
         .then((response) => {
           state.routes = response.data;
           state.loading = false;

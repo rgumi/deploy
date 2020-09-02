@@ -11,9 +11,9 @@ import (
 
 // DefaultMetricThreshholds insert var with the default metric threshholds for response time, status etc.
 var DefaultMetricThreshholds = map[string]float64{
-	"UpstreamResponseTime": 100,
-	"6xxResponse":          0,
-	"5xxResponse":          0.1,
+	"ResponseTime": 500,
+	"6xxRate":      0,
+	"5xxRate":      0.1,
 }
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 	r, _ := route.New(
 		"TestRoute",
 		"/test",
-		"/",
+		"/world/",
 		"*",
 		[]string{"GET", "POST"},
 		upstreamclient.NewClient(),

@@ -60,6 +60,8 @@ func sendResponse(resp *http.Response, w http.ResponseWriter) {
 			return
 		}
 	*/
+	copyHeaders(resp.Header, w.Header())
+
 	w.WriteHeader(resp.StatusCode)
 	w.Write(b)
 	log.Debug("Successfully send response to downstream client")

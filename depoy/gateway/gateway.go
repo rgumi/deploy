@@ -4,6 +4,7 @@ import (
 	"depoy/metrics"
 	"depoy/route"
 	"depoy/router"
+	"depoy/storage"
 	"fmt"
 	"net/http"
 	"sync"
@@ -31,7 +32,7 @@ type Gateway struct {
 //NewGateway returns a new instance of Gateway
 func NewGateway(addr string) *Gateway {
 	g := new(Gateway)
-	_, g.MetricsRepo = metrics.NewMetricsRepository(nil, 5*time.Second)
+	_, g.MetricsRepo = metrics.NewMetricsRepository(storage.NewLocalStorage(), 5*time.Second)
 
 	go g.MetricsRepo.Listen()
 

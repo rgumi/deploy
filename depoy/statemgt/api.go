@@ -67,6 +67,9 @@ func GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 func SetupHeaders(h httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, Methods, Content-Type")
+
 		h(w, r, ps)
 	}
 }
@@ -186,4 +189,28 @@ func (s *StateMgt) DeleteRouteByName(w http.ResponseWriter, req *http.Request, p
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(200)
 	w.Write(bJSON)
+}
+
+func (s *StateMgt) GetMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadAll(time.Now().Add(-10*time.Second), time.Now()))
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable to marshal route", 500)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(b)
+}
+
+func (s *StateMgt) GetMetricsData(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadData())
+	if err != nil {
+		log.Errorf(err.Error())
+		http.Error(w, "Unable to marshal route", 500)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(b)
 }

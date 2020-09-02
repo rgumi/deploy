@@ -3,6 +3,7 @@ package metrics
 import (
 	"bufio"
 	"bytes"
+	"depoy/storage"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,34 +17,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Test
-
-var testdataAlarm = map[string]float64{
-	"rpc_duration_seconds_sum":   3,
-	"rpc_duration_seconds_count": 3001,
-}
-
-var testdataResolved = map[string]float64{
-	"rpc_duration_seconds_sum":   1,
-	"rpc_duration_seconds_count": 2001,
-}
-
-type TestStorage struct {
-	data map[uuid.UUID]map[string]float64
-}
-
-func (t *TestStorage) Write(id uuid.UUID, data map[string]float64) {
-	t.data[id] = data
-}
-func (t *TestStorage) Read(id uuid.UUID) map[string]float64 {
-	return t.data[id]
-}
-
-// TestEnde
-
 type Storage interface {
-	Write(uuid.UUID, map[string]float64)
-	Read(uuid.UUID) map[string]float64
+	Write(string, uuid.UUID, map[string]float64, int64, int64, int)
+	ReadRates(backend uuid.UUID, lastSeconds time.Duration) map[string]float64
+	ReadAll(start, end time.Time) map[string]storage.Metric
+	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
 }
 
 type Alert struct {
@@ -58,9 +36,11 @@ type Alert struct {
 }
 
 type Metrics struct {
+	Route                string
 	BackendID            uuid.UUID
 	ResponseStatus       int
 	RequestMethod        string
+	ContentLength        int64
 	UpstreamResponseTime int64
 	UpstreamRequestTime  int64
 	UpstreamAddr         string
@@ -89,7 +69,7 @@ func (b *Backend) QuitMonitoring() {
 }
 
 type Repository struct {
-	storage              Storage
+	Storage              Storage
 	ScrapeInterval       time.Duration
 	client               *http.Client
 	InChannel            chan (Metrics)
@@ -104,11 +84,8 @@ type Repository struct {
 func NewMetricsRepository(storage Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
 	channel := make(chan Metrics, 10)
 	scrapeMetricsChannel := make(chan ScrapeMetrics, 10)
-	// do something with the sql.Conn
-	thisStorage := new(TestStorage)
-	thisStorage.data = make(map[uuid.UUID]map[string]float64)
 	return channel, &Repository{
-		storage:              thisStorage,
+		Storage:              storage,
 		ScrapeInterval:       scrapeInterval,
 		client:               http.DefaultClient,
 		InChannel:            channel,
@@ -210,7 +187,7 @@ func (m *Repository) Monitor(
 			default:
 				// read the collected metric from the storage
 				// may be an average over 1s, 10s, 1m? Configure that
-				collected := m.storage.Read(backendID)
+				collected := m.Storage.ReadRates(backendID, 10)
 
 				// loop over every metric that was collected
 				// collected := map[string]float64
@@ -297,67 +274,15 @@ func (m *Repository) Listen() {
 	// start the scraping Loop
 	go m.jobLoop()
 
-	go func() {
-
-		for {
-			for _, backend := range m.Backends {
-				data := map[string]float64{
-					"UpstreamResponseTime": average(backend.pufferMetricStorage["UpstreamResponseTime"]),
-					"CounterResponses":     float64(len(backend.pufferMetricStorage["UpstreamResponseTime"])),
-					"2xxResponse":          relation(backend.pufferMetricStorage["2xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
-					"3xxResponse":          relation(backend.pufferMetricStorage["3xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
-					"4xxResponse":          relation(backend.pufferMetricStorage["4xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
-					"5xxResponse":          relation(backend.pufferMetricStorage["5xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
-					"6xxResponse":          relation(backend.pufferMetricStorage["6xxResponse"], len(backend.pufferMetricStorage["UpstreamResponseTime"])),
-				}
-
-				// reset storage
-				backend.pufferMetricStorage = map[string][]float64{}
-
-				m.storage.Write(backend.ID, data)
-				fmt.Println(data)
-			}
-
-			// 1s average
-			time.Sleep(10 * time.Second)
-		}
-	}()
-
 	for {
 		select {
 		// received the metrics struct with backendID and all metrics
 		case metrics := <-m.InChannel:
 			log.Debug(metrics)
 
-			/*
-				// 600 is returned if the host responded with connection refused
-				if metrics.ResponseStatus == 600 {
-					continue
-				}
-			*/
-
-			data := map[string]float64{
-				"UpstreamResponseTime": float64(metrics.UpstreamResponseTime),
-			}
-
-			switch status := metrics.ResponseStatus; {
-			case status < 300:
-				data["2xxResponse"] = float64(1)
-			case status < 400:
-				data["3xxResponse"] = float64(1)
-			case status < 500:
-				data["4xxResponse"] = float64(1)
-			case status < 600:
-				data["5xxResponse"] = float64(1)
-			default:
-				data["6xxResponse"] = float64(1)
-			}
-
-			backend := m.Backends[metrics.BackendID]
-
-			for key, val := range data {
-				backend.pufferMetricStorage[key] = append(backend.pufferMetricStorage[key], val)
-			}
+			m.Storage.Write(
+				metrics.Route, metrics.BackendID, nil, metrics.UpstreamResponseTime,
+				metrics.ContentLength, metrics.ResponseStatus)
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:
 
@@ -504,33 +429,4 @@ func appendToMap(puffer map[string][]float64, input map[string]float64) {
 	for key, val := range input {
 		puffer[key] = append(puffer[key], val)
 	}
-}
-
-func average(in []float64) float64 {
-
-	sum := 0.0
-	for _, item := range in {
-		sum += item
-	}
-
-	// Average := SumOfN / n
-	return sum / float64(len(in))
-}
-
-func relation(in []float64, n int) float64 {
-
-	sum := 0.0
-	for _, item := range in {
-		sum += item
-	}
-
-	// Average := SumOfN / n
-	return sum / float64(n)
-}
-
-func isTrue(valid bool) int {
-	if valid {
-		return 1
-	}
-	return 0
 }

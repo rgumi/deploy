@@ -14,7 +14,7 @@
 
       <p v-if="(runningRoutes.length==0)&&showRunning">No routes found.</p>
       <div v-if="showRunning">
-        <v-row v-for="item in runningRoutes" :key="item.name">
+        <v-row v-for="(item, key) in runningRoutes" :key="key">
           <RouteComponent :route="item"></RouteComponent>
         </v-row>
       </div>
@@ -54,14 +54,16 @@ export default {
     };
   },
   props: {
-    data: Array
+    data: Object
   },
   computed: {
     runningRoutes: function() {
-      return this.data.filter(item => item.Status == "running");
+      console.log(this.data);
+      return this.data;
     },
     idleRoutes: function() {
-      return this.data.filter(item => item.Status != "running");
+      console.log(this.data);
+      return this.data;
     }
   }
 };
