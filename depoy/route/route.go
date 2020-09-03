@@ -125,6 +125,7 @@ func (r *Route) sendRequestToUpstream(target *Backend, req *http.Request, body [
 	}
 	// Copies the downstream request into the upstream request
 	// and formats it accordingly
+	log.Debug(target.Addr+url)
 	newReq, _ := formateRequest(req, target.Addr+url, body)
 	/*
 		if err != nil {
@@ -172,24 +173,17 @@ func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Reques
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
 			http.Error(w, "No Upstream Host Available", 503)
-
 			return
 		}
 
 		b, _ = ioutil.ReadAll(req.Body)
-		/*
-			if err != nil {
-				log.Errorf("Unable to read body of downstream request: %v", err)
-				http.Error(w, "", 500)
-				return
-			}
-		*/
+
 		defer req.Body.Close()
 
 		resp, err := r.sendRequestToUpstream(currentTarget, req, b)
 		if err != nil {
 			log.Warnf("Unable to send request to upstream client: %v", err)
-			http.Error(w, "", 503)
+			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
 		sendResponse(resp, w)
@@ -233,8 +227,9 @@ func (r *Route) RunHealthCheckOnBackends() {
 
 			resp, m, err := r.Client.Send(req)
 			if err != nil {
-				// not worth printing healthcheck error as error
-				log.Debug(err.Error())
+		
+
+				log.Warnf("Healthcheck for %v failed due to %s", backend.ID, err.Error())
 				if backend.Active {
 					backend.UpdateStatus(false)
 				}

@@ -29,9 +29,6 @@ func (s *StateMgt) Start() {
 	router.ServeFiles("/static/*filepath", http.Dir("public/"))
 	router.Handle("GET", "/", GetIndexPage)
 
-	// testing to-be-removed
-	router.Handle("GET", "/v1/info", SetupHeaders(GetTestDataset))
-
 	// gateway routes
 	router.Handle("GET", "/v1/routes/:name", SetupHeaders(s.GetRouteByName))
 	router.Handle("GET", "/v1/routes/", SetupHeaders(s.GetAllRoutes))
@@ -40,8 +37,8 @@ func (s *StateMgt) Start() {
 	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
 
 	// monitoring
-	router.Handle("GET", "/v1/monitoring/", SetupHeaders(s.GetMetrics))
-	router.Handle("GET", "/v1/monitoring/data", SetupHeaders(s.GetMetricsData))
+	router.Handle("GET", "/v1/monitoring", SetupHeaders(s.GetMetrics))
+	router.Handle("GET", "/v1/monitoring/all", SetupHeaders(s.GetMetricsData))
 
 	// etc
 	router.NotFound = http.HandlerFunc(NotFound)

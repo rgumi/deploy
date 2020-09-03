@@ -91,7 +91,7 @@ func (b *Backend) Monitor() {
 	for {
 		log.Debugf("Listening for alert on %v", b)
 		alert := <-b.AlertChan
-		log.Warn(alert)
+		log.Warnf("Backend %v received %v", b.ID, alert)
 		if alert.Type == "Alarming" {
 			b.UpdateStatus(false)
 			continue

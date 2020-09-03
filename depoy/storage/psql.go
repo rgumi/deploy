@@ -16,7 +16,7 @@ var (
 	db       *pg.DB
 )
 
-func init() {
+func connect() {
 	db = pg.Connect(&pg.Options{
 		Addr:     addr,
 		User:     user,

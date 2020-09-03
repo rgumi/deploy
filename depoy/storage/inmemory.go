@@ -1,7 +1,5 @@
 package storage
 
-/*
-
 import (
 	"sync"
 	"time"
@@ -20,12 +18,13 @@ func NewLocalStorage() *LocalStorage {
 	st.data = make(map[string]map[uuid.UUID]map[time.Time]Metric)
 	st.puffer = make(map[string]map[uuid.UUID][]Metric)
 
-	// 5s average and save with timestamp
-	go st.Job(1)
+	// time for averiging and saving to data
+	go st.Job(5)
 	return st
 }
 
 func (st *LocalStorage) readPuffer() {
+
 	for routeName, routeData := range st.puffer {
 
 		for backendID, backendData := range routeData {
@@ -45,10 +44,25 @@ func (st *LocalStorage) readPuffer() {
 	}
 }
 
+func (st *LocalStorage) deleteOldData() {
+
+	deletePeriod := time.Duration(10 * time.Minute)
+	for _, routeData := range st.data {
+		for _, backendData := range routeData {
+			for timestamp := range backendData {
+				if timestamp.Add(deletePeriod).Before(time.Now()) {
+					delete(backendData, timestamp)
+				}
+			}
+		}
+	}
+}
+
 func (st *LocalStorage) Job(interval int) {
 
 	for {
 		st.mux.Lock()
+		st.deleteOldData()
 		st.readPuffer()
 		st.mux.Unlock()
 
@@ -178,11 +192,11 @@ func makeAverageBackend(in []Metric) Metric {
 	for _, metric := range in {
 		finalMetric.ContentLength += metric.ContentLength
 
-		// do not count failed requests with responsetime 0 
+		// do not count failed requests with responsetime 0
 		if metric.ResponseTime > 0 {
 			finalMetric.ResponseTime += metric.ResponseTime
 		}
-		
+
 		finalMetric.TotalResponses += metric.TotalResponses
 		finalMetric.ResponseStatus200 += metric.ResponseStatus200
 		finalMetric.ResponseStatus300 += metric.ResponseStatus300
@@ -258,5 +272,3 @@ func (st *LocalStorage) ReadRates(backend uuid.UUID, lastSeconds time.Duration) 
 
 	return m
 }
-
-*/

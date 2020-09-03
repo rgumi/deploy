@@ -10,8 +10,7 @@ import (
 )
 
 func defaultErrorHandler(w http.ResponseWriter, r *http.Request, e error) {
-	w.WriteHeader(500)
-	w.Write([]byte(e.Error()))
+	w.WriteHeader(503)
 }
 
 func defaultNotFoundHandler(w http.ResponseWriter, r *http.Request) {

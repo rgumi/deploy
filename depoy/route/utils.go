@@ -3,7 +3,7 @@ package route
 import (
 	"bytes"
 	"io/ioutil"
-	"net"
+	_ "net"
 	"net/http"
 	"strings"
 
@@ -78,10 +78,12 @@ func formateRequest(old *http.Request, addr string, body []byte) (*http.Request,
 		}
 	*/
 
+	/*
 	// setup the X-Forwarded-For header
 	if clientIP, _, err := net.SplitHostPort(old.RemoteAddr); err == nil {
 		appendHostToXForwardHeader(new.Header, clientIP)
 	}
+	*/
 
 	// Copy all headers from the downstream request to the new upstream request
 	copyHeaders(old.Header, new.Header)

@@ -4,10 +4,9 @@ import (
 	"depoy/route"
 	"depoy/upstreamclient"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -26,38 +25,6 @@ var datasets []Dataset
 
 func GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	http.ServeFile(w, r, "public/favicon.ico")
-}
-
-func GetTestDataset(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	datasets = nil
-	for i := 0; i < 10; i++ {
-		ds := Dataset{
-			ID:     rand.Intn(100),
-			Value:  "HelloWorldRouting",
-			From:   "/hello",
-			To:     "localhost:8080",
-			Status: "running",
-		}
-		datasets = append(datasets, ds)
-	}
-
-	for i := 10; i < 20; i++ {
-		ds := Dataset{
-			ID:     rand.Intn(100),
-			Value:  "HelloWorldRouting",
-			From:   "/hello/world",
-			To:     "http://qde9dp.de.telekom.de:8080",
-			Status: "idle",
-		}
-		datasets = append(datasets, ds)
-	}
-	fmt.Println("Received TestDataset Request")
-
-	time.Sleep(20000 * time.Millisecond)
-	fmt.Println("Finished Sleeping")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(datasets)
 }
 
 func GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -149,7 +116,7 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 	}
 	newRoute, err := route.New(
 		incRoute.Name, incRoute.Prefix, incRoute.Rewrite, incRoute.Host, incRoute.Methods,
-		upstreamclient.NewClient())
+		upstreamclient.NewDefaultClient())
 
 	if err != nil {
 		log.Errorf(err.Error())
@@ -192,7 +159,23 @@ func (s *StateMgt) DeleteRouteByName(w http.ResponseWriter, req *http.Request, p
 }
 
 func (s *StateMgt) GetMetrics(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadAll(time.Now().Add(-10*time.Second), time.Now()))
+	// default is 10 seconds
+	var timeframe = 10
+	var err error
+
+	queryValues := req.URL.Query()
+	queryTimeframe := queryValues.Get("timeframe")
+	if queryTimeframe != "" {
+		timeframe, err = strconv.Atoi(queryTimeframe)
+		if err != nil {
+			log.Errorf(err.Error())
+			http.Error(w, "Parameter timeframe must be int", 400)
+			return
+		}
+	}
+
+	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadAll(time.Now().Add(
+		time.Duration(-timeframe)*time.Second), time.Now()))
 	if err != nil {
 		log.Errorf(err.Error())
 		http.Error(w, "Unable to marshal route", 500)
@@ -204,7 +187,9 @@ func (s *StateMgt) GetMetrics(w http.ResponseWriter, req *http.Request, ps httpr
 }
 
 func (s *StateMgt) GetMetricsData(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadData())
+	data := s.Gateway.MetricsRepo.Storage.ReadData()
+
+	b, err := json.Marshal(data)
 	if err != nil {
 		log.Errorf(err.Error())
 		http.Error(w, "Unable to marshal route", 500)

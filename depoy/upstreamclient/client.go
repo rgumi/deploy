@@ -25,12 +25,29 @@ type UpstreamClient interface {
 	GetClient() *http.Client
 }
 
-func NewClient() UpstreamClient {
+func NewDefaultClient() UpstreamClient {
+
+	client := NewClient(100, 5000, 30000, "", false)
+	return client
+}
+
+func NewClient(maxIdleConns,
+	timeoutMs,
+	idleConnTimeoutMs int,
+	proxy string,
+	tlsVerify bool) UpstreamClient {
 
 	client := new(upstreamClient)
-	client.UseProxy = false
-	client.Proxy = ""
-	client.configClient(100, 1000, 30000, 500, 500, true)
+
+	if proxy != "" {
+		client.UseProxy = true
+		client.Proxy = proxy
+	} else {
+		client.UseProxy = false
+		client.Proxy = ""
+	}
+
+	client.configClient(maxIdleConns, timeoutMs, idleConnTimeoutMs, 0, 0, true)
 	return client
 }
 
@@ -90,6 +107,10 @@ func (uc *upstreamClient) configClient(
 				InsecureSkipVerify: tlsVerify,
 			},
 		},
+		// do not follow redirects as they are forwarded to the downstream client
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Timeout: time.Duration(timeoutMs) * time.Millisecond,
 	}
 }
@@ -121,7 +142,7 @@ func (u *upstreamClient) Send(req *http.Request) (*http.Response, metrics.Metric
 	if err != nil {
 		return nil, m, err
 	}
-	log.Debug("Successfully received response from upstream host")
+	log.Debugf("Successfully received response from upstream host: %d", resp.StatusCode)
 	m.ResponseStatus = resp.StatusCode
 	return resp, m, nil
 }
