@@ -13,11 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	//AllowedMethods are supported by the Gateway
-	AllowedMethods = []string{"GET", "POST", "PATCH"}
-)
-
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
 	mux          sync.Mutex
@@ -120,7 +115,7 @@ func (g *Gateway) RegisterRoute(route *route.Route) error {
 		return err
 	}
 
-	route.MetricsChan = g.MetricsRepo.InChannel
+	route.MetricsRepo = g.MetricsRepo
 
 	if len(route.Backends) == 0 {
 		log.Warnf("Route %s has no backends configured for it", route.Name)

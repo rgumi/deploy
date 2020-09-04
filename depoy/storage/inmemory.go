@@ -7,9 +7,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// SubStorage is used to divide the Storage into multiple
+// maps for better performance
+type SubStorage struct {
+	Name string
+	Data map[uuid.UUID]map[time.Time]Metric
+}
+
 type LocalStorage struct {
-	mux    sync.RWMutex
-	puffer map[string]map[uuid.UUID][]Metric
+	mux    sync.RWMutex                                  // concurrent rw on maps is not possible
+	puffer map[string]map[uuid.UUID][]Metric             // puffer storage until the averaging job is executed
 	data   map[string]map[uuid.UUID]map[time.Time]Metric // map of backend to metrics
 }
 
@@ -19,7 +26,7 @@ func NewLocalStorage() *LocalStorage {
 	st.puffer = make(map[string]map[uuid.UUID][]Metric)
 
 	// time for averiging and saving to data
-	go st.Job(5)
+	go st.Job(5 * time.Second)
 	return st
 }
 
@@ -58,7 +65,7 @@ func (st *LocalStorage) deleteOldData() {
 	}
 }
 
-func (st *LocalStorage) Job(interval int) {
+func (st *LocalStorage) Job(interval time.Duration) {
 
 	for {
 		st.mux.Lock()
@@ -67,7 +74,7 @@ func (st *LocalStorage) Job(interval int) {
 		st.mux.Unlock()
 
 		// sleep n seconds
-		time.Sleep(time.Duration(interval) * time.Second)
+		time.Sleep(interval)
 	}
 }
 
@@ -247,15 +254,14 @@ func makeAverage(in map[uuid.UUID]Metric, finalMetric *Metric) {
 	}
 }
 
-func (st *LocalStorage) ReadRates(backend uuid.UUID, lastSeconds time.Duration) map[string]float64 {
+func (st *LocalStorage) ReadRates(backend uuid.UUID, start, end time.Time) map[string]float64 {
 
 	st.mux.RLock()
 	defer st.mux.RUnlock()
 
 	m := make(map[string]float64)
 
-	// select average from last 10s
-	current := st.ReadBackend(backend, time.Now().Add(-lastSeconds*time.Second), time.Now())
+	current := st.ReadBackend(backend, start, end)
 
 	// there were no responses yet
 	if current.TotalResponses == 0 {

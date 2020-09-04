@@ -19,7 +19,7 @@ import (
 
 type Storage interface {
 	Write(string, uuid.UUID, map[string]float64, int64, int64, int)
-	ReadRates(backend uuid.UUID, lastSeconds time.Duration) map[string]float64
+	ReadRates(backend uuid.UUID, start, end time.Time) map[string]float64
 	ReadAll(start, end time.Time) map[string]storage.Metric
 	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
 }
@@ -187,7 +187,8 @@ func (m *Repository) Monitor(
 			default:
 				// read the collected metric from the storage
 				// may be an average over 1s, 10s, 1m? Configure that
-				collected := m.Storage.ReadRates(backendID, 10)
+				now := time.Now()
+				collected := m.Storage.ReadRates(backendID, now.Add(-10*time.Second), now)
 
 				// loop over every metric that was collected
 				// collected := map[string]float64

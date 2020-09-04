@@ -3,6 +3,7 @@
     <NavBar />
     <v-main>
       <ButtonText
+        style="top: 10px; margin-left: 10px"
         onHoverText="Zurück"
         btnIcon="mdi-arrow-left-bold"
         btnEvent="backEvent"
@@ -35,6 +36,14 @@ export default {
   data: () => ({
     //
   }),
+  beforeMount() {
+    window.addEventListener("beforeunload", this.preventNav);
+  },
+
+  beforeDestroy() {
+    window.removeEventListener("beforeunload", this.preventNav);
+  },
+
   methods: {
     emitEvent() {
       eventBus.$emit("showEvent", {
@@ -43,6 +52,10 @@ export default {
         title: "Error 404",
         message: "Could not find the requested resource"
       });
+    },
+    preventNav(event) {
+      event.preventDefault();
+      event.returnValue = "";
     }
   }
 };

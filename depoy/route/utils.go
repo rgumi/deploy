@@ -3,9 +3,11 @@ package route
 import (
 	"bytes"
 	"io/ioutil"
+	"net"
 	_ "net"
 	"net/http"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -51,17 +53,10 @@ func sendResponse(resp *http.Response, w http.ResponseWriter) {
 	log.Debug("Sending response to downstream client")
 	b, _ := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()
-	/*
-		if err != nil {
-			log.Error("Failed to read response body of upstream response")
-			log.Error(err)
-			http.Error(w, "Could not return response", 500)
 
-			return
-		}
-	*/
 	copyHeaders(resp.Header, w.Header())
 
+	w.Header().Add("server", "depoy")
 	w.WriteHeader(resp.StatusCode)
 	w.Write(b)
 	log.Debug("Successfully send response to downstream client")
@@ -72,18 +67,11 @@ func formateRequest(old *http.Request, addr string, body []byte) (*http.Request,
 	reader := bytes.NewReader(body)
 
 	new, _ := http.NewRequest(old.Method, addr, reader)
-	/*
-		if err != nil {
-			return nil, err
-		}
-	*/
 
-	/*
 	// setup the X-Forwarded-For header
 	if clientIP, _, err := net.SplitHostPort(old.RemoteAddr); err == nil {
 		appendHostToXForwardHeader(new.Header, clientIP)
 	}
-	*/
 
 	// Copy all headers from the downstream request to the new upstream request
 	copyHeaders(old.Header, new.Header)
@@ -117,4 +105,22 @@ func ggT(a, b uint8) uint8 {
 		a = t
 	}
 	return a
+}
+
+func addCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {
+	expire := time.Now().Add(ttl)
+	cookie := http.Cookie{
+		Name:    name,
+		Value:   value,
+		Expires: expire,
+	}
+	http.SetCookie(w, &cookie)
+}
+
+func checkCookie(req *http.Request, name string) (string, time.Time) {
+	cookie, err := req.Cookie(name)
+	if err != nil {
+		return "", time.Time{}
+	}
+	return cookie.Value, cookie.Expires
 }

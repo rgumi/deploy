@@ -3,7 +3,6 @@ package route
 import (
 	"depoy/metrics"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -26,9 +25,10 @@ type Route struct {
 	Backends        map[uuid.UUID]*Backend `json:"backends"`
 	Client          UpstreamClient         `json:"-"`
 	Handler         http.HandlerFunc       `json:"-"`
-	MetricsChan     chan metrics.Metrics   `json:"-"`
-	WeightSum       int                    `json:"-"`
 	NextTargetDistr []*Backend             `json:"-"`
+	CookieTTL       time.Duration          `json:"cookie_ttl"`
+	MetricsRepo     *metrics.Repository    `json:"-"`
+	SwitchOver      *SwitchOver            `json:"switch"`
 }
 
 func New(name, prefix, rewrite, host string, methods []string, upstreamClient UpstreamClient) (*Route, error) {
@@ -46,8 +46,10 @@ func New(name, prefix, rewrite, host string, methods []string, upstreamClient Up
 	route.Rewrite = rewrite
 	route.Methods = methods
 	route.Host = host
-	route.Handler = route.GetExternalHandle()
+	route.Handler = route.StickyHandler()
 	route.Backends = make(map[uuid.UUID]*Backend)
+
+	route.CookieTTL = 120 * time.Second
 
 	go route.RunHealthCheckOnBackends()
 
@@ -125,7 +127,7 @@ func (r *Route) sendRequestToUpstream(target *Backend, req *http.Request, body [
 	}
 	// Copies the downstream request into the upstream request
 	// and formats it accordingly
-	log.Debug(target.Addr+url)
+	log.Debug(target.Addr + url)
 	newReq, _ := formateRequest(req, target.Addr+url, body)
 	/*
 		if err != nil {
@@ -146,7 +148,7 @@ func (r *Route) sendRequestToUpstream(target *Backend, req *http.Request, body [
 		m.ResponseStatus = 600
 		m.ContentLength = resp.ContentLength
 		m.BackendID = target.ID
-		r.MetricsChan <- m
+		r.MetricsRepo.InChannel <- m
 
 		return nil, err
 	}
@@ -158,36 +160,9 @@ func (r *Route) sendRequestToUpstream(target *Backend, req *http.Request, body [
 	m.ResponseStatus = resp.StatusCode
 	m.ContentLength = resp.ContentLength
 	m.BackendID = target.ID
-	r.MetricsChan <- m
+	r.MetricsRepo.InChannel <- m
 
 	return resp, nil
-}
-
-func (r *Route) GetExternalHandle() func(w http.ResponseWriter, req *http.Request) {
-
-	return func(w http.ResponseWriter, req *http.Request) {
-		//var err error
-		var b []byte
-
-		currentTarget, err := r.getNextBackend()
-		if err != nil {
-			log.Debugf("Could not get next backend: %v", err)
-			http.Error(w, "No Upstream Host Available", 503)
-			return
-		}
-
-		b, _ = ioutil.ReadAll(req.Body)
-
-		defer req.Body.Close()
-
-		resp, err := r.sendRequestToUpstream(currentTarget, req, b)
-		if err != nil {
-			log.Warnf("Unable to send request to upstream client: %v", err)
-			http.Error(w, "Unable to send request to upstream client", 503)
-			return
-		}
-		sendResponse(resp, w)
-	}
 }
 
 // AddBackend adds another backend instance of the route
@@ -227,7 +202,6 @@ func (r *Route) RunHealthCheckOnBackends() {
 
 			resp, m, err := r.Client.Send(req)
 			if err != nil {
-		
 
 				log.Warnf("Healthcheck for %v failed due to %s", backend.ID, err.Error())
 				if backend.Active {
@@ -240,7 +214,7 @@ func (r *Route) RunHealthCheckOnBackends() {
 				m.ResponseStatus = 600
 				m.ContentLength = 0
 				m.BackendID = backend.ID
-				r.MetricsChan <- m
+				r.MetricsRepo.InChannel <- m
 				continue
 			}
 
@@ -251,8 +225,32 @@ func (r *Route) RunHealthCheckOnBackends() {
 			m.ContentLength = resp.ContentLength
 			m.BackendID = backend.ID
 
-			r.MetricsChan <- m
+			r.MetricsRepo.InChannel <- m
 		}
 		time.Sleep(5 * time.Second)
 	}
+}
+
+// StartSwitchOver starts the switch over process
+func (r *Route) StartSwitchOver(
+	old, new *Backend,
+	conditions []Condition,
+	wait time.Duration,
+	weightChange int) {
+
+	switchOver := &SwitchOver{
+		From:         old,
+		To:           new,
+		Conditions:   conditions,
+		Route:        r,
+		Wait:         wait,
+		WeightChange: weightChange,
+	}
+	r.SwitchOver = switchOver
+	go switchOver.Start()
+}
+
+// StopSwitchOver stops the switchover process and leaves the weights as they are last
+func (r *Route) StopSwitchOver() {
+	r.SwitchOver.Stop()
 }

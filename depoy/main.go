@@ -18,7 +18,7 @@ var DefaultMetricThreshholds = map[string]float64{
 }
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.WarnLevel)
 
 	// load config
 
@@ -38,16 +38,16 @@ func main() {
 
 	r2, _ := route.New(
 		"Route2",
-		"/grafana/",
-		"/grafana/",
+		"/test/",
+		"/",
 		"*",
 		[]string{"GET", "POST"},
 		upstreamclient.NewDefaultClient(),
 	)
 
 	//r.AddBackend("Test1", "http://localhost:7070", "", DefaultMetricThreshholds, 75)
-	r.AddBackend("Test2", "https://k8s-irrp-ewu-cc.telekom.de", "", DefaultMetricThreshholds, 25)
-	r2.AddBackend("Test2", "https://k8s-irrp-ewu-cc.telekom.de", "", DefaultMetricThreshholds, 25)
+	r.AddBackend("Test2", "http://localhost:7070", "", DefaultMetricThreshholds, 25)
+	r2.AddBackend("Test2", "http://localhost:9090", "", DefaultMetricThreshholds, 25)
 
 	if err := g.RegisterRoute(r); err != nil {
 		panic(err)
