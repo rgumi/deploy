@@ -4,7 +4,9 @@ import (
 	"depoy/gateway"
 	"depoy/middleware"
 	"net/http"
+	"time"
 
+	"github.com/gobuffalo/packr/v2"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
 )
@@ -12,6 +14,7 @@ import (
 type StateMgt struct {
 	Gateway *gateway.Gateway
 	Addr    string
+	Box     *packr.Box
 }
 
 func NewStateMgt(addr string, g *gateway.Gateway) *StateMgt {
@@ -25,9 +28,9 @@ func (s *StateMgt) Start() {
 	router := httprouter.New()
 
 	//static files
-	router.Handle("GET", "/favicon.ico", GetFavicon)
-	router.ServeFiles("/static/*filepath", http.Dir("public/"))
-	router.Handle("GET", "/", GetIndexPage)
+	router.Handle("GET", "/", s.GetIndexPage)
+	router.Handle("GET", "/favicon.ico", s.GetFavicon)
+	router.Handle("GET", "/static/*filepath", s.GetStaticFiles)
 
 	// gateway routes
 	router.Handle("GET", "/v1/routes/:name", SetupHeaders(s.GetRouteByName))
@@ -41,10 +44,14 @@ func (s *StateMgt) Start() {
 	router.Handle("GET", "/v1/monitoring/all", SetupHeaders(s.GetMetricsData))
 
 	// etc
-	router.NotFound = http.HandlerFunc(NotFound)
+	router.NotFound = http.HandlerFunc(s.NotFound)
 	server := http.Server{
-		Addr:    s.Addr,
-		Handler: middleware.LogRequest(router),
+		Addr:              s.Addr,
+		Handler:           middleware.LogRequest(router),
+		IdleTimeout:       30 * time.Second,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      5 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
 	}
 
 	// setup complete. Start servers

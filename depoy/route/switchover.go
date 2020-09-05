@@ -12,6 +12,7 @@ var allowedOperators = []string{">", "==", "<"}
 // of a backend and take action according to
 // the values defined here
 type Condition struct {
+	Status      bool                            // Status if the condition active for long enough and is therefore true
 	Metric      string                          // Name of the metric
 	Operator    string                          // < > ==
 	Threshhold  float64                         // Threshhold that is checked

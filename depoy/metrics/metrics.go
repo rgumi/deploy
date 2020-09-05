@@ -64,10 +64,6 @@ type Backend struct {
 	pufferMetricStorage map[string][]float64
 }
 
-func (b *Backend) QuitMonitoring() {
-	b.stopMonitoring <- 1
-}
-
 type Repository struct {
 	Storage              Storage
 	ScrapeInterval       time.Duration
@@ -134,6 +130,8 @@ func (m *Repository) RemoveBackend(backendID uuid.UUID) error {
 	// check if backendID is exists and delete
 	for key := range m.Backends {
 		if key == backendID {
+			// stop monitoring job of backend
+			m.Backends[key].stopMonitoring <- 1
 			// remove
 			delete(m.Backends, key)
 			return nil
@@ -152,15 +150,6 @@ func (m *Repository) Stop() {
 	for _, b := range m.Backends {
 		b.stopMonitoring <- 1
 	}
-}
-
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
 }
 
 // Monitor stats the monitor loop which checks every $timeout interval
@@ -258,10 +247,8 @@ func (m *Repository) Monitor(
 						log.Debugf("New alert registered: %v", alert)
 					}
 				}
-
-				// timeout after first round of alarming
-				time.Sleep(timeout)
 			}
+			time.Sleep(timeout)
 		}
 	}
 	return fmt.Errorf("Could not find backend with id %v", backendID)
@@ -355,16 +342,22 @@ func (m *Repository) jobLoop() {
 			return
 
 		default:
-			time.Sleep(m.ScrapeInterval)
 			for _, instance := range m.Backends {
 				if instance.ScrapeURL != "" {
 					go m.scrapeJob(instance)
 				}
 			}
+			time.Sleep(m.ScrapeInterval)
 		}
 	}
 
 }
+
+/*
+
+	Helper functions
+
+*/
 
 // Source: https://gist.github.com/yyscamper/5657c360fadd6701580f3c0bcca9f63a
 func parseFloat(str string) (float64, error) {
@@ -430,4 +423,13 @@ func appendToMap(puffer map[string][]float64, input map[string]float64) {
 	for key, val := range input {
 		puffer[key] = append(puffer[key], val)
 	}
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }

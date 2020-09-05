@@ -6,6 +6,8 @@ import (
 	"depoy/statemgt"
 	"depoy/upstreamclient"
 
+	"github.com/gobuffalo/packr/v2"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,7 +20,7 @@ var DefaultMetricThreshholds = map[string]float64{
 }
 
 func main() {
-	log.SetLevel(log.WarnLevel)
+	log.SetLevel(log.DebugLevel)
 
 	// load config
 
@@ -58,5 +60,10 @@ func main() {
 	}
 
 	st := statemgt.NewStateMgt(":8081", g)
+
+	// package static files into binary
+	box := packr.New("files", "dist")
+
+	st.Box = box
 	st.Start()
 }

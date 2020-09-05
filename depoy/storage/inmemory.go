@@ -7,13 +7,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// SubStorage is used to divide the Storage into multiple
-// maps for better performance
-type SubStorage struct {
-	Name string
-	Data map[uuid.UUID]map[time.Time]Metric
-}
-
 type LocalStorage struct {
 	mux    sync.RWMutex                                  // concurrent rw on maps is not possible
 	puffer map[string]map[uuid.UUID][]Metric             // puffer storage until the averaging job is executed
@@ -68,12 +61,12 @@ func (st *LocalStorage) deleteOldData() {
 func (st *LocalStorage) Job(interval time.Duration) {
 
 	for {
+
 		st.mux.Lock()
 		st.deleteOldData()
 		st.readPuffer()
 		st.mux.Unlock()
 
-		// sleep n seconds
 		time.Sleep(interval)
 	}
 }

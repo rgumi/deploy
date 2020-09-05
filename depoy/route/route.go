@@ -12,6 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var healthCheckInterval = 5 * time.Second
+
 type UpstreamClient interface {
 	Send(*http.Request) (*http.Response, metrics.Metrics, error)
 }
@@ -193,6 +195,8 @@ func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth uint8) error {
 
 func (r *Route) RunHealthCheckOnBackends() {
 	for {
+		<-time.After(healthCheckInterval)
+
 		for _, backend := range r.Backends {
 			req, err := http.NewRequest("GET", backend.HealthCheckURL, nil)
 			if err != nil {
@@ -227,7 +231,6 @@ func (r *Route) RunHealthCheckOnBackends() {
 
 			r.MetricsRepo.InChannel <- m
 		}
-		time.Sleep(5 * time.Second)
 	}
 }
 

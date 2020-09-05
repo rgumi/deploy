@@ -13,40 +13,37 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Dataset struct {
-	ID     int
-	Value  string
-	From   string
-	To     string
-	Status string
+func (s *StateMgt) GetStaticFiles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fileServer := http.FileServer(s.Box)
+
+	fileServer.ServeHTTP(w, r)
 }
 
-var datasets []Dataset
-
-func GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	http.ServeFile(w, r, "public/favicon.ico")
-}
-
-func GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	http.ServeFile(w, r, "./public/")
-}
-
-func SetupHeaders(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, Methods, Content-Type")
-
-		h(w, r, ps)
+func (s *StateMgt) GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	w.WriteHeader(200)
+	html, err := s.Box.Find("favicon.ico")
+	if err != nil {
+		http.Error(w, "", 500)
 	}
+	w.Write(html)
 }
 
-func NotFound(w http.ResponseWriter, r *http.Request) {
+func (s *StateMgt) GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+
+	w.WriteHeader(200)
+	html, err := s.Box.Find("index.html")
+	if err != nil {
+		http.Error(w, "", 500)
+	}
+	w.Write(html)
+}
+
+func (s *StateMgt) NotFound(w http.ResponseWriter, r *http.Request) {
 
 	// check if call was directly to the api
 	if r.URL.Path[:3] != "/v1" {
 		//if no direct request to the api then return singlepage app
-		http.ServeFile(w, r, "./public/index.html")
+		s.GetIndexPage(w, r, nil)
 		return
 	}
 	// if reqeusts is a direct call to the api return 404
@@ -198,4 +195,19 @@ func (s *StateMgt) GetMetricsData(w http.ResponseWriter, req *http.Request, ps h
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(200)
 	w.Write(b)
+}
+
+/*
+
+	Helper functions
+
+*/
+func SetupHeaders(h httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, Methods, Content-Type")
+
+		h(w, r, ps)
+	}
 }
