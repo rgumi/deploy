@@ -1,7 +1,6 @@
-# ~~ node
 node_modules/
 dist
-#.eslintrc.js
-#babel.config.js
-
 *.exe
+packrd
+main-packr.go
+__pycache__

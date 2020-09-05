@@ -1,7 +1,7 @@
 <template>
   <v-container>
     <v-row>
-      <v-col xs12 class="text-center" mt-5>
+      <v-col xs12 class="text-center">
         <h1 class="avoid-clicks">Dashboard</h1>
       </v-col>
     </v-row>
@@ -41,8 +41,10 @@
         style="margin: 8px;"
       ></v-progress-circular>
     </v-row>
+
+    <!-- content -->
     <v-row>
-      <v-col>
+      <v-col cols="12">
         <v-card class="chartContainer">
           <v-card-title>ResponseStatus</v-card-title>
           <v-card-text>
@@ -52,7 +54,7 @@
       </v-col>
     </v-row>
     <v-row>
-      <v-col>
+      <v-col cols="12" md="6">
         <v-card class="chartContainer">
           <v-card-title>TotalResponses</v-card-title>
           <v-card-text>
@@ -60,7 +62,7 @@
           </v-card-text>
         </v-card>
       </v-col>
-      <v-col>
+      <v-col cols="12" md="6">
         <v-card class="chartContainer">
           <v-card-title>ResponseTime</v-card-title>
           <v-card-text>
@@ -180,22 +182,28 @@ export default {
       let baseUrl = "http://localhost:8081";
       this.currentlyLoading = true;
       axios
-        .get(baseUrl + "/v1/monitoring?timeframe=10")
+        .get(baseUrl + "/v1/monitoring?timeframe=10", {}, { timeout: 2 })
         .then(response => {
-          for (var key in response.data) {
-            if (key in this.data) {
-              this.data[key].push(response.data[key]);
-            } else {
-              this.data[key] = new Array();
-              this.data[key].push(response.data[key]);
+          // check if an empty object was returned
+          // this sometimes happened when the app just started
+          // and therefore no route metrics were returned
+          if (Object.keys(response.data).length !== 0) {
+            for (var key in response.data) {
+              if (key in this.data) {
+                this.data[key].push(response.data[key]);
+              } else {
+                this.data[key] = new Array();
+                this.data[key].push(response.data[key]);
+              }
             }
-          }
-          this.timestamps.push(this.getTimestamp());
 
-          callback();
+            this.timestamps.push(this.getTimestamp());
+            callback();
+          }
 
           this.currentlyLoading = false;
         })
+
         .catch(error => {
           this.error = error;
           console.error(error);
