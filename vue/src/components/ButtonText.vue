@@ -17,19 +17,19 @@ export default {
   data() {
     return {
       hover: true,
-      size: 35,
+      size: 35
     };
   },
   props: {
     onHoverText: String,
     btnIcon: String,
-    btnEvent: String,
+    btnEvent: String
   },
   computed: {
     event: function() {
       return this.btnEvent;
-    },
-  },
+    }
+  }
 };
 </script>
 

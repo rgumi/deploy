@@ -93,13 +93,17 @@ allowed:
 // increase the load to a backend by updating the
 // weights of the backends
 type SwitchOver struct {
-	From         *Backend      `json:"from"`          // old version
-	To           *Backend      `json:"to"`            // new version
-	Conditions   []*Condition  `json:"conditions"`    // conditions that all need to be met to change
-	WeightChange uint8         `json:"weight_change"` // amount of change to the weights
-	Timeout      time.Duration `json:"timeout"`       // duration to wait before changing weights
-	Route        *Route        `json:"-"`             // route for which the switch is defined
-	killChan     chan int      `json:"-"`             // chan to stop the switchover process
+	From               *Backend      `json:"from"`          // old version
+	To                 *Backend      `json:"to"`            // new version
+	Conditions         []*Condition  `json:"conditions"`    // conditions that all need to be met to change
+	WeightChange       uint8         `json:"weight_change"` // amount of change to the weights
+	Timeout            time.Duration `json:"timeout"`       // duration to wait before changing weights
+	Route              *Route        `json:"-"`             // route for which the switch is defined
+	killChan           chan int      `json:"-"`             // chan to stop the switchover process
+	toRollbackWeight   uint8         `json:"-"`
+	fromRollbackWeight uint8         `json:"-"`
+	Rollback           bool          `json:"rollback"`         // If Switchover is cancled or aborted, should the weights of backends be reset?
+	AllowedFailures    int           `json:"allowed_failures"` // amount of failures that are allowed before switchover is aborted
 }
 
 // Stop the switchover process
@@ -164,10 +168,11 @@ outer:
 				}
 			}
 
-			// if all conditions are true, increase the weigth of the new route
-			s.From.Weigth -= s.WeightChange
-			s.To.Weigth += s.WeightChange
+			// if all conditions are true, increase the weight of the new route
+			s.From.UpdateWeight(s.From.Weigth - s.WeightChange)
+			s.To.UpdateWeight(s.To.Weigth + s.WeightChange)
 
+			// As both routes are part of the same route, both will be updated
 			s.To.updateWeigth()
 
 			// reset the conditions

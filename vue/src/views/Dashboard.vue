@@ -7,17 +7,26 @@
     </v-row>
     <v-row justify="start">
       <div class="text-center">
-        <v-menu offset-y @mouseleave="on=false">
+        <v-menu offset-y @mouseleave="on = false">
           <template v-slot:activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
               v-on="on"
               style="min-width: 150px; margin-left: 10px;"
-            >{{ selectedRoute }}</v-btn>
+              >{{ selectedRoute }}</v-btn
+            >
           </template>
           <v-list class="dropdown avoid-clicks" style="min-width: 150px;">
-            <v-list-item v-for="(route, index) in Object.keys(data)" :key="index" ripple>
-              <v-list-item-title @click="selectRoute(route)" style="text-align:center;">{{ route }}</v-list-item-title>
+            <v-list-item
+              v-for="(route, index) in Object.keys(data)"
+              :key="index"
+              ripple
+            >
+              <v-list-item-title
+                @click="selectRoute(route)"
+                style="text-align:center;"
+                >{{ route }}</v-list-item-title
+              >
             </v-list-item>
           </v-list>
         </v-menu>
@@ -25,7 +34,9 @@
 
       <!-- refresh -->
       <!-- @click="refresh" -->
-      <v-icon size="32" style="margin: 5px;" :disabled="currentlyLoading">mdi-refresh</v-icon>
+      <v-icon size="32" style="margin: 5px;" :disabled="currentlyLoading"
+        >mdi-refresh</v-icon
+      >
 
       <!-- loading icon -->
       <v-progress-circular
@@ -44,7 +55,10 @@
         <v-card class="chartContainer">
           <v-card-title>ResponseStatus</v-card-title>
           <v-card-text>
-            <LineChart :options="options" :chart-data="responseStatusData"></LineChart>
+            <LineChart
+              :options="options"
+              :chart-data="responseStatusData"
+            ></LineChart>
           </v-card-text>
         </v-card>
       </v-col>
@@ -54,7 +68,10 @@
         <v-card class="chartContainer">
           <v-card-title>TotalResponses</v-card-title>
           <v-card-text>
-            <LineChart :options="options" :chart-data="totalResponseData"></LineChart>
+            <LineChart
+              :options="options"
+              :chart-data="totalResponseData"
+            ></LineChart>
           </v-card-text>
         </v-card>
       </v-col>
@@ -62,7 +79,10 @@
         <v-card class="chartContainer">
           <v-card-title>ResponseTime</v-card-title>
           <v-card-text>
-            <LineChart :options="options" :chart-data="responseTimeData"></LineChart>
+            <LineChart
+              :options="options"
+              :chart-data="responseTimeData"
+            ></LineChart>
           </v-card-text>
         </v-card>
       </v-col>

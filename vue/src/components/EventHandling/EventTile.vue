@@ -37,22 +37,22 @@ export default {
     input: Object,
     removeInterval: {
       type: Number,
-      default: 10000,
-    },
+      default: 10000
+    }
   },
   data: () => {
     return {
-      show: false,
+      show: false
     };
   },
   methods: {
     remove() {
       this.$emit("removeEvent");
-    },
+    }
   },
   created() {
     setTimeout(() => this.remove(), this.removeInterval);
-  },
+  }
 };
 </script>
 

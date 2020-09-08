@@ -26,7 +26,8 @@
           size="60"
           class="statusIcon"
           :color="this.getIcon(route.Status).color"
-        >{{ this.getIcon(route.Status).icon }}</v-icon>
+          >{{ this.getIcon(route.Status).icon }}</v-icon
+        >
       </v-col>
     </v-row>
     <v-divider></v-divider>

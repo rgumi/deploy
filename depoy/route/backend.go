@@ -58,12 +58,19 @@ func NewBackend(
 		Weigth:           weight,
 		Active:           true,
 		ScrapeURL:        scrapeURL,
-		ScrapeMetrics:    scrapeMetrics, // can be nil
-		MetricThresholds: metricThresholds,
+		ScrapeMetrics:    scrapeMetrics,    // can be nil
+		MetricThresholds: metricThresholds, // can be nil
 		HealthCheckURL:   healthCheckPath,
 	}
 
 	return backend
+}
+
+func (b *Backend) UpdateWeight(weight uint8) {
+	b.mux.Lock()
+	defer b.mux.Unlock()
+
+	b.Weigth = weight
 }
 
 func (b *Backend) UpdateStatus(status bool) {

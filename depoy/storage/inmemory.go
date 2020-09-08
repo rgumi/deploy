@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/common/log"
 )
 
 type LocalStorage struct {
@@ -64,10 +65,15 @@ func (st *LocalStorage) Job(interval time.Duration) {
 
 	for {
 
-		st.mux.Lock()
-		st.deleteOldData()
-		st.readPuffer()
-		st.mux.Unlock()
+		go func() {
+			log.Warn("Acquiring lock in Job")
+			st.mux.Lock()
+			defer st.mux.Unlock()
+			defer log.Warn("Released lock in Job")
+			st.deleteOldData()
+			st.readPuffer()
+
+		}()
 
 		time.Sleep(interval)
 	}
@@ -112,11 +118,18 @@ func (st *LocalStorage) Write(
 
 // ReadData returns the whole data map
 func (st *LocalStorage) ReadData() map[string]map[uuid.UUID]map[time.Time]Metric {
+
+	st.mux.RLock()
+	defer st.mux.RUnlock()
+
 	return st.data
 }
 
 // ReadAll returns all metrics in data that are within the given timeframe
 func (st *LocalStorage) ReadAll(start, end time.Time) map[string]Metric {
+
+	st.mux.RLock()
+	defer st.mux.RUnlock()
 
 	m := make(map[string]Metric)
 

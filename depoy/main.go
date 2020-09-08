@@ -15,12 +15,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DefaultMetricThreshholds insert var with the default metric threshholds for response time, status etc.
-// replace this with []Condition{} ??
 var ScrapeMetrics = []string{
 	"go_goroutines",
 }
 
+// DefaultMetricsThresholds Repalce with Condition ???
 var DefaultMetricsThresholds = map[string]float64{
 	"go_goroutines": 20,
 	"ResponseTime":  1000,
@@ -30,7 +29,7 @@ var DefaultMetricsThresholds = map[string]float64{
 }
 
 func main() {
-	log.SetLevel(log.DebugLevel)
+	log.SetLevel(log.WarnLevel)
 	promPort := ":8084"
 	// load config
 

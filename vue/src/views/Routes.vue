@@ -12,7 +12,8 @@
         style="margin: 5px;"
         @click="getRoutes"
         :disabled="currentlyLoading"
-      >mdi-refresh</v-icon>
+        >mdi-refresh</v-icon
+      >
 
       <!-- Open a pop up with configs for route-->
       <v-icon size="32" style="margin: 5px;" @click="sayHello">mdi-plus</v-icon>

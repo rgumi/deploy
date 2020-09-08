@@ -4,31 +4,30 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 )
 
 func (s *StateMgt) GetStaticFiles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fileServer := http.FileServer(s.Box)
+	log.Info("Returning static files")
 
+	fileServer := http.FileServer(s.Box)
 	fileServer.ServeHTTP(w, r)
 }
 
-func (s *StateMgt) GetFavicon(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.WriteHeader(200)
-	html, err := s.Box.Find("favicon.ico")
-	if err != nil {
-		http.Error(w, "", 500)
-	}
-	w.Write(html)
-}
-
 func (s *StateMgt) GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-
 	w.WriteHeader(200)
 	html, err := s.Box.Find("index.html")
 	if err != nil {
 		http.Error(w, "", 500)
 	}
 	w.Write(html)
+}
+
+func (s *StateMgt) GetRootFiles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	log.Info("Returning root files")
+
+	fileServer := http.FileServer(s.Box)
+	fileServer.ServeHTTP(w, r)
 }
 
 func (s *StateMgt) NotFound(w http.ResponseWriter, r *http.Request) {

@@ -8,11 +8,12 @@
             :size="25"
             v-bind:class="{ rotate: !showRunning }"
             style="margin-right: 5px"
-          >mdi-arrow-down-bold-circle-outline</v-icon>Running Routes
+            >mdi-arrow-down-bold-circle-outline</v-icon
+          >Running Routes
         </v-btn>
       </v-row>
 
-      <p v-if="(runningRoutes.length==0)&&showRunning">No routes found.</p>
+      <p v-if="runningRoutes.length == 0 && showRunning">No routes found.</p>
       <div v-if="showRunning">
         <v-row v-for="(item, key) in runningRoutes" :key="key">
           <RouteComponent :route="item"></RouteComponent>
@@ -27,11 +28,12 @@
             :size="25"
             v-bind:class="{ rotate: !showIdle }"
             style="margin-right: 5px"
-          >mdi-arrow-down-bold-circle-outline</v-icon>Idle Routes
+            >mdi-arrow-down-bold-circle-outline</v-icon
+          >Idle Routes
         </v-btn>
       </v-row>
 
-      <p v-if="(idleRoutes.length==0)&&showIdle">No routes found.</p>
+      <p v-if="idleRoutes.length == 0 && showIdle">No routes found.</p>
       <div v-if="showIdle">
         <v-row v-for="item in idleRoutes" :key="item.name">
           <RouteComponent :route="item"></RouteComponent>

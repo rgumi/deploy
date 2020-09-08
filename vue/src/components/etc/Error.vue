@@ -18,14 +18,14 @@
 export default {
   name: "Error",
   props: {
-    error: Error,
+    error: Error
   },
   data: () => {
     return {
       styleObject: {
-        margin: "0 auto",
-      },
+        margin: "0 auto"
+      }
     };
-  },
+  }
 };
 </script>

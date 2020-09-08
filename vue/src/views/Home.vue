@@ -29,7 +29,9 @@
       <v-col class="text-center" lg="4" md="4">
         <v-card class="chartContainer">
           <v-card-title>My Active Alerts</v-card-title>
-          <v-card-text>List of Alerts with Link to Backend Dashboard</v-card-text>
+          <v-card-text
+            >List of Alerts with Link to Backend Dashboard</v-card-text
+          >
         </v-card>
       </v-col>
     </v-row>

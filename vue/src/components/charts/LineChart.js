@@ -8,10 +8,10 @@ export default {
   props: {
     options: {
       type: Object,
-      default: null,
-    },
+      default: null
+    }
   },
   mounted() {
     this.renderChart(this.chartData, this.options);
-  },
+  }
 };

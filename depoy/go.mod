@@ -10,6 +10,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/karrick/godirwalk v1.16.1 // indirect
 	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/common v0.10.0
 	github.com/rogpeppe/go-internal v1.6.2 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208 // indirect

@@ -32,9 +32,14 @@ func (s *StateMgt) Start() {
 	router := httprouter.New()
 
 	//static files
-	router.Handle("GET", "/", s.GetIndexPage)
-	router.Handle("GET", "/favicon.ico", s.GetFavicon)
-	router.Handle("GET", "/static/*filepath", s.GetStaticFiles)
+	//router.Handle("GET", "/*file", s.GetRootFiles)
+	// router.Handle("GET", "/static/", s.GetStaticFiles)
+
+	// single page app routes
+	router.Handle("GET", "/help", s.GetIndexPage)
+	router.Handle("GET", "/dashboard", s.GetIndexPage)
+	router.Handle("GET", "/routes", s.GetIndexPage)
+	router.Handle("GET", "/home", s.GetIndexPage)
 
 	// gateway routes
 	router.Handle("GET", "/v1/routes/:name", SetupHeaders(s.GetRouteByName))
@@ -50,7 +55,8 @@ func (s *StateMgt) Start() {
 	router.Handle("GET", "/v1/monitoring/all", SetupHeaders(s.GetMetricsData))
 
 	// etc
-	router.NotFound = http.HandlerFunc(s.NotFound)
+	router.NotFound = http.FileServer(s.Box)
+
 	server := http.Server{
 		Addr:              s.Addr,
 		Handler:           middleware.LogRequest(router),

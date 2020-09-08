@@ -19,13 +19,13 @@ import { eventBus } from "@/main";
 export default {
   name: "EventBar",
   components: {
-    EventTile,
+    EventTile
   },
   data: () => ({
-    events: [],
+    events: []
   }),
   created() {
-    eventBus.$on("showEvent", (event) => {
+    eventBus.$on("showEvent", event => {
       console.log(event);
       this.events.push(event);
     });
@@ -38,8 +38,8 @@ export default {
     },
     removeMe(index) {
       this.events.splice(index, 1);
-    },
-  },
+    }
+  }
 };
 </script>
 

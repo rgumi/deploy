@@ -36,8 +36,8 @@ func (s *StateMgt) GetMetrics(w http.ResponseWriter, req *http.Request, ps httpr
 		http.Error(w, err.Error(), 400)
 	}
 
-	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadAll(time.Now().Add(
-		time.Duration(-timeframe)*time.Second), time.Now()))
+	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadAll(
+		time.Now().Add(-timeframe), time.Now()))
 
 	if err != nil {
 		log.Errorf(err.Error())

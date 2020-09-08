@@ -1,5 +1,5 @@
 <template>
-  <div class="routerbar">Router: {{this.$route.params.id}}</div>
+  <div class="routerbar">Router: {{ this.$route.params.id }}</div>
 </template>
 
 <script>

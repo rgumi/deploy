@@ -81,7 +81,7 @@ export default new Vuex.Store({
       console.log("Pulling metrics");
       axios
         .get(
-          this.state.baseUrl + "/v1/monitoring?timeframe=5",
+          this.state.baseUrl + "/v1/monitoring/routes?timeframe=5",
           {},
           { timeout: 2 }
         )
