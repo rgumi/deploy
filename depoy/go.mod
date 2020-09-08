@@ -9,9 +9,8 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/karrick/godirwalk v1.16.1 // indirect
+	github.com/prometheus/client_golang v1.7.1
 	github.com/rogpeppe/go-internal v1.6.2 // indirect
-	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
-	github.com/shurcooL/vfsgen v0.0.0-20200824052919-0d455de96546
 	github.com/sirupsen/logrus v1.6.0
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208 // indirect
 	golang.org/x/sys v0.0.0-20200905004654-be1d3432aa8f // indirect

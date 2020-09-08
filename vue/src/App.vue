@@ -4,7 +4,7 @@
     <v-main>
       <ButtonText
         style="top: 10px; margin-left: 10px"
-        onHoverText="Zurück"
+        onHoverText="Back"
         btnIcon="mdi-arrow-left-bold"
         btnEvent="backEvent"
         @backEvent="$router.go(-1)"
@@ -43,7 +43,10 @@ export default {
   beforeDestroy() {
     window.removeEventListener("beforeunload", this.preventNav);
   },
-
+  created() {
+    this.$store.dispatch("startPulling");
+    console.log("started");
+  },
   methods: {
     emitEvent() {
       eventBus.$emit("showEvent", {

@@ -87,7 +87,7 @@ func formateRequest(old *http.Request, addr string, body []byte) (*http.Request,
 func GGT(in []uint8) uint8 {
 	count := len(in)
 	if count < 2 {
-		return in[0]
+		return 1
 	}
 	ggt := ggT(in[0], in[1])
 

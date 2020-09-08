@@ -11,3 +11,6 @@ type Metric struct {
 	ResponseTime      float64
 	CustomMetrics     map[string]float64
 }
+
+type CustomMetrics struct {
+}

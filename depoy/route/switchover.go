@@ -3,6 +3,8 @@ package route
 import (
 	"fmt"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // the metrics which are allowed for the condtions
@@ -12,38 +14,47 @@ var allowedOperators = []string{">", "==", "<"}
 // of a backend and take action according to
 // the values defined here
 type Condition struct {
-	Status      bool                            // Status if the condition active for long enough and is therefore true
-	Metric      string                          // Name of the metric
-	Operator    string                          // < > ==
-	Threshhold  float64                         // Threshhold that is checked
-	ActiveFor   time.Duration                   // Duration for which the condition has to be met
-	triggerTime time.Time                       // time the condition was first true
-	IsTrue      func(m map[string]float64) bool // Condtional function to evaluate condition
+	Status      bool                                     `json:"status"`       // Status if the condition active for long enough and is therefore true
+	Metric      string                                   `json:"metric"`       // Name of the metric
+	Operator    string                                   `json:"operator"`     // < > ==
+	Threshhold  float64                                  `json:"threshold"`    // Threshhold that is checked
+	ActiveFor   time.Duration                            `json:"active_for"`   // Duration for which the condition has to be met
+	triggerTime time.Time                                `json:"trigger_time"` // time the condition was first true
+	IsTrue      func(m map[string]float64) (bool, error) `json:"-"`            // Condtional function to evaluate condition
 }
 
-func (c *Condition) compile() func(m map[string]float64) bool {
+func (c *Condition) compile() func(m map[string]float64) (bool, error) {
 
 	switch c.Operator {
 	case "<":
-		return func(m map[string]float64) bool {
-			if m[c.Metric] < c.Threshhold {
-				return true
+		return func(m map[string]float64) (bool, error) {
+			if _, found := m[c.Metric]; !found {
+				return false, fmt.Errorf("Unknown metric")
 			}
-			return false
+			if m[c.Metric] < c.Threshhold {
+				return true, nil
+			}
+			return false, nil
 		}
 	case "==":
-		return func(m map[string]float64) bool {
-			if m[c.Metric] == c.Threshhold {
-				return true
+		return func(m map[string]float64) (bool, error) {
+			if _, found := m[c.Metric]; !found {
+				return false, fmt.Errorf("Unknown metric")
 			}
-			return false
+			if m[c.Metric] == c.Threshhold {
+				return true, nil
+			}
+			return false, nil
 		}
 	case ">":
-		return func(m map[string]float64) bool {
-			if m[c.Metric] > c.Threshhold {
-				return true
+		return func(m map[string]float64) (bool, error) {
+			if _, found := m[c.Metric]; !found {
+				return false, fmt.Errorf("Unknown metric")
 			}
-			return false
+			if m[c.Metric] > c.Threshhold {
+				return true, nil
+			}
+			return false, nil
 		}
 	}
 	return nil
@@ -82,13 +93,13 @@ allowed:
 // increase the load to a backend by updating the
 // weights of the backends
 type SwitchOver struct {
-	From         *Backend      // old version
-	To           *Backend      // new version
-	Conditions   []Condition   // conditions that all need to be met to change
-	WeightChange int           // amount of change to the weights
-	Wait         time.Duration // duration to wait before changing weights
-	Route        *Route        // route for which the switch is defined
-	killChan     chan int      // chan to stop the switchover process
+	From         *Backend      `json:"from"`          // old version
+	To           *Backend      `json:"to"`            // new version
+	Conditions   []*Condition  `json:"conditions"`    // conditions that all need to be met to change
+	WeightChange uint8         `json:"weight_change"` // amount of change to the weights
+	Timeout      time.Duration `json:"timeout"`       // duration to wait before changing weights
+	Route        *Route        `json:"-"`             // route for which the switch is defined
+	killChan     chan int      `json:"-"`             // chan to stop the switchover process
 }
 
 // Stop the switchover process
@@ -99,29 +110,78 @@ func (s *SwitchOver) Stop() {
 // Start the switchover process
 func (s *SwitchOver) Start() {
 
+outer:
 	for {
 		select {
 		case _ = <-s.killChan:
+			log.Warnf("Killed SwitchOver %v", s)
 			return
 
 		default:
-			/*
-				// s.Route.MetricsRepo.GetMetric(backend)
-				// loop over conditions and check if all are met
-				for _, condition := range s.Conditions {
+			time.Sleep(s.Timeout)
 
+			metrics, err := s.Route.MetricsRepo.Storage.ReadRatesOfBackend(
+				s.To.ID, time.Now().Add(-10*time.Second), time.Now())
 
-						if condition.IsTrue() {
-							if condition.triggerTime != time.Time {
+			if err != nil {
+				log.Error(err)
+				continue
+			}
 
-							}
-						}
-
-
-					// check
+			for _, condition := range s.Conditions {
+				status, err := condition.IsTrue(metrics)
+				if err != nil {
+					// TODO: Handle this somehow
+					panic(err)
 				}
-			*/
-			time.Sleep(s.Wait)
+				if status && s.To.Active {
+
+					if condition.triggerTime.IsZero() {
+
+						condition.triggerTime = time.Now()
+
+					} else {
+
+						// check if condition was active for long enough
+						if condition.triggerTime.Add(condition.ActiveFor).Before(time.Now()) {
+							log.Warnf("Updating status of condition %v %v %v to true", condition.Metric, condition.Operator, condition.Threshhold)
+							condition.Status = true
+						}
+					}
+
+				} else {
+					// condition is not met, therefore reset triggerTime
+					condition.triggerTime = time.Time{}
+				}
+			}
+
+			// check
+			for _, condition := range s.Conditions {
+				if !condition.Status {
+					// if any condition is not true, continue
+					log.Debugf("A condition is false. (%v)", s)
+					continue outer
+				}
+			}
+
+			// if all conditions are true, increase the weigth of the new route
+			s.From.Weigth -= s.WeightChange
+			s.To.Weigth += s.WeightChange
+
+			s.To.updateWeigth()
+
+			// reset the conditions
+			for _, condition := range s.Conditions {
+				condition.triggerTime = time.Time{}
+				condition.Status = false
+			}
+
+			if s.From.Weigth == 0 {
+				// switchover was successful, all traffic is forwarded to new backend
+
+				log.Warnf("Switchover from %v to %v was successful", s.From, s.To)
+				s.Stop()
+			}
 		}
 	}
 }

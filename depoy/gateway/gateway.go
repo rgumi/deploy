@@ -100,54 +100,54 @@ func (g *Gateway) checkIfExists(newRoute *route.Route) error {
 	return nil
 }
 
-func (g *Gateway) RegisterRoute(route *route.Route) error {
+func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 	var err error
+	log.Debugf("Trying to register new route %s", newRoute.Name)
 
 	g.mux.Lock()
 	defer g.mux.Unlock()
 
-	if route.Name == "" {
+	if newRoute.Name == "" {
 		return fmt.Errorf("Route.Name cannot be empty")
 	}
 
 	// create id of route
-	if err = g.checkIfExists(route); err != nil {
+	if err = g.checkIfExists(newRoute); err != nil {
 		return err
 	}
 
-	route.MetricsRepo = g.MetricsRepo
+	newRoute.MetricsRepo = g.MetricsRepo
 
-	if len(route.Backends) == 0 {
-		log.Warnf("Route %s has no backends configured for it", route.Name)
+	if len(newRoute.Backends) == 0 {
+		return fmt.Errorf("Route %s has no backends configured for it", newRoute.Name)
 
-	} else {
-		for _, backend := range route.Backends {
-			log.Debugf("Registering %v of Route %s to MetricsRepository", backend.ID, route.Name)
-
-			// register the backend
-			backend.AlertChan, err = g.MetricsRepo.RegisterBackend(
-				backend.ID, backend.ScrapeURL, backend.ScrapeMetrics)
-
-			if err != nil {
-				return err
-			}
-
-			// start monitoring the registered backend
-			go g.MetricsRepo.Monitor(backend.ID, 5*time.Second, 10*time.Second)
-			if err != nil {
-				return err
-			}
-
-			// starts listening on alertChan
-			go backend.Monitor()
-		}
 	}
 
-	g.Routes[route.Name] = route
+	// this is shit
+	for _, backend := range newRoute.Backends {
+		log.Debugf("Registering %v of Route %s to MetricsRepository", backend.ID, newRoute.Name)
+
+		// register the backend
+		backend.AlertChan, err = g.MetricsRepo.RegisterBackend(
+			backend.ID, backend.ScrapeURL, backend.ScrapeMetrics, backend.MetricThresholds)
+
+		if err != nil {
+			return err
+		}
+
+		// start monitoring the registered backend
+		go g.MetricsRepo.Monitor(backend.ID, 5*time.Second, 10*time.Second)
+
+		// starts listening on alertChan
+		go backend.Monitor()
+	}
+
+	g.Routes[newRoute.Name] = newRoute
 	g.Reload()
 	return nil
 }
 
+// RemoveRoute TODO: this needs to cascade to all other components! metricsrepo etc.
 func (g *Gateway) RemoveRoute(name string) *route.Route {
 
 	g.mux.Lock()
@@ -156,11 +156,17 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 	if route, exists := g.Routes[name]; exists {
 		log.Debugf("Removing %s from Gateway.Routes", name)
 
+		// remove all children of route
+		for id := range route.Backends {
+			g.MetricsRepo.RemoveBackend(id)
+		}
+		route.StopAll()
 		delete(g.Routes, name)
 
 		g.Reload()
 		return route
 	}
+
 	return nil
 }
 

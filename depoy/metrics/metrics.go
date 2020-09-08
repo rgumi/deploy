@@ -19,9 +19,11 @@ import (
 
 type Storage interface {
 	Write(string, uuid.UUID, map[string]float64, int64, int64, int)
-	ReadRates(backend uuid.UUID, start, end time.Time) map[string]float64
+	ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error)
 	ReadAll(start, end time.Time) map[string]storage.Metric
 	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
+	ReadBackend(backend uuid.UUID, start, end time.Time) (storage.Metric, error)
+	ReadRoute(route string, start, end time.Time) storage.Metric
 }
 
 type Alert struct {
@@ -43,7 +45,6 @@ type Metrics struct {
 	ContentLength        int64
 	UpstreamResponseTime int64
 	UpstreamRequestTime  int64
-	UpstreamAddr         string
 	DownstreamAddr       string
 }
 
@@ -52,16 +53,17 @@ type ScrapeMetrics struct {
 	Metrics   map[string]float64
 }
 
-type Backend struct {
-	ID                  uuid.UUID
-	ScrapeURL           string
-	Errors              int
-	nextTimeout         time.Duration
-	MetricThreshholds   map[string]float64 // metricName threshhold
-	AlertChannel        chan Alert
-	stopMonitoring      chan int
-	activeAlerts        map[string]*Alert
-	pufferMetricStorage map[string][]float64
+type MonitoredBackend struct {
+	ID                 uuid.UUID
+	ScrapeURL          string
+	Errors             int
+	nextTimeout        time.Duration
+	MetricThreshholds  map[string]float64 // metricName threshhold
+	AlertChannel       chan Alert
+	stopMonitoring     chan int
+	activeAlerts       map[string]*Alert
+	ScrapeMetrics      []string
+	ScrapeMetricPuffer map[string]float64
 }
 
 type Repository struct {
@@ -70,7 +72,7 @@ type Repository struct {
 	client               *http.Client
 	InChannel            chan (Metrics)
 	scrapeMetricsChannel chan (ScrapeMetrics)
-	Backends             map[uuid.UUID]*Backend
+	Backends             map[uuid.UUID]*MonitoredBackend
 	stopScraping         chan int
 	shutdown             chan int
 }
@@ -78,14 +80,14 @@ type Repository struct {
 // NewMetricsRepository creates a new instance of NewMetricsRepository
 // return a channel for Metrics
 func NewMetricsRepository(storage Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
-	channel := make(chan Metrics, 10)
-	scrapeMetricsChannel := make(chan ScrapeMetrics, 10)
+	channel := make(chan Metrics, 50)
+	scrapeMetricsChannel := make(chan ScrapeMetrics, 50)
 	return channel, &Repository{
 		Storage:              storage,
 		ScrapeInterval:       scrapeInterval,
 		client:               http.DefaultClient,
 		InChannel:            channel,
-		Backends:             map[uuid.UUID]*Backend{},
+		Backends:             map[uuid.UUID]*MonitoredBackend{},
 		stopScraping:         make(chan int, 2),
 		shutdown:             make(chan int, 2),
 		scrapeMetricsChannel: scrapeMetricsChannel,
@@ -96,7 +98,8 @@ func NewMetricsRepository(storage Storage, scrapeInterval time.Duration) (chan<-
 func (m *Repository) RegisterBackend(
 	backendID uuid.UUID,
 	scrapeURL string,
-	metricThreshholds map[string]float64) (<-chan Alert, error) {
+	scrapeMetrics []string,
+	metricsTresholds map[string]float64) (<-chan Alert, error) {
 
 	// check if backendID is already configured
 	for key := range m.Backends {
@@ -105,16 +108,17 @@ func (m *Repository) RegisterBackend(
 		}
 	}
 
-	newBackend := &Backend{
-		ID:                  backendID,
-		ScrapeURL:           scrapeURL,
-		Errors:              0,
-		nextTimeout:         0,
-		MetricThreshholds:   metricThreshholds,
-		AlertChannel:        make(chan Alert),
-		stopMonitoring:      make(chan int, 2),
-		activeAlerts:        make(map[string]*Alert),
-		pufferMetricStorage: map[string][]float64{},
+	newBackend := &MonitoredBackend{
+		ID:                 backendID,
+		ScrapeURL:          scrapeURL,
+		Errors:             0,
+		nextTimeout:        0,
+		MetricThreshholds:  metricsTresholds,
+		ScrapeMetrics:      scrapeMetrics,
+		ScrapeMetricPuffer: make(map[string]float64),
+		AlertChannel:       make(chan Alert),
+		stopMonitoring:     make(chan int, 2),
+		activeAlerts:       make(map[string]*Alert),
 	}
 
 	// append to the list
@@ -177,8 +181,15 @@ func (m *Repository) Monitor(
 				// read the collected metric from the storage
 				// may be an average over 1s, 10s, 1m? Configure that
 				now := time.Now()
-				collected := m.Storage.ReadRates(backendID, now.Add(-10*time.Second), now)
+				collected, err := m.Storage.ReadRatesOfBackend(backendID, now.Add(-10*time.Second), now)
 
+				if err != nil {
+					log.Error(err)
+					time.Sleep(timeout)
+					continue
+				}
+
+				log.Debug(collected)
 				// loop over every metric that was collected
 				// collected := map[string]float64
 				for metricName, threshhold := range backend.MetricThreshholds {
@@ -266,26 +277,36 @@ func (m *Repository) Listen() {
 		select {
 		// received the metrics struct with backendID and all metrics
 		case metrics := <-m.InChannel:
+
 			log.Debug(metrics)
 
-			m.Storage.Write(
-				metrics.Route, metrics.BackendID, nil, metrics.UpstreamResponseTime,
-				metrics.ContentLength, metrics.ResponseStatus)
+			scrapeMetrics := m.Backends[metrics.BackendID].ScrapeMetricPuffer
+			if scrapeMetrics == nil {
+
+				m.Storage.Write(
+					metrics.Route, metrics.BackendID, nil, metrics.UpstreamResponseTime,
+					metrics.ContentLength, metrics.ResponseStatus)
+			} else {
+
+				m.Storage.Write(
+					metrics.Route, metrics.BackendID, scrapeMetrics, metrics.UpstreamResponseTime,
+					metrics.ContentLength, metrics.ResponseStatus)
+			}
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:
 
-			log.Debug(scrapeMetrics)
+			log.Trace(scrapeMetrics)
+			m.Backends[scrapeMetrics.BackendID].ScrapeMetricPuffer = scrapeMetrics.Metrics
 
 		case _ = <-m.shutdown:
 			return
 		}
-
 	}
 }
 
 // scrapeJob scraped the given instance, extracts the defined metrics
 // and pushes them into the scrapeMetricsChannel
-func (m *Repository) scrapeJob(instance *Backend) {
+func (m *Repository) scrapeJob(instance *MonitoredBackend) {
 
 	// timeout if last scrape was an error
 	time.Sleep(instance.nextTimeout)
@@ -295,6 +316,7 @@ func (m *Repository) scrapeJob(instance *Backend) {
 		// should never happen
 		panic(err)
 	}
+	log.Tracef("Scraping instance %v", instance.ID)
 	resp, err := m.client.Do(req)
 	if err != nil {
 		instance.Errors++
@@ -318,7 +340,7 @@ func (m *Repository) scrapeJob(instance *Backend) {
 		Metrics:   map[string]float64{},
 	}
 
-	for name := range instance.MetricThreshholds {
+	for _, name := range instance.ScrapeMetrics {
 		bodyReader := bytes.NewReader(body)
 		value, err := getRowFromBody(bodyReader, name)
 		if err != nil {
@@ -432,4 +454,46 @@ func contains(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+// GetMetricsForBackend retrieves the metrics for $backend and the given timeframe ($end-$start)
+// with the average over $avg seconds
+// e. g. retrieve for backend1 last 1min of metrics with avg 10s would return 6 values with each
+// representing the avg over 10s
+func (m *Repository) GetMetricsForBackend(
+	backend uuid.UUID, start, end time.Time, avg time.Duration) map[time.Time]storage.Metric {
+
+	// get the delta of start and end
+	timeDelta := end.Sub(start)
+	log.Warn(timeDelta)
+
+	// get the number of datapoints based on avg
+	dataPoints := int(math.Abs(float64(timeDelta / avg)))
+	log.Warnf("Using %v datapoints", dataPoints)
+
+	metricData := make(map[time.Time]storage.Metric, dataPoints)
+	start = start
+
+	for idx := 0; idx < dataPoints; idx++ {
+		end := start.Add(time.Duration((dataPoints-idx)*int(avg)) * time.Second)
+
+		val, err := m.Storage.ReadBackend(backend, start, end)
+		log.Warn(val)
+		if err != nil {
+			log.Errorf("Unable to get requested metrics for backend %v (%v)", backend, err)
+			return nil
+		}
+		metricData[end] = val
+		start = end
+	}
+
+	return metricData
+}
+
+// GetMetricsForRoute retrieves the metrics for $route and the given timeframe ($end-$start)
+// with the average over $avg seconds
+// e. g. retrieve for route1 last 1min of metrics with avg 10s would return 6 values with each
+// representing the avg over 10s
+func (m *Repository) GetMetricsForRoute(route string, start, end time.Time, avg time.Duration) map[string]float64 {
+	return nil
 }

@@ -24,12 +24,8 @@
       </div>
 
       <!-- refresh -->
-      <v-icon
-        size="32"
-        style="margin: 5px;"
-        @click="reload"
-        :disabled="currentlyLoading"
-      >mdi-refresh</v-icon>
+      <!-- @click="refresh" -->
+      <v-icon size="32" style="margin: 5px;" :disabled="currentlyLoading">mdi-refresh</v-icon>
 
       <!-- loading icon -->
       <v-progress-circular
@@ -75,21 +71,19 @@
 </template>
 
 <script>
-import axios from "axios";
 import LineChart from "@/components/charts/LineChart";
+import { mapState } from "vuex";
 export default {
   components: {
     LineChart
   },
   data() {
     return {
-      currentlyLoading: false,
-      selectedRoute: String,
+      // currentlyLoading: false,
+      selectedRoute: "Route",
       responseStatusData: {},
       responseTimeData: {},
       totalResponseData: {},
-      data: {},
-      timestamps: [],
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -141,74 +135,28 @@ export default {
     };
   },
 
-  beforeUpdate() {},
+  created() {
+    console.log("Created dashboard");
 
-  mounted() {
-    this.data = new Map();
-    this.timestamps = new Array();
-    this.selectedRoute = "Route";
-
-    this.reload();
-
-    this.$nextTick(function() {
-      window.setInterval(() => {
-        if (this.timestamps.length > 60 / 5) {
-          this.timestamps.shift();
-          for (var key in this.data) {
-            this.data[key].shift();
-          }
-        }
-
-        this.getData(() => {
-          this.fillData();
-        });
-      }, 5000);
+    this.unsubscribe = this.$store.subscribe(mutation => {
+      if (mutation.type === "pullMetrics") {
+        console.log("Store updated");
+        console.log(this.data);
+        console.log(this.timestamps);
+        this.fillData();
+      }
     });
   },
+  computed: mapState({
+    data: state => state.metrics,
+    timestamps: state => state.timestamps,
+    currentlyLoading: state => state.loading
+  }),
 
   methods: {
-    reload() {
-      this.getData(() => {
-        this.selectedRoute = Object.keys(this.data)[0];
-        this.fillData();
-      });
-    },
     selectRoute(routeName) {
       this.selectedRoute = routeName;
       this.fillData();
-    },
-
-    getData(callback) {
-      let baseUrl = "http://localhost:8081";
-      this.currentlyLoading = true;
-      axios
-        .get(baseUrl + "/v1/monitoring?timeframe=10", {}, { timeout: 2 })
-        .then(response => {
-          // check if an empty object was returned
-          // this sometimes happened when the app just started
-          // and therefore no route metrics were returned
-          if (Object.keys(response.data).length !== 0) {
-            for (var key in response.data) {
-              if (key in this.data) {
-                this.data[key].push(response.data[key]);
-              } else {
-                this.data[key] = new Array();
-                this.data[key].push(response.data[key]);
-              }
-            }
-
-            this.timestamps.push(this.getTimestamp());
-            callback();
-          }
-
-          this.currentlyLoading = false;
-        })
-
-        .catch(error => {
-          this.error = error;
-          console.error(error);
-          this.currentlyLoading = false;
-        });
     },
 
     get200() {
@@ -239,15 +187,12 @@ export default {
       return this.data[this.selectedRoute].map(d => d["TotalResponses"]);
     },
 
-    getTimestamp() {
-      var d = new Date();
-      var time = d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
-      return time;
-    },
-
     fillData() {
+      if (this.selectedRoute == "Route") {
+        this.selectedRoute = Object.keys(this.data)[0];
+      }
       if (this.data[this.selectedRoute] === undefined) {
-        console.log("selectedRoute is empty");
+        console.error("selectedRoute is empty");
         return;
       }
 

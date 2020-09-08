@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -8,9 +9,10 @@ import (
 )
 
 type LocalStorage struct {
-	mux    sync.RWMutex                                  // concurrent rw on maps is not possible
-	puffer map[string]map[uuid.UUID][]Metric             // puffer storage until the averaging job is executed
-	data   map[string]map[uuid.UUID]map[time.Time]Metric // map of backend to metrics
+	mux    sync.RWMutex                      // concurrent rw on maps is not possible
+	puffer map[string]map[uuid.UUID][]Metric // puffer storage until the averaging job is executed
+
+	data map[string]map[uuid.UUID]map[time.Time]Metric // map of backend to metrics
 }
 
 func NewLocalStorage() *LocalStorage {
@@ -108,12 +110,25 @@ func (st *LocalStorage) Write(
 	st.puffer[routeName][backend] = append(st.puffer[routeName][backend], tmpMetric)
 }
 
+// ReadData returns the whole data map
 func (st *LocalStorage) ReadData() map[string]map[uuid.UUID]map[time.Time]Metric {
-
 	return st.data
 }
 
-func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) Metric {
+// ReadAll returns all metrics in data that are within the given timeframe
+func (st *LocalStorage) ReadAll(start, end time.Time) map[string]Metric {
+
+	m := make(map[string]Metric)
+
+	for name := range st.data {
+		metric := st.ReadRoute(name, start, end)
+		m[name] = metric
+	}
+	return m
+}
+
+// ReadBackend returns all metrics for the backend that are within the given timeframe
+func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Metric, error) {
 
 	st.mux.RLock()
 	defer st.mux.RUnlock()
@@ -129,24 +144,18 @@ func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) Met
 					}
 				}
 
-				return makeAverageBackend(relevantMetrics)
+				if len(relevantMetrics) == 0 {
+					return Metric{}, fmt.Errorf("Could not find relevant metrics for provided timeframe")
+				}
+
+				return makeAverageBackend(relevantMetrics), nil
 			}
 		}
 	}
-	return Metric{}
+	return Metric{}, fmt.Errorf("Could not find provided backend %v", backend)
 }
 
-func (st *LocalStorage) ReadAll(start, end time.Time) map[string]Metric {
-
-	m := make(map[string]Metric)
-
-	for name := range st.data {
-		metric := st.ReadRoute(name, start, end)
-		m[name] = metric
-	}
-	return m
-}
-
+// ReadRoute returns all metrics for the route that are within the given timeframe
 func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 
 	st.mux.RLock()
@@ -180,6 +189,42 @@ func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 	return Metric{}
 }
 
+// ReadRates makes rates (average) of all metrics of the backend within the given timeframe
+func (st *LocalStorage) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
+
+	st.mux.RLock()
+	defer st.mux.RUnlock()
+
+	m := make(map[string]float64)
+
+	current, err := st.ReadBackend(backend, start, end)
+
+	if err != nil {
+		return nil, err
+	}
+	// there were no responses yet
+	if current.TotalResponses == 0 {
+		current.TotalResponses = 1
+	}
+
+	m["2xxRate"] = float64(current.ResponseStatus200 / current.TotalResponses)
+	m["3xxRate"] = float64(current.ResponseStatus300 / current.TotalResponses)
+	m["4xxRate"] = float64(current.ResponseStatus400 / current.TotalResponses)
+	m["5xxRate"] = float64(current.ResponseStatus500 / current.TotalResponses)
+	m["6xxRate"] = float64(current.ResponseStatus600 / current.TotalResponses)
+	m["ResponseTime"] = current.ResponseTime
+	m["ContentLength"] = float64(current.ContentLength)
+
+	for customScrapeMetricName, customScrapeMetricValue := range current.CustomMetrics {
+		m[customScrapeMetricName] = customScrapeMetricValue
+	}
+	return m, nil
+}
+
+/*
+	Helper functions
+
+*/
 func makeAverageBackend(in []Metric) Metric {
 	finalMetric := Metric{}
 	finalMetric.CustomMetrics = make(map[string]float64)
@@ -245,29 +290,4 @@ func makeAverage(in map[uuid.UUID]Metric, finalMetric *Metric) {
 	for key, val := range finalMetric.CustomMetrics {
 		finalMetric.CustomMetrics[key] = val / float64(length)
 	}
-}
-
-func (st *LocalStorage) ReadRates(backend uuid.UUID, start, end time.Time) map[string]float64 {
-
-	st.mux.RLock()
-	defer st.mux.RUnlock()
-
-	m := make(map[string]float64)
-
-	current := st.ReadBackend(backend, start, end)
-
-	// there were no responses yet
-	if current.TotalResponses == 0 {
-		current.TotalResponses = 1
-	}
-
-	m["2xxRate"] = float64(current.ResponseStatus200 / current.TotalResponses)
-	m["3xxRate"] = float64(current.ResponseStatus300 / current.TotalResponses)
-	m["4xxRate"] = float64(current.ResponseStatus400 / current.TotalResponses)
-	m["5xxRate"] = float64(current.ResponseStatus500 / current.TotalResponses)
-	m["6xxRate"] = float64(current.ResponseStatus600 / current.TotalResponses)
-	m["ResponseTime"] = current.ResponseTime
-	m["ContentLength"] = float64(current.ContentLength)
-
-	return m
 }

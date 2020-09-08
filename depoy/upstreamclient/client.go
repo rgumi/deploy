@@ -121,9 +121,9 @@ func (u *upstreamClient) Send(req *http.Request) (*http.Response, metrics.Metric
 	startOfRequest := time.Now()
 
 	trace := &httptrace.ClientTrace{
-		GotConn: func(connInfo httptrace.GotConnInfo) {
-			m.UpstreamAddr = connInfo.Conn.RemoteAddr().String()
-		},
+		//GotConn: func(connInfo httptrace.GotConnInfo) {
+		//	m.UpstreamAddr = connInfo.Conn.RemoteAddr().String()
+		//},
 		ConnectDone: func(network, addr string, err error) {
 			if err == nil {
 				m.UpstreamRequestTime = time.Since(startOfRequest).Milliseconds()
@@ -137,12 +137,12 @@ func (u *upstreamClient) Send(req *http.Request) (*http.Response, metrics.Metric
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
 	// Start Sending
-	log.Debug("Sending request to upstream host")
+	log.Trace("Sending request to upstream host")
 	resp, err := u.Client.Do(req)
 	if err != nil {
 		return nil, m, err
 	}
-	log.Debugf("Successfully received response from upstream host: %d", resp.StatusCode)
+	log.Tracef("Successfully received response from upstream host: %d", resp.StatusCode)
 	m.ResponseStatus = resp.StatusCode
 	return resp, m, nil
 }

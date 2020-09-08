@@ -11,12 +11,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// StateMgt is the struct that serves the vue web app
+// and holds the configurations of the Gateway including Routes, Backends etc.
 type StateMgt struct {
 	Gateway *gateway.Gateway
 	Addr    string
 	Box     *packr.Box
 }
 
+// NewStateMgt returns a new instance of StateMgt with given parameters
 func NewStateMgt(addr string, g *gateway.Gateway) *StateMgt {
 	return &StateMgt{
 		Gateway: g,
@@ -24,6 +27,7 @@ func NewStateMgt(addr string, g *gateway.Gateway) *StateMgt {
 	}
 }
 
+// Start the statemgt webserver
 func (s *StateMgt) Start() {
 	router := httprouter.New()
 
@@ -40,7 +44,9 @@ func (s *StateMgt) Start() {
 	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
 
 	// monitoring
-	router.Handle("GET", "/v1/monitoring", SetupHeaders(s.GetMetrics))
+	router.Handle("GET", "/v1/monitoring/routes", SetupHeaders(s.GetMetrics))
+	router.Handle("GET", "/v1/monitoring/backend/:id", SetupHeaders(s.GetMetricsOfBackend))
+	router.Handle("GET", "/v1/monitoring/route/:name", SetupHeaders(s.GetMetricsOfRoute))
 	router.Handle("GET", "/v1/monitoring/all", SetupHeaders(s.GetMetricsData))
 
 	// etc
@@ -53,10 +59,6 @@ func (s *StateMgt) Start() {
 		WriteTimeout:      5 * time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
-
-	// setup complete. Start servers
-	log.Info("Starting gateway")
-	go s.Gateway.Run()
 
 	log.Info("Starting statemgt server")
 	log.Fatal(server.ListenAndServe())
