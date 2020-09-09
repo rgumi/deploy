@@ -4,3 +4,8 @@ dist
 packrd
 main-packr.go
 __pycache__
+
+
+# linux executables
+depoy
+test

@@ -49,7 +49,7 @@ func appendHostToXForwardHeader(r http.Header, host string) {
 	r.Set("X-Forwarded-For", host)
 }
 
-func sendResponse(resp *http.Response, w http.ResponseWriter) {
+func sendResponse(resp *http.Response, w http.ResponseWriter) int {
 	log.Debug("Sending response to downstream client")
 	b, _ := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()
@@ -60,6 +60,7 @@ func sendResponse(resp *http.Response, w http.ResponseWriter) {
 	w.WriteHeader(resp.StatusCode)
 	w.Write(b)
 	log.Debug("Successfully send response to downstream client")
+	return len(b)
 }
 
 func formateRequest(old *http.Request, addr string, body []byte) (*http.Request, error) {
@@ -87,7 +88,7 @@ func formateRequest(old *http.Request, addr string, body []byte) (*http.Request,
 func GGT(in []uint8) uint8 {
 	count := len(in)
 	if count < 2 {
-		return 1
+		return in[0]
 	}
 	ggt := ggT(in[0], in[1])
 

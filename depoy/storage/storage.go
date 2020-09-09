@@ -7,10 +7,7 @@ type Metric struct {
 	ResponseStatus400 int
 	ResponseStatus500 int
 	ResponseStatus600 int
-	ContentLength     int64
+	ContentLength     float64
 	ResponseTime      float64
 	CustomMetrics     map[string]float64
-}
-
-type CustomMetrics struct {
 }

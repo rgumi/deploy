@@ -30,13 +30,14 @@ func (r *Route) SlipperyHandler() func(w http.ResponseWriter, req *http.Request)
 
 		defer req.Body.Close()
 
-		resp, err := r.sendRequestToUpstream(currentTarget, req, b)
+		resp, m, err := r.sendRequestToUpstream(currentTarget, req, b)
 		if err != nil {
 			log.Warnf("Unable to send request to upstream client: %v", err)
 			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
-		sendResponse(resp, w)
+		m.ContentLength = int64(sendResponse(resp, w))
+		r.MetricsRepo.InChannel <- m
 	}
 }
 
@@ -83,13 +84,14 @@ func (r *Route) StickyHandler() func(w http.ResponseWriter, req *http.Request) {
 		b, _ = ioutil.ReadAll(req.Body)
 		defer req.Body.Close()
 
-		resp, err := r.sendRequestToUpstream(currentTarget, req, b)
+		resp, m, err := r.sendRequestToUpstream(currentTarget, req, b)
 		if err != nil {
 			log.Warnf("Unable to send request to upstream client: %v", err)
 			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
-		sendResponse(resp, w)
+		m.ContentLength = int64(sendResponse(resp, w))
+		r.MetricsRepo.InChannel <- m
 	}
 }
 
@@ -106,13 +108,14 @@ func (r *Route) HeaderHandler(headerName, headerValue string, old, new *Backend)
 			b, _ = ioutil.ReadAll(req.Body)
 			defer req.Body.Close()
 
-			resp, err := r.sendRequestToUpstream(new, req, b)
+			resp, m, err := r.sendRequestToUpstream(new, req, b)
 			if err != nil {
 				log.Warnf("Unable to send request to upstream client: %v", err)
 				http.Error(w, "Unable to send request to upstream client", 503)
 				return
 			}
-			sendResponse(resp, w)
+			m.ContentLength = int64(sendResponse(resp, w))
+			r.MetricsRepo.InChannel <- m
 			return
 		}
 
@@ -120,13 +123,14 @@ func (r *Route) HeaderHandler(headerName, headerValue string, old, new *Backend)
 		b, _ = ioutil.ReadAll(req.Body)
 		defer req.Body.Close()
 
-		resp, err := r.sendRequestToUpstream(old, req, b)
+		resp, m, err := r.sendRequestToUpstream(old, req, b)
 		if err != nil {
 			log.Warnf("Unable to send request to upstream client: %v", err)
 			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
-		sendResponse(resp, w)
+		m.ContentLength = int64(sendResponse(resp, w))
+		r.MetricsRepo.InChannel <- m
 		return
 	}
 }
@@ -142,7 +146,7 @@ func (r *Route) Shadow(old, new *Backend) func(w http.ResponseWriter, req *http.
 		b, _ = ioutil.ReadAll(req.Body)
 		defer req.Body.Close()
 
-		resp, err := r.sendRequestToUpstream(old, req, b)
+		resp, m, err := r.sendRequestToUpstream(old, req, b)
 		if err != nil {
 			log.Warnf("Unable to send request to upstream client: %v", err)
 			http.Error(w, "Unable to send request to upstream client", 503)
@@ -150,16 +154,21 @@ func (r *Route) Shadow(old, new *Backend) func(w http.ResponseWriter, req *http.
 		}
 
 		// return only old response
-		sendResponse(resp, w)
+		m.ContentLength = int64(sendResponse(resp, w))
+		r.MetricsRepo.InChannel <- m
 
 		// send request to new backend
 		b, _ = ioutil.ReadAll(req.Body)
 		defer req.Body.Close()
 
-		_, err = r.sendRequestToUpstream(new, req, b)
+		resp, m, err = r.sendRequestToUpstream(new, req, b)
 		if err != nil {
 			log.Warnf("Unable to send request to upstream client: %v", err)
 			return
 		}
+		b, _ = ioutil.ReadAll(resp.Body)
+		defer resp.Body.Close()
+		m.ContentLength = int64(len(b))
+		r.MetricsRepo.InChannel <- m
 	}
 }

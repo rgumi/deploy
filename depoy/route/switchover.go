@@ -104,6 +104,7 @@ type SwitchOver struct {
 	fromRollbackWeight uint8         `json:"-"`
 	Rollback           bool          `json:"rollback"`         // If Switchover is cancled or aborted, should the weights of backends be reset?
 	AllowedFailures    int           `json:"allowed_failures"` // amount of failures that are allowed before switchover is aborted
+	failureCounter     int
 }
 
 // Stop the switchover process
@@ -113,6 +114,16 @@ func (s *SwitchOver) Stop() {
 
 // Start the switchover process
 func (s *SwitchOver) Start() {
+
+	if s.From.Weigth < 100 {
+		panic(fmt.Errorf("Weight of Switchover.From cannot be less than 100"))
+	}
+
+	if s.To.Weigth > 0 {
+		panic(fmt.Errorf("Weight of Switchover.From cannot be greater than 0"))
+	}
+	s.toRollbackWeight = s.To.Weigth
+	s.fromRollbackWeight = s.From.Weigth
 
 outer:
 	for {
@@ -156,6 +167,12 @@ outer:
 				} else {
 					// condition is not met, therefore reset triggerTime
 					condition.triggerTime = time.Time{}
+
+					if s.failureCounter == s.AllowedFailures {
+						// failed too often...
+
+					}
+					s.failureCounter++
 				}
 			}
 

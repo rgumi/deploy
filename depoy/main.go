@@ -54,11 +54,11 @@ func main() {
 		upstreamclient.NewDefaultClient(),
 	)
 	// old
-	r.AddBackend("Test2", "http://localhost:9090", "http://localhost:9091/metrics",
+	id1 := r.AddBackend("Test2", "http://localhost:9090", "http://localhost:9091/metrics",
 		"http://localhost:9090/", ScrapeMetrics, DefaultMetricsThresholds, 100)
 
 	// new
-	r.AddBackend(
+	id2 := r.AddBackend(
 		"Test2", "http://localhost:7070", "http://localhost:7071/metrics",
 		"http://localhost:7070/", ScrapeMetrics, DefaultMetricsThresholds, 0)
 
@@ -86,25 +86,28 @@ func main() {
 			backendIds = append(backendIds, key)
 		}
 		if route, found := g.Routes["Route1"]; found {
-			route.StartSwitchOver(backendIds[0], backendIds[1], conditionsList, 10*time.Second, 5)
+			route.StartSwitchOver(id1, id2, conditionsList, 10*time.Second, 5)
 		}
 	}()
 
+	r2, _ := route.New(
+		"Route2",
+		"/test/",
+		"/",
+		"*",
+		[]string{"GET", "POST"},
+		upstreamclient.NewDefaultClient(),
+	)
+
+	r2.AddBackend(
+		"Test2", "http://localhost:7070", "http://localhost:7071/metrics",
+		"http://localhost:7070/", ScrapeMetrics, DefaultMetricsThresholds, 100)
+
+	if err := g.RegisterRoute(r2); err != nil {
+		panic(err)
+	}
+
 	/*
-		r2, _ := route.New(
-			"Route2",
-			"/test/",
-			"/",
-			"*",
-			[]string{"GET", "POST"},
-			upstreamclient.NewDefaultClient(),
-		)
-		r2.AddBackend("Test2", "http://ip-172-31-38-69.eu-central-1.compute.internal:9090", "", "", DefaultMetricThreshholds, 25)
-
-		if err := g.RegisterRoute(r2); err != nil {
-			panic(err)
-		}
-
 		r3, _ := route.New(
 			"Route3",
 			"/foo/",
@@ -144,7 +147,7 @@ func main() {
 	distFilepath := "../vue/dist"
 	// package static files into binary
 	box := packr.New("files", distFilepath)
-
 	st.Box = box
+
 	st.Start()
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,4 +19,11 @@ func LogRequest(handler http.Handler) http.Handler {
 		}()
 		handler.ServeHTTP(w, r)
 	})
+}
+
+// SetRequestID sets a unique ID for each request. Allows for better tracing
+func SetRequestID(r *http.Request) {
+
+	r.Header.Set("X-Request-ID", uuid.New().String())
+
 }

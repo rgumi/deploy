@@ -49,10 +49,12 @@ func (s *StateMgt) Start() {
 	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
 
 	// monitoring
-	router.Handle("GET", "/v1/monitoring/routes", SetupHeaders(s.GetMetrics))
+	router.Handle("GET", "/v1/monitoring/routes", SetupHeaders(s.GetMetricsOfAllRoutes))
+	router.Handle("GET", "/v1/monitoring/backends", SetupHeaders(s.GetMetricsOfAllBackends))
 	router.Handle("GET", "/v1/monitoring/backend/:id", SetupHeaders(s.GetMetricsOfBackend))
 	router.Handle("GET", "/v1/monitoring/route/:name", SetupHeaders(s.GetMetricsOfRoute))
 	router.Handle("GET", "/v1/monitoring/all", SetupHeaders(s.GetMetricsData))
+	router.Handle("GET", "/v1/monitoring/prometheus", SetupHeaders(s.GetPromMetrics))
 
 	// etc
 	router.NotFound = http.FileServer(s.Box)

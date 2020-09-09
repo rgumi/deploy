@@ -6,20 +6,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/common/log"
 )
 
 type LocalStorage struct {
-	mux    sync.RWMutex                      // concurrent rw on maps is not possible
-	puffer map[string]map[uuid.UUID][]Metric // puffer storage until the averaging job is executed
+	pufferMux sync.RWMutex
+	mux       sync.RWMutex                      // concurrent rw on maps is not possible
+	puffer    map[string]map[uuid.UUID][]Metric // puffer storage until the averaging job is executed
 
 	data map[string]map[uuid.UUID]map[time.Time]Metric // map of backend to metrics
+
+	// storage for all data that is stored longterm with increasing counter for e. g. Prometheus
+	// for each route/backend
+	// TotalRequests, 2xx, 3xx, 4xx, 5xx, 6xx Requests, avg Responsetime
+	overview map[string]map[uuid.UUID]Metric
 }
 
 func NewLocalStorage() *LocalStorage {
 	st := new(LocalStorage)
 	st.data = make(map[string]map[uuid.UUID]map[time.Time]Metric)
 	st.puffer = make(map[string]map[uuid.UUID][]Metric)
+	st.overview = make(map[string]map[uuid.UUID]Metric)
 
 	// time for averiging and saving to data
 	go st.Job(5 * time.Second)
@@ -31,7 +37,14 @@ func (st *LocalStorage) readPuffer() {
 	for routeName, routeData := range st.puffer {
 
 		for backendID, backendData := range routeData {
+
+			// no new data
+			if len(st.puffer[routeName][backendID]) == 0 {
+				continue
+			}
+
 			if _, found := st.data[routeName]; !found {
+
 				st.data[routeName] = make(map[uuid.UUID]map[time.Time]Metric)
 				st.data[routeName][backendID] = make(map[time.Time]Metric)
 			} else {
@@ -40,6 +53,7 @@ func (st *LocalStorage) readPuffer() {
 					st.data[routeName][backendID] = make(map[time.Time]Metric)
 				}
 			}
+			// write pufferdata to data
 			st.data[routeName][backendID][time.Now()] = makeAverageBackend(backendData)
 			// empty puffer
 			st.puffer[routeName][backendID] = []Metric{}
@@ -49,30 +63,50 @@ func (st *LocalStorage) readPuffer() {
 
 func (st *LocalStorage) deleteOldData() {
 
-	deletePeriod := time.Duration(10 * time.Minute)
+	deletePeriod := 10 * time.Minute
+
+	// for each route
 	for _, routeData := range st.data {
+
+		//outer:
+		// for each backend of route
 		for _, backendData := range routeData {
+
+			// for each timestamped, averaged metric of backend
 			for timestamp := range backendData {
 				if timestamp.Add(deletePeriod).Before(time.Now()) {
+					// metric is out of retention period => delete it
 					delete(backendData, timestamp)
 				}
+				// continue
 			}
 		}
 	}
 }
 
+// Job loops over puffer and makes an average of all metrics
+// that were collected in $interval
+// the averages are then written to data with the current time
+// Also old entries in data are removed periodicly
 func (st *LocalStorage) Job(interval time.Duration) {
 
 	for {
-
 		go func() {
-			log.Warn("Acquiring lock in Job")
+			//log.Warn("Acquiring lock in Job")
+
+			// Lock & Unlock data
 			st.mux.Lock()
 			defer st.mux.Unlock()
-			defer log.Warn("Released lock in Job")
+
+			// Lock & Unlock puffer
+			st.pufferMux.Lock()
+			defer st.pufferMux.Unlock()
+
+			// execute operations
 			st.deleteOldData()
 			st.readPuffer()
 
+			//defer log.Warn("Released lock in Job")
 		}()
 
 		time.Sleep(interval)
@@ -86,16 +120,18 @@ func (st *LocalStorage) Write(
 	responseTime, contentLength int64,
 	responseStatus int) {
 
-	st.mux.Lock()
-	defer st.mux.Unlock()
+	// this only writes to putter. Therefore, lock pufferMux
+	st.pufferMux.Lock()
+	defer st.pufferMux.Unlock()
 
 	if _, found := st.puffer[routeName]; !found {
 		st.puffer[routeName] = make(map[uuid.UUID][]Metric)
+		st.overview[routeName] = make(map[uuid.UUID]Metric)
 	}
 
 	tmpMetric := Metric{
 		ResponseTime:  float64(responseTime),
-		ContentLength: contentLength,
+		ContentLength: float64(contentLength),
 		CustomMetrics: customMetrics,
 	}
 	tmpMetric.TotalResponses++
@@ -126,7 +162,7 @@ func (st *LocalStorage) ReadData() map[string]map[uuid.UUID]map[time.Time]Metric
 }
 
 // ReadAll returns all metrics in data that are within the given timeframe
-func (st *LocalStorage) ReadAll(start, end time.Time) map[string]Metric {
+func (st *LocalStorage) ReadAllRoutes(start, end time.Time) map[string]Metric {
 
 	st.mux.RLock()
 	defer st.mux.RUnlock()
@@ -168,6 +204,25 @@ func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Me
 	return Metric{}, fmt.Errorf("Could not find provided backend %v", backend)
 }
 
+func (st *LocalStorage) ReadAllBackends(start, end time.Time) map[string]map[uuid.UUID]Metric {
+
+	metricsByBackends := make(map[string]map[uuid.UUID]Metric)
+	for routeName, backends := range st.data {
+
+		metricsByBackends[routeName] = make(map[uuid.UUID]Metric)
+		for backendID := range backends {
+
+			m, err := st.ReadBackend(backendID, start, end)
+			if err != nil {
+				panic(err)
+			}
+			metricsByBackends[routeName][backendID] = m
+		}
+	}
+
+	return metricsByBackends
+}
+
 // ReadRoute returns all metrics for the route that are within the given timeframe
 func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 
@@ -204,9 +259,6 @@ func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 
 // ReadRates makes rates (average) of all metrics of the backend within the given timeframe
 func (st *LocalStorage) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
-
-	st.mux.RLock()
-	defer st.mux.RUnlock()
 
 	m := make(map[string]float64)
 
@@ -266,7 +318,7 @@ func makeAverageBackend(in []Metric) Metric {
 			finalMetric.CustomMetrics[key] += val
 		}
 	}
-	finalMetric.ContentLength = finalMetric.ContentLength / int64(length)
+	finalMetric.ContentLength = finalMetric.ContentLength / float64(length)
 	finalMetric.ResponseTime = finalMetric.ResponseTime / float64(length)
 
 	for key, val := range finalMetric.CustomMetrics {
@@ -297,7 +349,7 @@ func makeAverage(in map[uuid.UUID]Metric, finalMetric *Metric) {
 		//		}
 	}
 
-	finalMetric.ContentLength = finalMetric.ContentLength / int64(length)
+	finalMetric.ContentLength = finalMetric.ContentLength / float64(length)
 	finalMetric.ResponseTime = finalMetric.ResponseTime / float64(length)
 
 	for key, val := range finalMetric.CustomMetrics {

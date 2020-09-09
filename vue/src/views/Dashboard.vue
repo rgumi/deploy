@@ -13,20 +13,11 @@
               v-bind="attrs"
               v-on="on"
               style="min-width: 150px; margin-left: 10px;"
-              >{{ selectedRoute }}</v-btn
-            >
+            >{{ selectedRoute }}</v-btn>
           </template>
           <v-list class="dropdown avoid-clicks" style="min-width: 150px;">
-            <v-list-item
-              v-for="(route, index) in Object.keys(data)"
-              :key="index"
-              ripple
-            >
-              <v-list-item-title
-                @click="selectRoute(route)"
-                style="text-align:center;"
-                >{{ route }}</v-list-item-title
-              >
+            <v-list-item v-for="(route, index) in Object.keys(data)" :key="index" ripple>
+              <v-list-item-title @click="selectRoute(route)" style="text-align:center;">{{ route }}</v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
@@ -34,9 +25,7 @@
 
       <!-- refresh -->
       <!-- @click="refresh" -->
-      <v-icon size="32" style="margin: 5px;" :disabled="currentlyLoading"
-        >mdi-refresh</v-icon
-      >
+      <v-icon size="32" style="margin: 5px;" :disabled="currentlyLoading">mdi-refresh</v-icon>
 
       <!-- loading icon -->
       <v-progress-circular
@@ -52,15 +41,12 @@
     <!-- content -->
     <v-row>
       <v-col cols="12">
-        <v-card class="chartContainer">
-          <v-card-title>ResponseStatus</v-card-title>
-          <v-card-text>
-            <LineChart
-              :options="options"
-              :chart-data="responseStatusData"
-            ></LineChart>
-          </v-card-text>
-        </v-card>
+        <ResponseStatusChart
+          class="chartContainer"
+          :statusData="responseStatusData"
+          :timestamps="timestamps"
+          :title="responseStatusChartTitle"
+        ></ResponseStatusChart>
       </v-col>
     </v-row>
     <v-row>
@@ -68,10 +54,7 @@
         <v-card class="chartContainer">
           <v-card-title>TotalResponses</v-card-title>
           <v-card-text>
-            <LineChart
-              :options="options"
-              :chart-data="totalResponseData"
-            ></LineChart>
+            <LineChart :options="options" :chart-data="totalResponseData"></LineChart>
           </v-card-text>
         </v-card>
       </v-col>
@@ -79,10 +62,7 @@
         <v-card class="chartContainer">
           <v-card-title>ResponseTime</v-card-title>
           <v-card-text>
-            <LineChart
-              :options="options"
-              :chart-data="responseTimeData"
-            ></LineChart>
+            <LineChart :options="options" :chart-data="responseTimeData"></LineChart>
           </v-card-text>
         </v-card>
       </v-col>
@@ -92,16 +72,19 @@
 
 <script>
 import LineChart from "@/components/charts/LineChart";
+import ResponseStatusChart from "@/components/charts/ResponseStatusChart";
 import { mapState } from "vuex";
 export default {
   components: {
-    LineChart
+    LineChart,
+    ResponseStatusChart
   },
   data() {
     return {
       // currentlyLoading: false,
       selectedRoute: "Route",
-      responseStatusData: {},
+      responseStatusChartTitle: "Response Status of Route",
+      responseStatusData: [],
       responseTimeData: {},
       totalResponseData: {},
       options: {
@@ -117,18 +100,20 @@ export default {
             loop: true
           }
         },
+        tooltips: {
+          mode: "x",
+
+          intersect: false
+        },
         hover: {
-          // duration of animations when hovering an item
-          animationDuration: 1000,
-          mode: true
+          mode: "index",
+          intersect: false,
+          axis: "x"
         },
         // animation duration after a resize
         responsiveAnimationDuration: 0,
         legend: {
           display: true
-        },
-        tooltips: {
-          enabled: true
         },
         scales: {
           yAxes: [
@@ -156,13 +141,16 @@ export default {
   },
 
   created() {
-    console.log("Created dashboard");
-
     this.unsubscribe = this.$store.subscribe(mutation => {
       if (mutation.type === "pullMetrics") {
         console.log("Store updated");
-        console.log(this.data);
-        console.log(this.timestamps);
+        console.log("Event:", this.data);
+        console.log("Event:", this.timestamps);
+
+        this.responseStatusData =
+          this.data[this.selectedRoute] === undefined
+            ? []
+            : this.data[this.selectedRoute];
         this.fillData();
       }
     });
@@ -176,27 +164,8 @@ export default {
   methods: {
     selectRoute(routeName) {
       this.selectedRoute = routeName;
+      this.responseStatusData = this.data[this.selectedRoute];
       this.fillData();
-    },
-
-    get200() {
-      return this.data[this.selectedRoute].map(d => d["ResponseStatus200"]);
-    },
-
-    get300() {
-      return this.data[this.selectedRoute].map(d => d["ResponseStatus300"]);
-    },
-
-    get400() {
-      return this.data[this.selectedRoute].map(d => d["ResponseStatus400"]);
-    },
-
-    get500() {
-      return this.data[this.selectedRoute].map(d => d["ResponseStatus500"]);
-    },
-
-    get600() {
-      return this.data[this.selectedRoute].map(d => d["ResponseStatus600"]);
     },
 
     getResponseTime() {
@@ -208,59 +177,18 @@ export default {
     },
 
     fillData() {
-      if (this.selectedRoute == "Route") {
+      if (
+        this.selectedRoute == "Route" &&
+        Object.keys(this.data)[0] != undefined
+      ) {
         this.selectedRoute = Object.keys(this.data)[0];
       }
+
       if (this.data[this.selectedRoute] === undefined) {
         console.error("selectedRoute is empty");
         return;
       }
 
-      this.responseStatusData = {
-        labels: this.timestamps,
-        datasets: [
-          {
-            label: "2xx",
-            borderColor: "rgba(50, 205, 50, 1)",
-            backgroundColor: "rgba(50, 205, 50, 0.1)",
-            fill: true,
-            borderWidth: 1,
-            data: this.get200()
-          },
-          {
-            label: "3xx",
-            borderColor: "rgba(255,216,0, 1)",
-            backgroundColor: "rgba(255,216,0, 0.1)",
-            fill: true,
-            borderWidth: 1,
-            data: this.get300()
-          },
-          {
-            label: "4xx",
-            borderColor: "rgba(0, 0, 128,1)",
-            backgroundColor: "rgba(0, 0, 128,0.1)",
-            fill: true,
-            borderWidth: 1,
-            data: this.get400()
-          },
-          {
-            label: "5xx",
-            borderColor: "rgba(96,96,96,1)",
-            backgroundColor: "rgba(96,96,96,0.1)",
-            fill: true,
-            borderWidth: 1,
-            data: this.get500()
-          },
-          {
-            label: "6xx",
-            borderColor: "rgba(255, 0, 0, 1)",
-            backgroundColor: "rgba(255, 0, 0, 0.1)",
-            fill: true,
-            borderWidth: 1,
-            data: this.get600()
-          }
-        ]
-      };
       this.responseTimeData = {
         labels: this.timestamps,
         datasets: [

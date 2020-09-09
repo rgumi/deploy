@@ -18,9 +18,11 @@
 
     <div class="hidden-sm-and-up" @click="remove">
       <v-row @mouseleave="show = false">
-        <v-icon size="42" :color="input.icon_color" @mouseover="show = true">{{
+        <v-icon size="42" :color="input.icon_color" @mouseover="show = true">
+          {{
           input.icon
-        }}</v-icon>
+          }}
+        </v-icon>
         <v-col v-if="show">
           <h1>{{ input.title }}</h1>
           <p>{{ input.message }}</p>
@@ -37,7 +39,7 @@ export default {
     input: Object,
     removeInterval: {
       type: Number,
-      default: 10000
+      default: 5000
     }
   },
   data: () => {

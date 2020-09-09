@@ -14,13 +14,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
 type Storage interface {
 	Write(string, uuid.UUID, map[string]float64, int64, int64, int)
 	ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error)
-	ReadAll(start, end time.Time) map[string]storage.Metric
+	ReadAllRoutes(start, end time.Time) map[string]storage.Metric
+	ReadAllBackends(start, end time.Time) map[string]map[uuid.UUID]storage.Metric
 	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
 	ReadBackend(backend uuid.UUID, start, end time.Time) (storage.Metric, error)
 	ReadRoute(route string, start, end time.Time) storage.Metric
@@ -68,6 +70,7 @@ type MonitoredBackend struct {
 
 type Repository struct {
 	Storage              Storage
+	PromMetrics          *PromMetrics
 	ScrapeInterval       time.Duration
 	client               *http.Client
 	InChannel            chan (Metrics)
@@ -79,11 +82,12 @@ type Repository struct {
 
 // NewMetricsRepository creates a new instance of NewMetricsRepository
 // return a channel for Metrics
-func NewMetricsRepository(storage Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
+func NewMetricsRepository(st Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
 	channel := make(chan Metrics, 50)
 	scrapeMetricsChannel := make(chan ScrapeMetrics, 50)
 	return channel, &Repository{
-		Storage:              storage,
+		Storage:              st,
+		PromMetrics:          NewPromMetrics(),
 		ScrapeInterval:       scrapeInterval,
 		client:               http.DefaultClient,
 		InChannel:            channel,
@@ -121,6 +125,9 @@ func (m *Repository) RegisterBackend(
 		activeAlerts:       make(map[string]*Alert),
 	}
 
+	// add to PromMetrics
+	m.PromMetrics.RegisterRouteBackend("Route1", backendID)
+
 	// append to the list
 	m.Backends[backendID] = newBackend
 	return newBackend.AlertChannel, nil
@@ -136,8 +143,11 @@ func (m *Repository) RemoveBackend(backendID uuid.UUID) error {
 		if key == backendID {
 			// stop monitoring job of backend
 			m.Backends[key].stopMonitoring <- 1
-			// remove
+
+			// Unregister backend
+			// time.Sleep(2 * time.Second)
 			delete(m.Backends, key)
+
 			return nil
 		}
 	}
@@ -184,7 +194,7 @@ func (m *Repository) Monitor(
 				collected, err := m.Storage.ReadRatesOfBackend(backendID, now.Add(-10*time.Second), now)
 
 				if err != nil {
-					log.Error(err)
+					log.Errorf("Unable to obtain rates of backend for the last 10 seconds (%v)", err)
 					time.Sleep(timeout)
 					continue
 				}
@@ -279,6 +289,33 @@ func (m *Repository) Listen() {
 		case metrics := <-m.InChannel:
 
 			log.Debug(metrics)
+
+			// update PromMetrics
+
+			go m.PromMetrics.Update(
+				float64(metrics.UpstreamResponseTime), float64(metrics.ContentLength),
+				metrics.ResponseStatus, metrics.RequestMethod, metrics.Route, metrics.BackendID)
+
+			// update Prometheus Metrics
+
+			TotalHttpRequests.With(
+				prometheus.Labels{
+					"route":   metrics.Route,
+					"backend": metrics.BackendID.String(),
+					"code":    strconv.Itoa(metrics.ResponseStatus),
+					"method":  metrics.RequestMethod}).Inc()
+
+			AvgResponseTime.With(
+				prometheus.Labels{
+					"route":   metrics.Route,
+					"backend": metrics.BackendID.String()}).Set(m.PromMetrics.GetAvgResponseTime(metrics.Route, metrics.BackendID))
+
+			AvgContentLength.With(
+				prometheus.Labels{
+					"route":   metrics.Route,
+					"backend": metrics.BackendID.String()}).Set(m.PromMetrics.GetAvgContentLength(metrics.Route, metrics.BackendID))
+
+			// Get Scrape Metrics and persist to Storage
 
 			scrapeMetrics := m.Backends[metrics.BackendID].ScrapeMetricPuffer
 			if scrapeMetrics == nil {

@@ -1,0 +1,294 @@
+{
+	"info": {
+		"_postman_id": "c1587e81-0951-4ae4-a5a1-09e525f039bb",
+		"name": "BT",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "PUT Route",
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"prefix\": \"/test123/\",\r\n    \"methods\": [\r\n        \"GET\",\r\n        \"POST\"\r\n    ],\r\n    \"host\": \"*\",\r\n    \"rewrite\": \"/\",\r\n    \"targets\": [\r\n        {\r\n            \"id\": \"158dc668-e5f7-41ce-a5e2-3267b2b4be2f\",\r\n            \"name\": \"Test1\",\r\n            \"addr\": \"http://localhost:7070\",\r\n            \"State\": \"\",\r\n            \"active\": true,\r\n            \"scrape\": false,\r\n            \"scrape_fail_counter\": 0,\r\n            \"scrape_addr\": \"\",\r\n            \"scrape_metrics\": null,\r\n            \"scrape_interval\": 0\r\n        },\r\n        {\r\n            \"id\": \"4b67e345-dc98-415d-bfb5-1a2d030848ef\",\r\n            \"name\": \"Test2\",\r\n            \"addr\": \"http://localhost:9090\",\r\n            \"State\": \"\",\r\n            \"active\": true,\r\n            \"scrape\": false,\r\n            \"scrape_fail_counter\": 0,\r\n            \"scrape_addr\": \"\",\r\n            \"scrape_metrics\": null,\r\n            \"scrape_interval\": 0\r\n        }\r\n    ]\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8081/v1/routes/255129187",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"routes",
+						"255129187"
+					]
+				},
+				"description": "replace a current route with this one"
+			},
+			"response": []
+		},
+		{
+			"name": "GET Route",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8081/v1/routes/255129187",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"routes",
+						"255129187"
+					]
+				},
+				"description": "get a route by parameter ID"
+			},
+			"response": []
+		},
+		{
+			"name": "GET Routes",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8081/v1/routes",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"routes"
+					]
+				},
+				"description": "Get all routes"
+			},
+			"response": []
+		},
+		{
+			"name": "DELETE Route",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8081/v1/routes/Route1",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"routes",
+						"Route1"
+					]
+				},
+				"description": "Remove route from gateway"
+			},
+			"response": []
+		},
+		{
+			"name": "Backend Metrics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "localhost:8081/v1/monitoring/backend/137050a0-6ccb-44ae-bc82-895ff9df8a5c?timeframe=60",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"monitoring",
+						"backend",
+						"137050a0-6ccb-44ae-bc82-895ff9df8a5c"
+					],
+					"query": [
+						{
+							"key": "timeframe",
+							"value": "60"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Test",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "localhost:8080/test/",
+					"host": [
+						"localhost"
+					],
+					"port": "8080",
+					"path": [
+						"test",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Route Metrics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "localhost:8081/v1/monitoring/route/Route1?timeframe=30",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"monitoring",
+						"route",
+						"Route1"
+					],
+					"query": [
+						{
+							"key": "timeframe",
+							"value": "30"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "All Metrics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8081/v1/monitoring/all",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"monitoring",
+						"all"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "All Backend Metrics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8081/v1/monitoring/backends?timeframe=30",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"monitoring",
+						"backends"
+					],
+					"query": [
+						{
+							"key": "timeframe",
+							"value": "30"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "All Routes Metrics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8081/v1/monitoring/routes?timeframe=30",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"monitoring",
+						"routes"
+					],
+					"query": [
+						{
+							"key": "timeframe",
+							"value": "30"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Prometheus Metrics",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8081/v1/monitoring/prometheus",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8081",
+					"path": [
+						"v1",
+						"monitoring",
+						"prometheus"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Prometheus Scrape Endpoint",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8084/metrics",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8084",
+					"path": [
+						"metrics"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"protocolProfileBehavior": {}
+}

@@ -133,22 +133,18 @@ func (r *Route) getNextBackend() (*Backend, error) {
 func (r *Route) sendRequestToUpstream(
 	target *Backend,
 	req *http.Request,
-	body []byte) (*http.Response, error) {
+	body []byte) (*http.Response, metrics.Metrics, error) {
 
 	url := req.URL.String()
 
 	if r.Rewrite != "" {
 		url = strings.Replace(url, r.Prefix, r.Rewrite, -1)
 	}
+
 	// Copies the downstream request into the upstream request
 	// and formats it accordingly
 	log.Debug(target.Addr + url)
 	newReq, _ := formateRequest(req, target.Addr+url, body)
-	/*
-		if err != nil {
-			return nil, err
-		}
-	*/
 
 	// Send Request to the upstream host
 	// reuses TCP-Connection
@@ -160,11 +156,10 @@ func (r *Route) sendRequestToUpstream(
 		m.RequestMethod = req.Method
 		m.DownstreamAddr = req.RemoteAddr
 		m.ResponseStatus = 600
-		m.ContentLength = resp.ContentLength
+		m.ContentLength = -1
 		m.BackendID = target.ID
-		r.MetricsRepo.InChannel <- m
 
-		return nil, err
+		return nil, m, err
 	}
 
 	m.Route = r.Name
@@ -173,9 +168,8 @@ func (r *Route) sendRequestToUpstream(
 	m.ResponseStatus = resp.StatusCode
 	m.ContentLength = resp.ContentLength
 	m.BackendID = target.ID
-	r.MetricsRepo.InChannel <- m
 
-	return resp, nil
+	return resp, m, nil
 }
 
 // AddBackend adds another backend instance of the route

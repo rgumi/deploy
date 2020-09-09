@@ -1,11 +1,12 @@
 <template>
-  <div class="right bar   ">
+  <div class="right bar">
     <v-list style="padding: 0;">
       <v-list-item v-for="(event, index) in events" :key="index">
         <EventTile
           :input="event"
           :index="index"
           @removeEvent="removeMe(index)"
+          style="margin-bottom: 5px;"
         ></EventTile>
       </v-list-item>
     </v-list>
@@ -31,13 +32,15 @@ export default {
     });
   },
   methods: {
-    deleteEvents() {
-      if (this.events[8]) {
-        this.events.shift();
-      }
-    },
     removeMe(index) {
       this.events.splice(index, 1);
+    }
+  },
+  watch: {
+    events() {
+      if (this.events.length > 7) {
+        this.events.shift();
+      }
     }
   }
 };

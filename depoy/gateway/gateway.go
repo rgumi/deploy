@@ -156,11 +156,16 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 	if route, exists := g.Routes[name]; exists {
 		log.Debugf("Removing %s from Gateway.Routes", name)
 
-		// remove all children of route
-		for id := range route.Backends {
-			g.MetricsRepo.RemoveBackend(id)
-		}
 		route.StopAll()
+
+		// remove all children of route
+		go func() {
+			time.Sleep(2 * time.Second)
+			for id := range route.Backends {
+				g.MetricsRepo.RemoveBackend(id)
+			}
+		}()
+
 		delete(g.Routes, name)
 
 		g.Reload()

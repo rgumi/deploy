@@ -128,6 +128,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
+	// middleware.SetRequestID(req)
+
 	if _, found := r.tree[req.Method]; found {
 		if _, h, found := r.tree[req.Method].LongestPrefix(req.URL.String()); found {
 			h.(http.HandlerFunc)(w, req)

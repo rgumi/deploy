@@ -70,6 +70,7 @@ func (b *Backend) UpdateWeight(weight uint8) {
 	b.mux.Lock()
 	defer b.mux.Unlock()
 
+	log.Warnf("Updating Weight of Backend %v from %d to %d", b.ID, b.Weigth, weight)
 	b.Weigth = weight
 }
 
