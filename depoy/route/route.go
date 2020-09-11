@@ -15,6 +15,8 @@ import (
 var (
 	healthCheckInterval = 5 * time.Second
 	cookieTTL           = 120 * time.Second
+	monitorTimeout      = 5 * time.Second
+	activeFor           = 10 * time.Second
 )
 
 // UpstreamClient is an interface for the http.Client
@@ -24,19 +26,19 @@ type UpstreamClient interface {
 }
 
 type Route struct {
-	Name            string                 `json:"name"`
-	Prefix          string                 `json:"prefix"`
-	Methods         []string               `json:"methods"`
-	Host            string                 `json:"host"`
-	Rewrite         string                 `json:"rewrite"`
-	Backends        map[uuid.UUID]*Backend `json:"backends"`
-	Client          UpstreamClient         `json:"-"`
-	Handler         http.HandlerFunc       `json:"-"`
-	NextTargetDistr []*Backend             `json:"-"`
-	CookieTTL       time.Duration          `json:"cookie_ttl"`
-	MetricsRepo     *metrics.Repository    `json:"-"`
-	SwitchOver      *SwitchOver            `json:"switch"`
-	killHealthCheck chan int               `json:"-"`
+	Name            string                 `json:"name" yaml:"name"`
+	Prefix          string                 `json:"prefix" yaml:"prefix"`
+	Methods         []string               `json:"methods" yaml:"methods"`
+	Host            string                 `json:"host" yaml:"host"`
+	Rewrite         string                 `json:"rewrite" yaml:"rewrite"`
+	Backends        map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
+	Client          UpstreamClient         `json:"-" yaml:"-"`
+	Handler         http.HandlerFunc       `json:"-" yaml:"-"`
+	NextTargetDistr []*Backend             `json:"-" yaml:"-"`
+	CookieTTL       time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"`
+	MetricsRepo     *metrics.Repository    `json:"-" yaml:"-"`
+	SwitchOver      *SwitchOver            `json:"-" yaml:"-"` //`json:"switchover" yaml:"switchover"`
+	killHealthCheck chan int               `json:"-" yaml:"-"`
 }
 
 func New(name, prefix, rewrite, host string, methods []string, upstreamClient UpstreamClient) (*Route, error) {
@@ -181,10 +183,27 @@ func (r *Route) AddBackend(
 	metricsThresholds map[string]float64,
 	weight uint8) uuid.UUID {
 
+	var err error
+
 	backend := NewBackend(
 		name, addr, scrapeURL, healthCheckURL, scrapeMetrics, metricsThresholds, weight)
+
 	backend.updateWeigth = r.updateWeights
 	backend.Active = false
+
+	log.Debugf("Registering %v of Route %s to MetricsRepository", backend.ID, r.Name)
+	backend.AlertChan, err = r.MetricsRepo.RegisterBackend(
+		backend.ID, backend.ScrapeURL, backend.ScrapeMetrics, backend.MetricThresholds)
+
+	if err != nil {
+		panic(err)
+	}
+
+	// start monitoring the registered backend
+	go r.MetricsRepo.Monitor(backend.ID, monitorTimeout, activeFor)
+
+	// starts listening on alertChan
+	go backend.Monitor()
 
 	log.Debugf("Added Backend %v to Router %s", backend, r.Name)
 	r.Backends[backend.ID] = backend
@@ -203,6 +222,14 @@ func (r *Route) AddBackend(
 	}()
 
 	return backend.ID
+}
+
+func (r *Route) RemoveBackend(backendID uuid.UUID) {
+	go func() {
+		time.Sleep(2 * time.Second)
+		r.MetricsRepo.RemoveBackend(backendID)
+	}()
+	delete(r.Backends, backendID)
 }
 
 func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth uint8) error {

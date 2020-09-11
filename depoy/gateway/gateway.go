@@ -6,26 +6,29 @@ import (
 	"depoy/router"
 	"depoy/storage"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
+
+	yaml "gopkg.in/yaml.v3"
 
 	log "github.com/sirupsen/logrus"
 )
 
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
-	mux          sync.Mutex
+	mux          sync.Mutex `yaml:"-" json:"-"`
 	Addr         string
 	ReadTimeout  int
 	WriteTimeout int
-	Routes       map[string]*route.Route // name => route. Name is unique
-	Router       map[string]*router.Router
+	Routes       map[string]*route.Route
+	Router       map[string]*router.Router `yaml:"-" json:"-"`
 	MetricsRepo  *metrics.Repository
 }
 
 //NewGateway returns a new instance of Gateway
-func NewGateway(addr string) *Gateway {
+func NewGateway(addr string, readTimeout, writeTimeout int) *Gateway {
 	g := new(Gateway)
 	_, g.MetricsRepo = metrics.NewMetricsRepository(storage.NewLocalStorage(), 5*time.Second)
 
@@ -41,8 +44,8 @@ func NewGateway(addr string) *Gateway {
 	g.Router["*"] = router.NewRouter()
 
 	// set defaults
-	g.ReadTimeout = 10000
-	g.WriteTimeout = 10000
+	g.ReadTimeout = readTimeout
+	g.WriteTimeout = writeTimeout
 
 	return g
 }
@@ -100,6 +103,14 @@ func (g *Gateway) checkIfExists(newRoute *route.Route) error {
 	return nil
 }
 
+func (g *Gateway) GetRoute(routeName string) *route.Route {
+
+	if route, found := g.Routes[routeName]; found {
+		return route
+	}
+	return nil
+}
+
 func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 	var err error
 	log.Debugf("Trying to register new route %s", newRoute.Name)
@@ -123,31 +134,11 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 
 	}
 
-	// this is shit
-	for _, backend := range newRoute.Backends {
-		log.Debugf("Registering %v of Route %s to MetricsRepository", backend.ID, newRoute.Name)
-
-		// register the backend
-		backend.AlertChan, err = g.MetricsRepo.RegisterBackend(
-			backend.ID, backend.ScrapeURL, backend.ScrapeMetrics, backend.MetricThresholds)
-
-		if err != nil {
-			return err
-		}
-
-		// start monitoring the registered backend
-		go g.MetricsRepo.Monitor(backend.ID, 5*time.Second, 10*time.Second)
-
-		// starts listening on alertChan
-		go backend.Monitor()
-	}
-
 	g.Routes[newRoute.Name] = newRoute
 	g.Reload()
 	return nil
 }
 
-// RemoveRoute TODO: this needs to cascade to all other components! metricsrepo etc.
 func (g *Gateway) RemoveRoute(name string) *route.Route {
 
 	g.mux.Lock()
@@ -158,13 +149,9 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 
 		route.StopAll()
 
-		// remove all children of route
-		go func() {
-			time.Sleep(2 * time.Second)
-			for id := range route.Backends {
-				g.MetricsRepo.RemoveBackend(id)
-			}
-		}()
+		for id := range route.Backends {
+			route.RemoveBackend(id)
+		}
 
 		delete(g.Routes, name)
 
@@ -193,4 +180,28 @@ func (g *Gateway) GetRouteByName(name string) *route.Route {
 
 func (g *Gateway) GetRoutes() map[string]*route.Route {
 	return g.Routes
+}
+
+// SaveConfigToFile saves the current config of the Gateway to a file
+func (g *Gateway) SaveConfigToFile(filename string) error {
+	b, err := g.ReadConfig()
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filename, b, 0777)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ReadConfig reads the current config of the Gateway and returns a []byte
+func (g *Gateway) ReadConfig() ([]byte, error) {
+	b, err := yaml.Marshal(g)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
 }

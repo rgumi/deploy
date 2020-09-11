@@ -12,18 +12,18 @@ import (
 )
 
 type Backend struct {
-	ID               uuid.UUID            `json:"id"`
-	Name             string               `json:"name"`
-	Addr             string               `json:"addr"`
-	Weigth           uint8                `json:"weight"`
-	Active           bool                 `json:"active"` // in % (100 max)
-	ScrapeURL        string               `json:"scrape_url"`
-	ScrapeMetrics    []string             `json:"scrape_metrics"`
-	MetricThresholds map[string]float64   `json:"metrics_tresholds"`
-	HealthCheckURL   string               `json:"healthcheck_url"`
-	AlertChan        <-chan metrics.Alert `json:"-"`
-	updateWeigth     func()               `json:"-"`
-	mux              sync.Mutex           `json:"-"`
+	ID               uuid.UUID            `json:"id" yaml:"id"`
+	Name             string               `json:"name" yaml:"name"`
+	Addr             string               `json:"addr" yaml:"addr"`
+	Weigth           uint8                `json:"weight" yaml:"weight"`
+	Active           bool                 `json:"-" yaml:"-"` // `json:"active" yaml:"active"`
+	ScrapeURL        string               `json:"scrape_url" yaml:"scrapeUrl"`
+	ScrapeMetrics    []string             `json:"scrape_metrics"  yaml:"scrapeMetrics"`
+	MetricThresholds map[string]float64   `json:"metrics_tresholds"  yaml:"metricsTresholds"`
+	HealthCheckURL   string               `json:"healthcheck_url"  yaml:"healthcheckUrl"`
+	AlertChan        <-chan metrics.Alert `json:"-" yaml:"-"`
+	updateWeigth     func()               `json:"-" yaml:"-"`
+	mux              sync.Mutex           `json:"-" yaml:"-"`
 }
 
 // NewBackend returns a new base Target

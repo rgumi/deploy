@@ -29,11 +29,11 @@ type Storage interface {
 }
 
 type Alert struct {
-	Type       string
-	BackendID  uuid.UUID
-	Metric     string
-	Threshhold float64
-	Value      float64
+	Type       string    `json:"type" yaml:"type"`
+	BackendID  uuid.UUID `json:"backend_id" yaml:"backendID"`
+	Metric     string    `json:"metric" yaml:"metric"`
+	Threshhold float64   `json:"threshold" yaml:"treshold"`
+	Value      float64   `json:"value" yaml:"value"`
 	StartTime  time.Time
 	EndTime    time.Time
 	SendTime   time.Time
@@ -60,24 +60,24 @@ type MonitoredBackend struct {
 	ScrapeURL          string
 	Errors             int
 	nextTimeout        time.Duration
-	MetricThreshholds  map[string]float64 // metricName threshhold
-	AlertChannel       chan Alert
-	stopMonitoring     chan int
-	activeAlerts       map[string]*Alert
+	MetricThreshholds  map[string]float64
+	AlertChannel       chan Alert        `yaml:"-" json:"-"`
+	stopMonitoring     chan int          `yaml:"-" json:"-"`
+	activeAlerts       map[string]*Alert `json:"-" yaml:"-"`
 	ScrapeMetrics      []string
-	ScrapeMetricPuffer map[string]float64
+	ScrapeMetricPuffer map[string]float64 `yaml:"-" json:"-"`
 }
 
 type Repository struct {
-	Storage              Storage
-	PromMetrics          *PromMetrics
-	ScrapeInterval       time.Duration
-	client               *http.Client
-	InChannel            chan (Metrics)
-	scrapeMetricsChannel chan (ScrapeMetrics)
-	Backends             map[uuid.UUID]*MonitoredBackend
-	stopScraping         chan int
-	shutdown             chan int
+	Storage              Storage                         `yaml:"-" json:"-"`
+	PromMetrics          *PromMetrics                    `yaml:"-" json:"-"`
+	ScrapeInterval       time.Duration                   `yaml:"scrape_interval" json:"scrapeInterval"`
+	client               *http.Client                    `yaml:"-" json:"-"`
+	InChannel            chan (Metrics)                  `yaml:"-" json:"-"`
+	scrapeMetricsChannel chan (ScrapeMetrics)            `yaml:"-" json:"-"`
+	Backends             map[uuid.UUID]*MonitoredBackend `yaml:"backends" json:"backends"`
+	stopScraping         chan int                        `yaml:"-" json:"-"`
+	shutdown             chan int                        `yaml:"-" json:"-"`
 }
 
 // NewMetricsRepository creates a new instance of NewMetricsRepository
@@ -191,10 +191,10 @@ func (m *Repository) Monitor(
 				// read the collected metric from the storage
 				// may be an average over 1s, 10s, 1m? Configure that
 				now := time.Now()
-				collected, err := m.Storage.ReadRatesOfBackend(backendID, now.Add(-10*time.Second), now)
+				collected, err := m.ReadRatesOfBackend(backendID, now.Add(-10*time.Second), now)
 
 				if err != nil {
-					log.Errorf("Unable to obtain rates of backend for the last 10 seconds (%v)", err)
+					log.Debugf("Unable to obtain rates of backend for the last 10 seconds (%v)", err)
 					time.Sleep(timeout)
 					continue
 				}
@@ -412,6 +412,55 @@ func (m *Repository) jobLoop() {
 
 }
 
+// GetMetricsForBackend retrieves the metrics for $backend and the given timeframe ($end-$start)
+// with the average over $granularity seconds
+// e. g. retrieve for backend1 last 1min of metrics with granularity 10s would return 6 values with each
+// representing the granularity over 10s
+func (m *Repository) GetMetricsForBackend(
+	backend uuid.UUID, start, end time.Time, granularity time.Duration) map[time.Time]storage.Metric {
+
+	// get the delta of start and end
+	timeDelta := end.Sub(start)
+
+	dataPoints := int(math.Abs(float64(timeDelta / granularity)))
+	log.Warnf("Using %v datapoints", dataPoints)
+
+	metricData := make(map[time.Time]storage.Metric, dataPoints)
+	start = start
+
+	for idx := 0; idx < dataPoints; idx++ {
+		end := start.Add(time.Duration((dataPoints-idx)*int(granularity)) * time.Second)
+
+		val, err := m.Storage.ReadBackend(backend, start, end)
+		log.Warn(val)
+		if err != nil {
+			log.Errorf("Unable to get requested metrics for backend %v (%v)", backend, err)
+			return nil
+		}
+		metricData[end] = val
+		start = end
+	}
+
+	return metricData
+}
+
+// GetMetricsForRoute retrieves the metrics for $route and the given timeframe ($end-$start)
+// with the average over $avg seconds
+// e. g. retrieve for route1 last 1min of metrics with avg 10s would return 6 values with each
+// representing the avg over 10s
+func (m *Repository) GetMetricsForRoute(route string, start, end time.Time, avg time.Duration) map[string]float64 {
+	return nil
+}
+
+func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
+
+	rates, err := m.ReadRatesOfBackend(backend, start, end)
+	if err != nil {
+		return nil, err
+	}
+	return rates, nil
+}
+
 /*
 
 	Helper functions
@@ -491,46 +540,4 @@ func contains(s []string, e string) bool {
 		}
 	}
 	return false
-}
-
-// GetMetricsForBackend retrieves the metrics for $backend and the given timeframe ($end-$start)
-// with the average over $avg seconds
-// e. g. retrieve for backend1 last 1min of metrics with avg 10s would return 6 values with each
-// representing the avg over 10s
-func (m *Repository) GetMetricsForBackend(
-	backend uuid.UUID, start, end time.Time, avg time.Duration) map[time.Time]storage.Metric {
-
-	// get the delta of start and end
-	timeDelta := end.Sub(start)
-	log.Warn(timeDelta)
-
-	// get the number of datapoints based on avg
-	dataPoints := int(math.Abs(float64(timeDelta / avg)))
-	log.Warnf("Using %v datapoints", dataPoints)
-
-	metricData := make(map[time.Time]storage.Metric, dataPoints)
-	start = start
-
-	for idx := 0; idx < dataPoints; idx++ {
-		end := start.Add(time.Duration((dataPoints-idx)*int(avg)) * time.Second)
-
-		val, err := m.Storage.ReadBackend(backend, start, end)
-		log.Warn(val)
-		if err != nil {
-			log.Errorf("Unable to get requested metrics for backend %v (%v)", backend, err)
-			return nil
-		}
-		metricData[end] = val
-		start = end
-	}
-
-	return metricData
-}
-
-// GetMetricsForRoute retrieves the metrics for $route and the given timeframe ($end-$start)
-// with the average over $avg seconds
-// e. g. retrieve for route1 last 1min of metrics with avg 10s would return 6 values with each
-// representing the avg over 10s
-func (m *Repository) GetMetricsForRoute(route string, start, end time.Time, avg time.Duration) map[string]float64 {
-	return nil
 }

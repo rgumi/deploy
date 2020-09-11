@@ -31,14 +31,15 @@ var DefaultMetricsThresholds = map[string]float64{
 func main() {
 	log.SetLevel(log.WarnLevel)
 	promPort := ":8084"
+	promPath := "/metrics"
 	// load config
 
 	// init prometheus
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle(promPath, promhttp.Handler())
 	go http.ListenAndServe(promPort, nil)
 
 	// init gateway
-	g := gateway.NewGateway(":8080")
+	g := gateway.NewGateway(":8080", 5000, 5000)
 	// setup complete. Start servers
 	log.Info("Starting gateway")
 	go g.Run()
@@ -106,36 +107,6 @@ func main() {
 	if err := g.RegisterRoute(r2); err != nil {
 		panic(err)
 	}
-
-	/*
-		r3, _ := route.New(
-			"Route3",
-			"/foo/",
-			"/",
-			"*",
-			[]string{"GET", "POST"},
-			upstreamclient.NewDefaultClient(),
-		)
-		r3.AddBackend("Test2", "http://localhost:9090", "", "", DefaultMetricThreshholds, 25)
-
-		if err := g.RegisterRoute(r3); err != nil {
-			panic(err)
-		}
-
-		r4, _ := route.New(
-			"Route4",
-			"/bar/",
-			"/",
-			"*",
-			[]string{"GET", "POST"},
-			upstreamclient.NewDefaultClient(),
-		)
-		r4.AddBackend("Test2", "http://localhost:9090", "", "", DefaultMetricThreshholds, 25)
-
-		if err := g.RegisterRoute(r4); err != nil {
-			panic(err)
-		}
-	*/
 
 	/*
 		Start app

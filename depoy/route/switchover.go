@@ -135,11 +135,11 @@ outer:
 		default:
 			time.Sleep(s.Timeout)
 
-			metrics, err := s.Route.MetricsRepo.Storage.ReadRatesOfBackend(
+			metrics, err := s.Route.MetricsRepo.ReadRatesOfBackend(
 				s.To.ID, time.Now().Add(-10*time.Second), time.Now())
 
 			if err != nil {
-				log.Error(err)
+				log.Warnf("Warning in Switchover (%v)", err)
 				continue
 			}
 

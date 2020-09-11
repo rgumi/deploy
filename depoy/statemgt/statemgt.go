@@ -31,15 +31,16 @@ func NewStateMgt(addr string, g *gateway.Gateway) *StateMgt {
 func (s *StateMgt) Start() {
 	router := httprouter.New()
 
-	//static files
-	//router.Handle("GET", "/*file", s.GetRootFiles)
-	// router.Handle("GET", "/static/", s.GetStaticFiles)
-
 	// single page app routes
 	router.Handle("GET", "/help", s.GetIndexPage)
 	router.Handle("GET", "/dashboard", s.GetIndexPage)
 	router.Handle("GET", "/routes", s.GetIndexPage)
 	router.Handle("GET", "/home", s.GetIndexPage)
+	router.Handle("GET", "/login", s.GetIndexPage)
+
+	// Config
+	router.Handle("GET", "/v1/config", s.GetCurrentConfig)
+	router.Handle("POST", "/v1/config", s.SetCurrentConfig)
 
 	// gateway routes
 	router.Handle("GET", "/v1/routes/:name", SetupHeaders(s.GetRouteByName))

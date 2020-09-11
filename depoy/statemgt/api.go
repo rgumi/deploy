@@ -42,6 +42,28 @@ func (s *StateMgt) NotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(404)
 }
 
+func (s *StateMgt) GetCurrentConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	cfg, err := s.Gateway.ReadConfig()
+	if err != nil {
+		returnError(w, r, 500, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/yaml")
+	w.WriteHeader(200)
+	w.Write(cfg)
+}
+
+func (s *StateMgt) SetCurrentConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	cfg, err := s.Gateway.ReadConfig()
+	if err != nil {
+		returnError(w, r, 500, err, nil)
+		return
+	}
+	w.Header().Set("Content-Type", "text/yaml")
+	w.WriteHeader(200)
+	w.Write(cfg)
+}
+
 /*
 
 	Helper functions
