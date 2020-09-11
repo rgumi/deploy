@@ -3,6 +3,7 @@ package metrics
 import (
 	"bufio"
 	"bytes"
+	"depoy/conditional"
 	"depoy/storage"
 	"fmt"
 	"io"
@@ -60,7 +61,7 @@ type MonitoredBackend struct {
 	ScrapeURL          string
 	Errors             int
 	nextTimeout        time.Duration
-	MetricThreshholds  map[string]float64
+	MetricThreshholds  []*conditional.Condition
 	AlertChannel       chan Alert        `yaml:"-" json:"-"`
 	stopMonitoring     chan int          `yaml:"-" json:"-"`
 	activeAlerts       map[string]*Alert `json:"-" yaml:"-"`
@@ -85,13 +86,14 @@ type Repository struct {
 func NewMetricsRepository(st Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
 	channel := make(chan Metrics, 50)
 	scrapeMetricsChannel := make(chan ScrapeMetrics, 50)
+	log.Debug("Created new metricsRepository")
 	return channel, &Repository{
 		Storage:              st,
 		PromMetrics:          NewPromMetrics(),
 		ScrapeInterval:       scrapeInterval,
 		client:               http.DefaultClient,
 		InChannel:            channel,
-		Backends:             map[uuid.UUID]*MonitoredBackend{},
+		Backends:             make(map[uuid.UUID]*MonitoredBackend),
 		stopScraping:         make(chan int, 2),
 		shutdown:             make(chan int, 2),
 		scrapeMetricsChannel: scrapeMetricsChannel,
@@ -100,10 +102,11 @@ func NewMetricsRepository(st Storage, scrapeInterval time.Duration) (chan<- Metr
 
 // RegisterBackend adds a new instance to the ScrapingJob
 func (m *Repository) RegisterBackend(
+	routeName string,
 	backendID uuid.UUID,
 	scrapeURL string,
 	scrapeMetrics []string,
-	metricsTresholds map[string]float64) (<-chan Alert, error) {
+	metricsTresholds []*conditional.Condition) (<-chan Alert, error) {
 
 	// check if backendID is already configured
 	for key := range m.Backends {
@@ -126,7 +129,7 @@ func (m *Repository) RegisterBackend(
 	}
 
 	// add to PromMetrics
-	m.PromMetrics.RegisterRouteBackend("Route1", backendID)
+	m.PromMetrics.RegisterRouteBackend(routeName, backendID)
 
 	// append to the list
 	m.Backends[backendID] = newBackend
@@ -172,13 +175,13 @@ func (m *Repository) Stop() {
 // send an alert
 func (m *Repository) Monitor(
 	backendID uuid.UUID, timeout time.Duration, activeFor time.Duration) error {
-
-	defer func() {
-		if err := recover(); err != nil {
-			log.Warnf("Closing Monitor for Backend %v with Error: %v", backendID, err)
-		}
-	}()
-
+	/*
+		defer func() {
+			if err := recover(); err != nil {
+				log.Warnf("Closing Monitor for Backend %v with Error: %v", backendID, err)
+			}
+		}()
+	*/
 	if backend, ok := m.Backends[backendID]; ok {
 		log.Debugf("Starting monitoring of backend %v", backend.ID)
 
@@ -202,17 +205,24 @@ func (m *Repository) Monitor(
 				log.Debug(collected)
 				// loop over every metric that was collected
 				// collected := map[string]float64
-				for metricName, threshhold := range backend.MetricThreshholds {
+				for _, condition := range backend.MetricThreshholds {
 
 					// get the treshhold for this metric
 					// this has to exist otherwise it would not have been collected
-					currentValue := collected[metricName]
+					isReached, err := condition.IsTrue(collected)
+					currentValue := collected[condition.Metric]
+
+					if err != nil {
+						log.Errorf("Used condition is not valid (%v)", err)
+						time.Sleep(timeout)
+						continue
+					}
 
 					// check if an alert already exists for this metric
-					if alert, ok := backend.activeAlerts[metricName]; ok {
+					if alert, ok := backend.activeAlerts[condition.Metric]; ok {
 						// alert exists already
 						// check if it is still active
-						if currentValue > threshhold {
+						if isReached {
 							log.Debugf("Threshhold still reached for Alert %v", alert)
 							// threshhold is still reached and alert remains up
 							// goto next metric
@@ -222,7 +232,7 @@ func (m *Repository) Monitor(
 
 							// check if alert existed for long enough to send an alert
 							now := time.Now()
-							if now.After(alert.StartTime.Add(activeFor)) && alert.SendTime.IsZero() {
+							if now.After(alert.StartTime.Add(condition.GetActiveFor())) && alert.SendTime.IsZero() {
 								log.Debugf("Sending alarm for %v", alert)
 								alert.Type = "Alarming"
 								alert.SendTime = now
@@ -240,11 +250,11 @@ func (m *Repository) Monitor(
 							alert.EndTime = time.Now()
 						}
 
-						if time.Now().After(alert.EndTime.Add(activeFor)) {
+						if time.Now().After(alert.EndTime.Add(condition.GetActiveFor())) {
 							alert.Type = "Resolved"
 							alert.Value = currentValue
 							backend.AlertChannel <- *alert
-							delete(backend.activeAlerts, metricName)
+							delete(backend.activeAlerts, condition.Metric)
 
 							log.Debugf("Resolved Alert for %v", alert)
 						}
@@ -254,16 +264,16 @@ func (m *Repository) Monitor(
 
 					// new alarm for metric
 
-					if currentValue > threshhold {
+					if isReached {
 						alert := &Alert{
 							Type:       "Pending",
 							BackendID:  backend.ID,
-							Metric:     metricName,
-							Threshhold: threshhold,
-							Value:      currentValue,
+							Metric:     condition.Metric,
+							Threshhold: condition.Threshold,
+							Value:      collected[condition.Metric],
 							StartTime:  time.Now(),
 						}
-						backend.activeAlerts[metricName] = alert
+						backend.activeAlerts[condition.Metric] = alert
 
 						log.Debugf("New alert registered: %v", alert)
 					}
@@ -454,7 +464,7 @@ func (m *Repository) GetMetricsForRoute(route string, start, end time.Time, avg 
 
 func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
 
-	rates, err := m.ReadRatesOfBackend(backend, start, end)
+	rates, err := m.Storage.ReadRatesOfBackend(backend, start, end)
 	if err != nil {
 		return nil, err
 	}

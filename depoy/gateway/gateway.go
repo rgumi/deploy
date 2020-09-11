@@ -24,7 +24,7 @@ type Gateway struct {
 	WriteTimeout int
 	Routes       map[string]*route.Route
 	Router       map[string]*router.Router `yaml:"-" json:"-"`
-	MetricsRepo  *metrics.Repository
+	MetricsRepo  *metrics.Repository       `yaml:"-" json:"-"`
 }
 
 //NewGateway returns a new instance of Gateway
@@ -127,14 +127,16 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 		return err
 	}
 
-	newRoute.MetricsRepo = g.MetricsRepo
-
-	if len(newRoute.Backends) == 0 {
-		return fmt.Errorf("Route %s has no backends configured for it", newRoute.Name)
-
+	if g.MetricsRepo == nil {
+		panic(fmt.Errorf("Gateway MetricsRepo is nil"))
 	}
 
+	log.Debugf("Setting up MetricsRepo for %s", newRoute.Name)
+	newRoute.MetricsRepo = g.MetricsRepo
+
 	g.Routes[newRoute.Name] = newRoute
+
+	newRoute.Reload()
 	g.Reload()
 	return nil
 }
@@ -180,6 +182,14 @@ func (g *Gateway) GetRouteByName(name string) *route.Route {
 
 func (g *Gateway) GetRoutes() map[string]*route.Route {
 	return g.Routes
+}
+
+func (g *Gateway) Stop() {
+
+	for routeName := range g.Routes {
+		g.RemoveRoute(routeName)
+	}
+	g.MetricsRepo.Stop()
 }
 
 // SaveConfigToFile saves the current config of the Gateway to a file

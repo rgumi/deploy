@@ -1,6 +1,7 @@
 package route
 
 import (
+	"depoy/conditional"
 	"depoy/metrics"
 	"fmt"
 	"math/rand"
@@ -85,7 +86,6 @@ func (r *Route) updateWeights() {
 	}
 
 	// find ggt to reduce list length
-	log.Warn(listWeights)
 	ggt := GGT(listWeights) // if 0, return 0
 	log.Debugf("Current GGT of Weights is %d", ggt)
 
@@ -109,6 +109,8 @@ func (r *Route) updateWeights() {
 
 		r.NextTargetDistr = distr
 
+	} else {
+		r.NextTargetDistr = make([]*Backend, 0)
 	}
 }
 
@@ -130,6 +132,42 @@ func (r *Route) getNextBackend() (*Backend, error) {
 		}
 	*/
 	return backend, nil
+}
+
+// Reload is required if the route is changed
+// when a new backend is registerd reload handles the initial tasks
+// like monitoring and healthcheck
+func (r *Route) Reload() {
+	var err error
+	for _, backend := range r.Backends {
+
+		log.Warnf("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
+		backend.AlertChan, err = r.MetricsRepo.RegisterBackend(
+			r.Name, backend.ID, backend.Scrapeurl, backend.Scrapemetrics, backend.Metricthresholds)
+
+		if err != nil {
+			panic(err)
+		}
+
+		if r.MetricsRepo == nil {
+			panic(fmt.Errorf("MetricsRepo of %s cannot be nil", r.Name))
+		}
+
+		// start monitoring the registered backend
+		go r.MetricsRepo.Monitor(backend.ID, monitorTimeout, activeFor)
+
+		// starts listening on alertChan
+		go backend.Monitor()
+
+		// if this fails an alert will be registered
+		// when the backend is ready again, the alarm
+		// will eventually be resolved and the backend
+		// is set to active
+		if r.healthCheck(backend) {
+			log.Debugf("Finished healtcheck of %v successfully", backend.ID)
+			backend.UpdateStatus(true)
+		}
+	}
 }
 
 func (r *Route) sendRequestToUpstream(
@@ -180,10 +218,8 @@ func (r *Route) sendRequestToUpstream(
 func (r *Route) AddBackend(
 	name, addr, scrapeURL, healthCheckURL string,
 	scrapeMetrics []string,
-	metricsThresholds map[string]float64,
+	metricsThresholds []*conditional.Condition,
 	weight uint8) uuid.UUID {
-
-	var err error
 
 	backend := NewBackend(
 		name, addr, scrapeURL, healthCheckURL, scrapeMetrics, metricsThresholds, weight)
@@ -191,35 +227,21 @@ func (r *Route) AddBackend(
 	backend.updateWeigth = r.updateWeights
 	backend.Active = false
 
-	log.Debugf("Registering %v of Route %s to MetricsRepository", backend.ID, r.Name)
-	backend.AlertChan, err = r.MetricsRepo.RegisterBackend(
-		backend.ID, backend.ScrapeURL, backend.ScrapeMetrics, backend.MetricThresholds)
-
-	if err != nil {
-		panic(err)
-	}
-
-	// start monitoring the registered backend
-	go r.MetricsRepo.Monitor(backend.ID, monitorTimeout, activeFor)
-
-	// starts listening on alertChan
-	go backend.Monitor()
-
-	log.Debugf("Added Backend %v to Router %s", backend, r.Name)
+	log.Warnf("Added Backend %v to Route %s", backend.ID, r.Name)
 	r.Backends[backend.ID] = backend
 
-	// check if backend works
-	// then add it to active backends
-	go func() {
+	return backend.ID
+}
 
-		// if this fails an alert will be registered
-		// when the backend is ready again, the alarm
-		// will eventually be resolved and the backend
-		// is set to active
-		if r.healthCheck(backend) {
-			backend.UpdateStatus(true)
-		}
-	}()
+// AddExistingBackend can be used to add an existing backend to a route
+func (r *Route) AddExistingBackend(backend *Backend) uuid.UUID {
+
+	backend.updateWeigth = r.updateWeights
+	backend.Active = false
+	backend.ActiveAlerts = make(map[string]metrics.Alert)
+
+	log.Warnf("Added Backend %v to Route %s", backend.ID, r.Name)
+	r.Backends[backend.ID] = backend
 
 	return backend.ID
 }
@@ -250,7 +272,7 @@ func (r *Route) StopAll() {
 }
 
 func (r *Route) healthCheck(backend *Backend) bool {
-	req, err := http.NewRequest("GET", backend.HealthCheckURL, nil)
+	req, err := http.NewRequest("GET", backend.Healthcheckurl, nil)
 	if err != nil {
 		log.Error(err.Error())
 		return false
@@ -304,7 +326,7 @@ func (r *Route) RunHealthCheckOnBackends() {
 // StartSwitchOver starts the switch over process
 func (r *Route) StartSwitchOver(
 	old, new uuid.UUID,
-	conditions []*Condition,
+	conditions []*conditional.Condition,
 	timeout time.Duration,
 	weightChange uint8) {
 

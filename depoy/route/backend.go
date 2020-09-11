@@ -1,6 +1,7 @@
 package route
 
 import (
+	"depoy/conditional"
 	"depoy/metrics"
 	"fmt"
 	"net/url"
@@ -12,18 +13,19 @@ import (
 )
 
 type Backend struct {
-	ID               uuid.UUID            `json:"id" yaml:"id"`
-	Name             string               `json:"name" yaml:"name"`
-	Addr             string               `json:"addr" yaml:"addr"`
-	Weigth           uint8                `json:"weight" yaml:"weight"`
-	Active           bool                 `json:"-" yaml:"-"` // `json:"active" yaml:"active"`
-	ScrapeURL        string               `json:"scrape_url" yaml:"scrapeUrl"`
-	ScrapeMetrics    []string             `json:"scrape_metrics"  yaml:"scrapeMetrics"`
-	MetricThresholds map[string]float64   `json:"metrics_tresholds"  yaml:"metricsTresholds"`
-	HealthCheckURL   string               `json:"healthcheck_url"  yaml:"healthcheckUrl"`
-	AlertChan        <-chan metrics.Alert `json:"-" yaml:"-"`
-	updateWeigth     func()               `json:"-" yaml:"-"`
-	mux              sync.Mutex           `json:"-" yaml:"-"`
+	ID               uuid.UUID                `json:"id" yaml:"id"`
+	Name             string                   `json:"name" yaml:"name"`
+	Addr             string                   `json:"addr" yaml:"addr"`
+	Weigth           uint8                    `json:"weight" yaml:"weight"`
+	Active           bool                     `json:"active" yaml:"active"`
+	Scrapeurl        string                   `json:"scrape_url" yaml:"scrape_url"`
+	Scrapemetrics    []string                 `json:"scrape_metrics" yaml:"scrape_metrics"`
+	Metricthresholds []*conditional.Condition `json:"metric_thresholds" yaml:"metric_thresholds"`
+	Healthcheckurl   string                   `json:"healthcheck_url" yaml:"healthcheck_url"`
+	AlertChan        <-chan metrics.Alert     `json:"-" yaml:"-"`
+	updateWeigth     func()                   `json:"-" yaml:"-"`
+	mux              sync.Mutex               `json:"-" yaml:"-"`
+	ActiveAlerts     map[string]metrics.Alert `json:"active_alerts" yaml:"-"`
 }
 
 // NewBackend returns a new base Target
@@ -31,7 +33,7 @@ type Backend struct {
 func NewBackend(
 	name, addr, scrapeURL, healthCheckPath string,
 	scrapeMetrics []string,
-	metricThresholds map[string]float64,
+	metricThresholds []*conditional.Condition,
 	weight uint8) *Backend {
 
 	if name == "" {
@@ -57,10 +59,11 @@ func NewBackend(
 		Addr:             url.String(),
 		Weigth:           weight,
 		Active:           true,
-		ScrapeURL:        scrapeURL,
-		ScrapeMetrics:    scrapeMetrics,    // can be nil
-		MetricThresholds: metricThresholds, // can be nil
-		HealthCheckURL:   healthCheckPath,
+		Scrapeurl:        scrapeURL,
+		Scrapemetrics:    scrapeMetrics,    // can be nil
+		Metricthresholds: metricThresholds, // can be nil
+		Healthcheckurl:   healthCheckPath,
+		ActiveAlerts:     make(map[string]metrics.Alert),
 	}
 
 	return backend
@@ -105,9 +108,18 @@ func (b *Backend) Monitor() {
 		alert := <-b.AlertChan
 		log.Warnf("Backend %v received %v", b.ID, alert)
 		if alert.Type == "Alarming" {
+
+			b.ActiveAlerts[alert.Metric] = alert
 			b.UpdateStatus(false)
 			continue
 		}
-		b.UpdateStatus(true)
+
+		// there can only be one active alert per metric
+		delete(b.ActiveAlerts, alert.Metric)
+
+		// if no alert is currently active, set active to true
+		if len(b.ActiveAlerts) == 0 {
+			b.UpdateStatus(true)
+		}
 	}
 }
