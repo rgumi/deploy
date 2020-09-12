@@ -60,56 +60,99 @@ func (s *StateMgt) GetAllRoutes(w http.ResponseWriter, req *http.Request, _ http
 // CreateRoute creates a new Route. If route already exist, error
 func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
-	w.WriteHeader(200)
+	var myRoute *route.Route
+
+	b, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		returnError(w, req, 500, err, nil)
+		return
+	}
+
+	if err := json.Unmarshal(b, myRoute); err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+	err = validate.Validate(myRoute)
+	if err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+
+	newRoute, err := route.New(
+		myRoute.Name,
+		myRoute.Prefix,
+		myRoute.Rewrite,
+		myRoute.Host,
+		myRoute.Methods,
+		upstreamclient.NewDefaultClient(),
+	)
+
+	if err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+	marshalAndReturn(w, req, s.Gateway.Routes[newRoute.Name])
 }
 
 // UpdateRouteByName removed route and replaces it with new route
 func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	var myRoute *route.Route
 
-	name := ps.ByName("name")
-
-	incRoute := new(route.Route)
-	bJSON, err := ioutil.ReadAll(req.Body)
+	b, err := ioutil.ReadAll(req.Body)
 	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "Unable to read body", 400)
+		returnError(w, req, 500, err, nil)
 		return
 	}
 
-	req.Body.Close()
-
-	if err = json.Unmarshal(bJSON, incRoute); err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "Unable to unmarshal body into struct", 400)
+	if err := json.Unmarshal(b, myRoute); err != nil {
+		returnError(w, req, 400, err, nil)
 		return
 	}
-	log.Debugf("Successfully unmarshaled json into %v", incRoute)
+	err = validate.Validate(myRoute)
+	if err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
 
 	newRoute, err := route.New(
-		incRoute.Name, incRoute.Prefix, incRoute.Rewrite, incRoute.Host, incRoute.Methods,
-		upstreamclient.NewDefaultClient())
+		myRoute.Name,
+		myRoute.Prefix,
+		myRoute.Rewrite,
+		myRoute.Host,
+		myRoute.Methods,
+		upstreamclient.NewDefaultClient(),
+	)
 
 	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "Unable toreplace route", 400)
+		returnError(w, req, 400, err, nil)
 		return
 	}
 
-	log.Debugf("Successfully created new Route from Reuqest: %v", newRoute)
+	// remove first
+	s.Gateway.RemoveRoute(newRoute.Name)
 
-	if r := s.Gateway.RemoveRoute(name); r == nil {
-		w.WriteHeader(404)
-		return
-	}
-
-	newRoute.AddBackend("Test1", "http://localhost:7070", "", "", nil, nil, 25)
-	newRoute.AddBackend("Test2", "http://localhost:9090", "", "", nil, nil, 75)
-
+	// replace with new one
 	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "Unable to replace route", 400)
+		returnError(w, req, 400, err, nil)
 		return
 	}
+	marshalAndReturn(w, req, s.Gateway.Routes[newRoute.Name])
+}
+
+func (s *StateMgt) AddNewBackendToRoute(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+	routeName := ps.ByName("name")
+
+	route, found := s.Gateway.Routes[routeName]
+	if !found {
+		returnError(w, req, 404, fmt.Errorf("Could not find route"), nil)
+		return
+	}
+
+	//	route.AddBackend()
 
 	log.Debug("Sucessfully updated route")
 	w.WriteHeader(200)
@@ -120,25 +163,15 @@ func (s *StateMgt) DeleteRouteByName(w http.ResponseWriter, req *http.Request, p
 	name := ps.ByName("name")
 	route := s.Gateway.RemoveRoute(name)
 	if route == nil {
-		w.WriteHeader(200)
+		w.WriteHeader(404)
 		return
 	}
-	bJSON, err := json.Marshal(route)
-	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "Unable to marshal route", 500)
-		return
-	}
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(bJSON)
+	marshalAndReturn(w, req, route)
 }
 
-// RemoveSwitchOverOfRoute stops the switchover and removed it from the route
-// takes in new weights for from- and to-Backends
-func (s *StateMgt) RemoveSwitchOverOfRoute(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
-}
+/*
+	Switchover
+*/
 
 type SwitchOverRequest struct {
 	From         uuid.UUID                `json:"from" validate:"empty=false"`

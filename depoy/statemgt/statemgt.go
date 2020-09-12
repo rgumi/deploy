@@ -46,10 +46,12 @@ func (s *StateMgt) Start() {
 
 	// gateway routes
 	router.Handle("GET", "/v1/routes/:name", SetupHeaders(s.GetRouteByName))
+	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
 	router.Handle("GET", "/v1/routes/", SetupHeaders(s.GetAllRoutes))
 	router.Handle("POST", "/v1/routes/", SetupHeaders(s.CreateRoute))
+
 	router.Handle("PUT", "/v1/routes/:name", SetupHeaders(s.UpdateRouteByName))
-	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
+	router.Handle("PATCH", "/v1/routes/:name", SetupHeaders(s.UpdateRouteByName))
 
 	// route switchover
 	router.Handle("POST", "/v1/routes/:name/switchover", SetupHeaders(s.CreateSwitchover))
@@ -59,8 +61,8 @@ func (s *StateMgt) Start() {
 	// monitoring
 	router.Handle("GET", "/v1/monitoring/routes", SetupHeaders(s.GetMetricsOfAllRoutes))
 	router.Handle("GET", "/v1/monitoring/backends", SetupHeaders(s.GetMetricsOfAllBackends))
-	router.Handle("GET", "/v1/monitoring/backend/:id", SetupHeaders(s.GetMetricsOfBackend))
-	router.Handle("GET", "/v1/monitoring/route/:name", SetupHeaders(s.GetMetricsOfRoute))
+	router.Handle("GET", "/v1/monitoring/backends/:id", SetupHeaders(s.GetMetricsOfBackend))
+	router.Handle("GET", "/v1/monitoring/routes/:name", SetupHeaders(s.GetMetricsOfRoute))
 	router.Handle("GET", "/v1/monitoring/all", SetupHeaders(s.GetMetricsData))
 	router.Handle("GET", "/v1/monitoring/prometheus", SetupHeaders(s.GetPromMetrics))
 

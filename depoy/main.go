@@ -35,7 +35,6 @@ func main() {
 	promPort := ":8084"
 	promPath := "/metrics"
 	var g *gateway.Gateway
-	// load confi
 
 	// init prometheus
 	http.Handle(promPath, promhttp.Handler())
@@ -48,6 +47,8 @@ func main() {
 
 	} else {
 		panic(fmt.Errorf("Unable to recreate the Gateway specified in file"))
+
+		// g = gateway.NewGateway(":8080", 5000, 5000)
 	}
 
 	/*
