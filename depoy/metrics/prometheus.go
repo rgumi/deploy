@@ -39,6 +39,9 @@ func init() {
 	prometheus.MustRegister(AvgContentLength)
 }
 
+// PromMetric stores all metrics of a Backend for the runtime
+// it is cumulative
+// it is used by Prometheus to expose metrics
 type PromMetric struct {
 	TotalResponses    int64
 	ResponseStatus200 int64
@@ -136,13 +139,6 @@ func (p *PromMetrics) Update(
 	newMetric.ContentLength = floatingAverage(newMetric.ContentLength, contentLength, float64(newMetric.TotalResponses))
 }
 
-func floatingAverage(a, x, k float64) float64 {
-	if a == 0 {
-		return x
-	}
-	return a + (x-a)/k
-}
-
 // GetAvgResponseTime returns the average response time of the given route/backend
 // if no route/backend is found, -1 is returned
 func (p *PromMetrics) GetAvgResponseTime(routeName string, backend uuid.UUID) float64 {
@@ -163,25 +159,14 @@ func (p *PromMetrics) GetAvgContentLength(routeName string, backend uuid.UUID) f
 
 /*
 
-// GetMetrics returns all metrics of the registered PromMetics from prometheus
-// This way there are no redundant metrics saved as prometheus holds the only "truth"
-func (p *PromMetrics) GetMetrics() {
-
-	tmpMetrics := make(map[string]map[uuid.UUID]map[string]float64)
-
-	for routeName := range p.Metrics {
-
-		for backendID := range p.Metrics[routeName] {
-
-			// manual Metrics
-			TotalHttpRequests.GetMetricWith(
-				prometheus.Labels{
-					"route":   routeName,
-					"backend": backendID.String(),
-				},
-			)
-		}
-	}
-}
+	Helper functions
 
 */
+
+// https://math.stackexchange.com/questions/106700/incremental-averageing
+func floatingAverage(a, x, k float64) float64 {
+	if a == 0 {
+		return x
+	}
+	return a + (x-a)/k
+}

@@ -257,7 +257,7 @@ func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 	return Metric{}
 }
 
-// ReadRates makes rates (average) of all metrics of the backend within the given timeframe
+// ReadRatesOfBackend makes rates (average) of all metrics of the backend within the given timeframe
 func (st *LocalStorage) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
 
 	m := make(map[string]float64)

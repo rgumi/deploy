@@ -19,9 +19,20 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	defaultMetricRates = []string{
+		"ContentLength",
+		"ResponseTime",
+		"2xxRate",
+		"3xxRate",
+		"4xxRate",
+		"5xxRate",
+		"6xxRate",
+	}
+)
+
 type Storage interface {
 	Write(string, uuid.UUID, map[string]float64, int64, int64, int)
-	ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error)
 	ReadAllRoutes(start, end time.Time) map[string]storage.Metric
 	ReadAllBackends(start, end time.Time) map[string]map[uuid.UUID]storage.Metric
 	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
@@ -63,7 +74,7 @@ type MonitoredBackend struct {
 	nextTimeout        time.Duration
 	MetricThreshholds  []*conditional.Condition
 	AlertChannel       chan Alert        `yaml:"-" json:"-"`
-	stopMonitoring     chan int          `yaml:"-" json:"-"`
+	stopMonitoring     chan int          `yaml:"-" json:"-"` // Channel to kill Monitor-Loop
 	activeAlerts       map[string]*Alert `json:"-" yaml:"-"`
 	ScrapeMetrics      []string
 	ScrapeMetricPuffer map[string]float64 `yaml:"-" json:"-"`
@@ -94,8 +105,8 @@ func NewMetricsRepository(st Storage, scrapeInterval time.Duration) (chan<- Metr
 		client:               http.DefaultClient,
 		InChannel:            channel,
 		Backends:             make(map[uuid.UUID]*MonitoredBackend),
-		stopScraping:         make(chan int, 2),
-		shutdown:             make(chan int, 2),
+		stopScraping:         make(chan int, 2), // CHannel to kill Scraping-Loop
+		shutdown:             make(chan int, 2), // Channel to kill Listen-Loop
 		scrapeMetricsChannel: scrapeMetricsChannel,
 	}
 }
@@ -124,7 +135,7 @@ func (m *Repository) RegisterBackend(
 		ScrapeMetrics:      scrapeMetrics,
 		ScrapeMetricPuffer: make(map[string]float64),
 		AlertChannel:       make(chan Alert),
-		stopMonitoring:     make(chan int, 2),
+		stopMonitoring:     make(chan int, 1),
 		activeAlerts:       make(map[string]*Alert),
 	}
 
@@ -139,7 +150,7 @@ func (m *Repository) RegisterBackend(
 // RemoveBackend removes the instance with backendID from the scrapeList
 func (m *Repository) RemoveBackend(backendID uuid.UUID) error {
 
-	log.Debugf("Received RemoveScrapeInstance for ID: %v", backendID)
+	log.Warnf("Removing MontioringBackend for BackendID: %v", backendID)
 
 	// check if backendID is exists and delete
 	for key := range m.Backends {
@@ -462,13 +473,33 @@ func (m *Repository) GetMetricsForRoute(route string, start, end time.Time, avg 
 	return nil
 }
 
+// ReadRatesOfBackend makes rates (average) of all metrics of the backend within the given timeframe
 func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
 
-	rates, err := m.Storage.ReadRatesOfBackend(backend, start, end)
+	metricRates := make(map[string]float64)
+
+	current, err := m.Storage.ReadBackend(backend, start, end)
+
 	if err != nil {
 		return nil, err
 	}
-	return rates, nil
+	// there were no responses yet
+	if current.TotalResponses == 0 {
+		current.TotalResponses = 1
+	}
+
+	metricRates["2xxRate"] = float64(current.ResponseStatus200 / current.TotalResponses)
+	metricRates["3xxRate"] = float64(current.ResponseStatus300 / current.TotalResponses)
+	metricRates["4xxRate"] = float64(current.ResponseStatus400 / current.TotalResponses)
+	metricRates["5xxRate"] = float64(current.ResponseStatus500 / current.TotalResponses)
+	metricRates["6xxRate"] = float64(current.ResponseStatus600 / current.TotalResponses)
+	metricRates["ResponseTime"] = current.ResponseTime
+	metricRates["ContentLength"] = float64(current.ContentLength)
+
+	for customScrapeMetricName, customScrapeMetricValue := range current.CustomMetrics {
+		metricRates[customScrapeMetricName] = customScrapeMetricValue
+	}
+	return metricRates, nil
 }
 
 /*

@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"context"
 	"depoy/metrics"
 	"depoy/route"
 	"depoy/router"
@@ -18,13 +19,14 @@ import (
 
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
-	mux          sync.Mutex `yaml:"-" json:"-"`
-	Addr         string
-	ReadTimeout  int
-	WriteTimeout int
-	Routes       map[string]*route.Route
+	mux          sync.Mutex                `yaml:"-" json:"-"`
+	Addr         string                    `yaml:"addr" json:"addr" validate:"empty=false"`
+	ReadTimeout  int                       `yaml:"read_timeout" json:"read_timeout" default:"5000"`
+	WriteTimeout int                       `yaml:"write_timeout" json:"write_timeout" default:"5000"`
+	Routes       map[string]*route.Route   `yaml:"routes" json:"routes"`
 	Router       map[string]*router.Router `yaml:"-" json:"-"`
 	MetricsRepo  *metrics.Repository       `yaml:"-" json:"-"`
+	server       http.Server               `yaml:"-" json:"-"`
 }
 
 //NewGateway returns a new instance of Gateway
@@ -76,7 +78,7 @@ func (g *Gateway) Reload() {
 
 // Run starts the HTTP-Server of the Gateway
 func (g *Gateway) Run() {
-	server := http.Server{
+	g.server = http.Server{
 		Addr:              g.Addr,
 		Handler:           http.TimeoutHandler(g, 10*time.Second, "HTTP Handling Timeout"),
 		WriteTimeout:      time.Duration(g.WriteTimeout) * time.Millisecond,
@@ -85,7 +87,11 @@ func (g *Gateway) Run() {
 		IdleTimeout:       30 * time.Second,
 	}
 
-	log.Fatal(server.ListenAndServe())
+	go func() {
+		if err := g.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("gateway server listen failed with %v\n", err)
+		}
+	}()
 }
 
 func (g *Gateway) checkIfExists(newRoute *route.Route) error {
@@ -147,13 +153,9 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 	defer g.mux.Unlock()
 
 	if route, exists := g.Routes[name]; exists {
-		log.Debugf("Removing %s from Gateway.Routes", name)
+		log.Warnf("Removing %s from Gateway.Routes", name)
 
 		route.StopAll()
-
-		for id := range route.Backends {
-			route.RemoveBackend(id)
-		}
 
 		delete(g.Routes, name)
 
@@ -190,6 +192,15 @@ func (g *Gateway) Stop() {
 		g.RemoveRoute(routeName)
 	}
 	g.MetricsRepo.Stop()
+
+	ctxShutDown, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer func() {
+		cancel()
+	}()
+
+	if err := g.server.Shutdown(ctxShutDown); err != nil {
+		log.Fatalf("gateway server shutdown failed: %v\n", err)
+	}
 }
 
 // SaveConfigToFile saves the current config of the Gateway to a file

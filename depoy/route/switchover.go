@@ -8,13 +8,17 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var counter int
+
 // SwitchOver is used to configure a switch-over from
 // one backend to another. This can be used to gradually
 // increase the load to a backend by updating the
 // weights of the backends
 type SwitchOver struct {
-	From               *Backend                 `json:"from"`          // old version
-	To                 *Backend                 `json:"to"`            // new version
+	ID                 int                      `json:"id"`
+	From               *Backend                 `json:"from"` // old version
+	To                 *Backend                 `json:"to"`   // new version
+	Status             string                   `json:"status"`
 	Conditions         []*conditional.Condition `json:"conditions"`    // conditions that all need to be met to change
 	WeightChange       uint8                    `json:"weight_change"` // amount of change to the weights
 	Timeout            time.Duration            `json:"timeout"`       // duration to wait before changing weights
@@ -27,24 +31,64 @@ type SwitchOver struct {
 	failureCounter     int
 }
 
+func NewSwitchOver(
+	from, to *Backend,
+	route *Route,
+	conditions []*conditional.Condition,
+	timeout time.Duration,
+	weightChange uint8) (*SwitchOver, error) {
+
+	if from.ID == to.ID {
+		return nil, fmt.Errorf("from and to cannot be the same entity")
+	}
+	if from.Weigth < 100 {
+		return nil, fmt.Errorf("Weight of Switchover.From cannot be less than 100")
+	}
+	if to.Weigth > 0 {
+		return nil, fmt.Errorf("Weight of Switchover.To must be 0")
+	}
+
+	for _, cond := range conditions {
+		cond.IsTrue = cond.Compile()
+	}
+
+	counter++
+
+	return &SwitchOver{
+		ID:           counter,
+		From:         from,
+		To:           to,
+		Status:       "Registered",
+		Conditions:   conditions,
+		Timeout:      timeout,
+		WeightChange: weightChange,
+		Route:        route,
+		Rollback:     false,
+		killChan:     make(chan int, 1),
+	}, nil
+}
+
 // Stop the switchover process
 func (s *SwitchOver) Stop() {
+
+	if s.Status == "Running" {
+		s.Status = "Stopped"
+	}
+
+	if s.Rollback {
+		s.From.UpdateWeight(s.fromRollbackWeight)
+		s.To.UpdateWeight(s.toRollbackWeight)
+		s.To.updateWeigth()
+	}
+
 	s.killChan <- 1
 }
 
 // Start the switchover process
 func (s *SwitchOver) Start() {
-
-	if s.From.Weigth < 100 {
-		panic(fmt.Errorf("Weight of Switchover.From cannot be less than 100"))
-	}
-
-	if s.To.Weigth > 0 {
-		panic(fmt.Errorf("Weight of Switchover.From cannot be greater than 0"))
-	}
 	s.toRollbackWeight = s.To.Weigth
 	s.fromRollbackWeight = s.From.Weigth
-
+	s.Status = "Running"
 outer:
 	for {
 		select {
@@ -59,7 +103,7 @@ outer:
 				s.To.ID, time.Now().Add(-10*time.Second), time.Now())
 
 			if err != nil {
-				log.Warnf("Warning in Switchover (%v)", err)
+				log.Debugf("Warning in Switchover (%v)", err)
 				continue
 			}
 
@@ -87,12 +131,14 @@ outer:
 				} else {
 					// condition is not met, therefore reset triggerTime
 					condition.TriggerTime = time.Time{}
+					s.failureCounter++
 
 					if s.failureCounter == s.AllowedFailures {
 						// failed too often...
+						s.Status = "Failed"
+						s.Stop()
 
 					}
-					s.failureCounter++
 				}
 			}
 

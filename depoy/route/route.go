@@ -27,18 +27,18 @@ type UpstreamClient interface {
 }
 
 type Route struct {
-	Name            string                 `json:"name" yaml:"name"`
-	Prefix          string                 `json:"prefix" yaml:"prefix"`
-	Methods         []string               `json:"methods" yaml:"methods"`
-	Host            string                 `json:"host" yaml:"host"`
-	Rewrite         string                 `json:"rewrite" yaml:"rewrite"`
+	Name            string                 `json:"name" yaml:"name" validate:"empty=false"`
+	Prefix          string                 `json:"prefix" yaml:"prefix" validate:"empty=false"`
+	Methods         []string               `json:"methods" yaml:"methods" validate:"empty=false"`
+	Host            string                 `json:"host" yaml:"host" default:"*"`
+	Rewrite         string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
+	CookieTTL       time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"2m0s"`
 	Backends        map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
 	Client          UpstreamClient         `json:"-" yaml:"-"`
 	Handler         http.HandlerFunc       `json:"-" yaml:"-"`
 	NextTargetDistr []*Backend             `json:"-" yaml:"-"`
-	CookieTTL       time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"`
 	MetricsRepo     *metrics.Repository    `json:"-" yaml:"-"`
-	SwitchOver      *SwitchOver            `json:"-" yaml:"-"` //`json:"switchover" yaml:"switchover"`
+	SwitchOver      *SwitchOver            `json:"-" yaml:"-"`
 	killHealthCheck chan int               `json:"-" yaml:"-"`
 }
 
@@ -234,23 +234,37 @@ func (r *Route) AddBackend(
 }
 
 // AddExistingBackend can be used to add an existing backend to a route
-func (r *Route) AddExistingBackend(backend *Backend) uuid.UUID {
+func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
+
+	if backend.Addr == "" || backend.Name == "" || backend.ID.String() == "" {
+		return uuid.UUID{}, fmt.Errorf("Required Parameters of backend are missing")
+	}
 
 	backend.updateWeigth = r.updateWeights
 	backend.Active = false
 	backend.ActiveAlerts = make(map[string]metrics.Alert)
+	backend.killChan = make(chan int, 1)
+
+	if backend.Healthcheckurl == "" {
+		backend.Healthcheckurl = backend.Addr + "/"
+	}
 
 	log.Warnf("Added Backend %v to Route %s", backend.ID, r.Name)
 	r.Backends[backend.ID] = backend
 
-	return backend.ID
+	return backend.ID, nil
 }
 
 func (r *Route) RemoveBackend(backendID uuid.UUID) {
+	log.Warnf("Removing %s from %s", backendID, r.Name)
 	go func() {
 		time.Sleep(2 * time.Second)
-		r.MetricsRepo.RemoveBackend(backendID)
+		if r.MetricsRepo != nil {
+			r.MetricsRepo.RemoveBackend(backendID)
+		}
 	}()
+
+	r.Backends[backendID].Stop()
 	delete(r.Backends, backendID)
 }
 
@@ -265,8 +279,10 @@ func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth uint8) error {
 
 func (r *Route) StopAll() {
 	r.killHealthCheck <- 1
-	if r.SwitchOver != nil {
-		r.SwitchOver.Stop()
+	r.RemoveSwitchOver()
+
+	for backendID := range r.Backends {
+		r.RemoveBackend(backendID)
 	}
 
 }
@@ -307,10 +323,12 @@ func (r *Route) healthCheck(backend *Backend) bool {
 	return true
 
 }
+
 func (r *Route) RunHealthCheckOnBackends() {
 	for {
 		select {
 		case _ = <-r.killHealthCheck:
+			log.Warnf("Stopping healthcheck-loop of %s", r.Name)
 			return
 		default:
 			for _, backend := range r.Backends {
@@ -328,24 +346,41 @@ func (r *Route) StartSwitchOver(
 	old, new uuid.UUID,
 	conditions []*conditional.Condition,
 	timeout time.Duration,
-	weightChange uint8) {
+	weightChange uint8) (*SwitchOver, error) {
 
-	// check if backends actually exist
-
-	switchOver := &SwitchOver{
-		From:         r.Backends[old],
-		To:           r.Backends[new],
-		Conditions:   conditions,
-		Route:        r,
-		Timeout:      timeout,
-		WeightChange: weightChange,
-		killChan:     make(chan int, 1),
+	// check if a switchover is already active
+	// only one switchover is allowed per route at a time
+	if r.SwitchOver != nil {
+		return nil, fmt.Errorf("Only one switchover can be active per route")
 	}
+
+	// check if backends exist
+	fromBackend, found := r.Backends[old]
+	if !found {
+		return nil, fmt.Errorf("Cannot find backend with ID %v", old)
+	}
+	toBackend, found := r.Backends[new]
+	if !found {
+		return nil, fmt.Errorf("Cannot find backend with ID %v", new)
+	}
+
+	switchOver, err := NewSwitchOver(fromBackend, toBackend, r, conditions, timeout, weightChange)
+	if err != nil {
+		return nil, err
+	}
+
 	r.SwitchOver = switchOver
 	go switchOver.Start()
+
+	return switchOver, nil
 }
 
-// StopSwitchOver stops the switchover process and leaves the weights as they are last
-func (r *Route) StopSwitchOver() {
-	r.SwitchOver.Stop()
+// RemoveSwitchOver stops the switchover process and leaves the weights as they are last
+func (r *Route) RemoveSwitchOver() {
+	if r.SwitchOver != nil {
+
+		log.Warnf("Stopping Switchover of %s", r.Name)
+		r.SwitchOver.Stop()
+		r.SwitchOver = nil
+	}
 }

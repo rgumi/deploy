@@ -75,8 +75,7 @@ func (uc *upstreamClient) configClient(
 	idleConnTimeoutMs,
 	responseHeaderTimeoutMs,
 	tlsHandshakeTimeoutMs int,
-	tlsVerify bool,
-) {
+	tlsVerify bool) {
 
 	// if a proxy is required it will be set
 	// if not Proxy attribute of http.Transport will be set to nil

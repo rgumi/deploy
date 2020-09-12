@@ -13,19 +13,20 @@ import (
 )
 
 type Backend struct {
-	ID               uuid.UUID                `json:"id" yaml:"id"`
-	Name             string                   `json:"name" yaml:"name"`
-	Addr             string                   `json:"addr" yaml:"addr"`
+	ID               uuid.UUID                `json:"id" yaml:"id" validate:"empty=false"`
+	Name             string                   `json:"name" yaml:"name" validate:"empty=false"`
+	Addr             string                   `json:"addr" yaml:"addr" validate:"empty=true | format=url"`
 	Weigth           uint8                    `json:"weight" yaml:"weight"`
 	Active           bool                     `json:"active" yaml:"active"`
-	Scrapeurl        string                   `json:"scrape_url" yaml:"scrape_url"`
+	Scrapeurl        string                   `json:"scrape_url" yaml:"scrape_url" validate:"empty=true | format=url"`
 	Scrapemetrics    []string                 `json:"scrape_metrics" yaml:"scrape_metrics"`
 	Metricthresholds []*conditional.Condition `json:"metric_thresholds" yaml:"metric_thresholds"`
-	Healthcheckurl   string                   `json:"healthcheck_url" yaml:"healthcheck_url"`
+	Healthcheckurl   string                   `json:"healthcheck_url" yaml:"healthcheck_url" validate:"empty=true | format=url"`
 	AlertChan        <-chan metrics.Alert     `json:"-" yaml:"-"`
 	updateWeigth     func()                   `json:"-" yaml:"-"`
 	mux              sync.Mutex               `json:"-" yaml:"-"`
 	ActiveAlerts     map[string]metrics.Alert `json:"active_alerts" yaml:"-"`
+	killChan         chan int                 `json:"-" yaml:"-"`
 }
 
 // NewBackend returns a new base Target
@@ -64,6 +65,7 @@ func NewBackend(
 		Metricthresholds: metricThresholds, // can be nil
 		Healthcheckurl:   healthCheckPath,
 		ActiveAlerts:     make(map[string]metrics.Alert),
+		killChan:         make(chan int, 1),
 	}
 
 	return backend
@@ -99,27 +101,37 @@ func (b *Backend) UpdateStatus(status bool) {
 func (b *Backend) Monitor() {
 
 	if b.AlertChan == nil {
-		log.Warn("Backend %v has no AlertChan set", b.ID)
+		log.Warnf("Backend %v has no AlertChan set", b.ID)
 		return
 	}
+
 	log.Debugf("Listening for alert on %v", b)
 	for {
+		select {
+		case _ = <-b.killChan:
+			return
+		case alert := <-b.AlertChan:
+			log.Warnf("Backend %v received %v", b.ID, alert)
+			if alert.Type == "Alarming" {
 
-		alert := <-b.AlertChan
-		log.Warnf("Backend %v received %v", b.ID, alert)
-		if alert.Type == "Alarming" {
+				b.ActiveAlerts[alert.Metric] = alert
+				b.UpdateStatus(false)
+				continue
+			}
 
-			b.ActiveAlerts[alert.Metric] = alert
-			b.UpdateStatus(false)
-			continue
+			// there can only be one active alert per metric
+			delete(b.ActiveAlerts, alert.Metric)
+
+			// if no alert is currently active, set active to true
+			if len(b.ActiveAlerts) == 0 {
+				b.UpdateStatus(true)
+			}
 		}
 
-		// there can only be one active alert per metric
-		delete(b.ActiveAlerts, alert.Metric)
-
-		// if no alert is currently active, set active to true
-		if len(b.ActiveAlerts) == 0 {
-			b.UpdateStatus(true)
-		}
 	}
+}
+
+func (b *Backend) Stop() {
+	b.killChan <- 1
+	log.Debugf("Killed Backend %v", b.ID)
 }

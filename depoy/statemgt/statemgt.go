@@ -1,6 +1,7 @@
 package statemgt
 
 import (
+	"context"
 	"depoy/gateway"
 	"depoy/middleware"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 type StateMgt struct {
 	Gateway *gateway.Gateway
 	Addr    string
+	server  http.Server
 	Box     *packr.Box
 }
 
@@ -49,6 +51,11 @@ func (s *StateMgt) Start() {
 	router.Handle("PUT", "/v1/routes/:name", SetupHeaders(s.UpdateRouteByName))
 	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
 
+	// route switchover
+	router.Handle("POST", "/v1/routes/:name/switchover", SetupHeaders(s.CreateSwitchover))
+	router.Handle("GET", "/v1/routes/:name/switchover", SetupHeaders(s.GetSwitchover))
+	router.Handle("DELETE", "/v1/routes/:name/switchover", SetupHeaders(s.DeleteSwitchover))
+
 	// monitoring
 	router.Handle("GET", "/v1/monitoring/routes", SetupHeaders(s.GetMetricsOfAllRoutes))
 	router.Handle("GET", "/v1/monitoring/backends", SetupHeaders(s.GetMetricsOfAllBackends))
@@ -60,15 +67,31 @@ func (s *StateMgt) Start() {
 	// etc
 	router.NotFound = http.FileServer(s.Box)
 
-	server := http.Server{
+	s.server = http.Server{
 		Addr:              s.Addr,
 		Handler:           middleware.LogRequest(router),
 		IdleTimeout:       30 * time.Second,
-		ReadTimeout:       5 * time.Second,
+		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      5 * time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 
 	log.Info("Starting statemgt server")
-	log.Fatal(server.ListenAndServe())
+
+	go func() {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("statemgt server listen failed with %v\n", err)
+		}
+	}()
+}
+
+func (s *StateMgt) Stop() {
+	ctxShutDown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer func() {
+		cancel()
+	}()
+
+	if err := s.server.Shutdown(ctxShutDown); err != nil {
+		log.Fatalf("statemgt server shutdown failed: %v\n", err)
+	}
 }
