@@ -159,7 +159,6 @@ func (m *Repository) RemoveBackend(backendID uuid.UUID) error {
 			m.Backends[key].stopMonitoring <- 1
 
 			// Unregister backend
-			// time.Sleep(2 * time.Second)
 			delete(m.Backends, key)
 
 			return nil
@@ -337,8 +336,13 @@ func (m *Repository) Listen() {
 					"backend": metrics.BackendID.String()}).Set(m.PromMetrics.GetAvgContentLength(metrics.Route, metrics.BackendID))
 
 			// Get Scrape Metrics and persist to Storage
+			backend, found := m.Backends[metrics.BackendID]
 
-			scrapeMetrics := m.Backends[metrics.BackendID].ScrapeMetricPuffer
+			// check if backend exists (to avoid nil pointer exc)
+			if !found {
+				continue
+			}
+			scrapeMetrics := backend.ScrapeMetricPuffer
 			if scrapeMetrics == nil {
 
 				m.Storage.Write(

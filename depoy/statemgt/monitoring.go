@@ -21,25 +21,6 @@ type ErrorMessage struct {
 	Details    []string  `json:"details"`
 }
 
-func returnError(w http.ResponseWriter, req *http.Request, errCode int, err error, details []string) {
-	msg := ErrorMessage{
-		Timestamp:  time.Now(),
-		Message:    err.Error(),
-		Details:    details,
-		StatusCode: errCode,
-		StatusText: http.StatusText(errCode),
-	}
-
-	b, err := json.Marshal(msg)
-	if err != nil {
-		panic(err)
-	}
-
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(errCode)
-	w.Write(b)
-}
-
 func getTimeframeFromURLQuery(req *http.Request, defaultValue time.Duration) (time.Duration, error) {
 	queryValues := req.URL.Query()
 	queryTimeframe := queryValues.Get("timeframe")

@@ -17,6 +17,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var (
+	httpTimeout = 10 * time.Second
+)
+
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
 	mux          sync.Mutex                `yaml:"-" json:"-"`
@@ -80,7 +84,7 @@ func (g *Gateway) Reload() {
 func (g *Gateway) Run() {
 	g.server = http.Server{
 		Addr:              g.Addr,
-		Handler:           http.TimeoutHandler(g, 10*time.Second, "HTTP Handling Timeout"),
+		Handler:           http.TimeoutHandler(g, httpTimeout, "HTTP Handling Timeout"),
 		WriteTimeout:      time.Duration(g.WriteTimeout) * time.Millisecond,
 		ReadTimeout:       time.Duration(g.ReadTimeout) * time.Millisecond,
 		ReadHeaderTimeout: 2 * time.Second,
@@ -91,6 +95,7 @@ func (g *Gateway) Run() {
 		if err := g.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway server listen failed with %v\n", err)
 		}
+		log.Debug("Successfully shutdown gateway server")
 	}()
 }
 
@@ -142,8 +147,7 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 
 	g.Routes[newRoute.Name] = newRoute
 
-	newRoute.Reload()
-	g.Reload()
+	go g.Reload()
 	return nil
 }
 
@@ -160,6 +164,7 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 		delete(g.Routes, name)
 
 		g.Reload()
+
 		return route
 	}
 

@@ -139,18 +139,21 @@ func (r *Route) getNextBackend() (*Backend, error) {
 // like monitoring and healthcheck
 func (r *Route) Reload() {
 	var err error
+
+	if r.MetricsRepo == nil {
+		panic(fmt.Errorf("MetricsRepo of %s cannot be nil", r.Name))
+	}
+
 	for _, backend := range r.Backends {
 
-		log.Warnf("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
-		backend.AlertChan, err = r.MetricsRepo.RegisterBackend(
-			r.Name, backend.ID, backend.Scrapeurl, backend.Scrapemetrics, backend.Metricthresholds)
+		if backend.Metricthresholds != nil || (backend.Scrapemetrics != nil && backend.Scrapeurl != "") {
+			log.Warnf("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
+			backend.AlertChan, err = r.MetricsRepo.RegisterBackend(
+				r.Name, backend.ID, backend.Scrapeurl, backend.Scrapemetrics, backend.Metricthresholds)
 
-		if err != nil {
-			panic(err)
-		}
-
-		if r.MetricsRepo == nil {
-			panic(fmt.Errorf("MetricsRepo of %s cannot be nil", r.Name))
+			if err != nil {
+				panic(err)
+			}
 		}
 
 		// start monitoring the registered backend
@@ -244,6 +247,11 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 	backend.Active = false
 	backend.ActiveAlerts = make(map[string]metrics.Alert)
 	backend.killChan = make(chan int, 1)
+
+	// compile conditions to prevent nil-pointers
+	for _, cond := range backend.Metricthresholds {
+		cond.IsTrue = cond.Compile()
+	}
 
 	if backend.Healthcheckurl == "" {
 		backend.Healthcheckurl = backend.Addr + "/"
