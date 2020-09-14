@@ -1,10 +1,10 @@
 package main
 
 import (
-	"depoy/conditional"
 	"depoy/config"
 	"depoy/gateway"
 	"depoy/statemgt"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,44 +17,39 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var (
-	PersistConfigOnExit = true
-	ConfigFilename      = "gateway-config.yaml"
-)
-
-// DefaultMetricsThresholds Repalce with Condition ???
-var DefaultMetricsThresholds = []*conditional.Condition{
-	conditional.NewCondition("ResponseTime", ">", 1000, 10),
-	conditional.NewCondition("6xxRate", ">", 0.1, 10),
-	conditional.NewCondition("5xxRate", ">", 0.3, 10),
-	conditional.NewCondition("4xxRate", ">", 0.6, 10),
-}
-
 func main() {
-	log.SetLevel(log.WarnLevel)
-	promPort := ":8084"
-	promPath := "/metrics"
 	var g *gateway.Gateway
 
-	// init prometheus
-	http.Handle(promPath, promhttp.Handler())
-	go http.ListenAndServe(promPort, nil)
+	// set global config
+	flag.Parse()
+	log.SetLevel(log.Level(config.LogLevel))
 
-	newGateway := config.LoadFromFile(ConfigFilename)
-	if newGateway != nil {
-		g = newGateway
-		go g.Run()
+	// init prometheus
+	http.Handle(config.PromPath, promhttp.Handler())
+	go http.ListenAndServe(config.PromAddr, nil)
+
+	// read config from file if configured
+	if config.ConfigFile != "" {
+		newGateway := config.LoadFromFile(config.ConfigFile)
+		if newGateway != nil {
+			g = newGateway
+
+		} else {
+			panic(fmt.Errorf("Unable to recreate the Gateway specified in file"))
+
+		}
 
 	} else {
-		panic(fmt.Errorf("Unable to recreate the Gateway specified in file"))
+		// if no config file is configured, a new instance will be started
 
-		// g = gateway.NewGateway(":8080", 5000, 5000)
+		g = gateway.NewGateway(":8080", 5000, 5000)
 	}
 
 	/*
 		Start app
 
 	*/
+	go g.Run()
 
 	st := statemgt.NewStateMgt(":8081", g)
 
@@ -80,8 +75,8 @@ func main() {
 		log.Warnf("Received Signal%v", sig)
 	}
 
-	if PersistConfigOnExit {
-		st.Gateway.SaveConfigToFile(ConfigFilename)
+	if config.PersistConfigOnExit && config.ConfigFile != "" {
+		st.Gateway.SaveConfigToFile(config.ConfigFile)
 	}
 	st.Stop()
 	st.Gateway.Stop()

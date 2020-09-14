@@ -110,6 +110,7 @@ func (r *Route) updateWeights() {
 		r.NextTargetDistr = distr
 
 	} else {
+		// no active backend
 		r.NextTargetDistr = make([]*Backend, 0)
 	}
 }
@@ -125,12 +126,6 @@ func (r *Route) getNextBackend() (*Backend, error) {
 	n := rand.Intn(numberOfBackends)
 	backend := r.NextTargetDistr[n]
 
-	/*
-		if !backend.Active {
-			r.updateWeights()
-			backend = r.NextTargetDistr[n]
-		}
-	*/
 	return backend, nil
 }
 
@@ -265,12 +260,10 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 
 func (r *Route) RemoveBackend(backendID uuid.UUID) {
 	log.Warnf("Removing %s from %s", backendID, r.Name)
-	go func() {
-		time.Sleep(2 * time.Second)
-		if r.MetricsRepo != nil {
-			r.MetricsRepo.RemoveBackend(backendID)
-		}
-	}()
+
+	if r.MetricsRepo != nil {
+		r.MetricsRepo.RemoveBackend(backendID)
+	}
 
 	r.Backends[backendID].Stop()
 	delete(r.Backends, backendID)

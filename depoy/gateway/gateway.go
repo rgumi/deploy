@@ -18,7 +18,10 @@ import (
 )
 
 var (
-	httpTimeout = 10 * time.Second
+	httpTimeout           = 10 * time.Second
+	idleTimeout           = 30 * time.Second
+	readHeaderTimeout     = 2 * time.Second
+	scrapeIntervalTimeout = 5 * time.Second
 )
 
 //Gateway has a HTTP-Server which has Routes configured for it
@@ -36,11 +39,15 @@ type Gateway struct {
 //NewGateway returns a new instance of Gateway
 func NewGateway(addr string, readTimeout, writeTimeout int) *Gateway {
 	g := new(Gateway)
-	_, g.MetricsRepo = metrics.NewMetricsRepository(storage.NewLocalStorage(), 5*time.Second)
 
+	// initialize a new MetricsRepo for metric collection and evaluation
+	_, g.MetricsRepo = metrics.NewMetricsRepository(storage.NewLocalStorage(), scrapeIntervalTimeout)
+
+	// start the listening-loop of the MetricsRepo
 	go g.MetricsRepo.Listen()
 
 	g.Addr = addr
+	// initialize the map for storing the routes
 	g.Routes = make(map[string]*route.Route)
 
 	// map for each HOST
@@ -49,29 +56,38 @@ func NewGateway(addr string, readTimeout, writeTimeout int) *Gateway {
 	// any HOST router
 	g.Router["*"] = router.NewRouter()
 
-	// set defaults
+	// set timeouts
 	g.ReadTimeout = readTimeout
 	g.WriteTimeout = writeTimeout
+
+	// other timeouts are defaults for now
 
 	return g
 }
 
+// Reload the entire config of the Gateway
+// initializes a new router which is then configured based on the
+// defined Routes in the Gateway. Then the old Router is replaced by
+// a pointer to the new Router
 func (g *Gateway) Reload() {
 
 	log.Info("Reloading backend")
 
 	newRouter := make(map[string]*router.Router)
+	// any host router
 	newRouter["*"] = router.NewRouter()
 
 	for _, routeItem := range g.Routes {
 
+		// Each host has its own router
 		if _, found := newRouter[routeItem.Host]; !found {
-			// host does not exist
+			// host does not exist, create its router
 			newRouter[routeItem.Host] = router.NewRouter()
 		}
 
-		// add all routes
+		// add all routes to the router
 		for _, method := range routeItem.Methods {
+			// for each http-method add a handler to the router
 			newRouter[routeItem.Host].AddHandler(method, routeItem.Prefix, routeItem.GetHandler())
 		}
 	}
@@ -87,8 +103,8 @@ func (g *Gateway) Run() {
 		Handler:           http.TimeoutHandler(g, httpTimeout, "HTTP Handling Timeout"),
 		WriteTimeout:      time.Duration(g.WriteTimeout) * time.Millisecond,
 		ReadTimeout:       time.Duration(g.ReadTimeout) * time.Millisecond,
-		ReadHeaderTimeout: 2 * time.Second,
-		IdleTimeout:       30 * time.Second,
+		ReadHeaderTimeout: readHeaderTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 
 	go func() {
@@ -99,21 +115,28 @@ func (g *Gateway) Run() {
 	}()
 }
 
+// checkIfExists checks if the newRoute is already present on the Gateway
 func (g *Gateway) checkIfExists(newRoute *route.Route) error {
 
 	for routeName, route := range g.Routes {
+		// if name is already defined, return error
 		if routeName == newRoute.Name {
 			return fmt.Errorf("Route with name %s already exists", routeName)
 		}
+
+		// if name is not taken, check if other configs are taken
+		// if combination of prefix/host is already taken, return error
 		if route.Prefix == newRoute.Prefix && route.Host == newRoute.Host {
 			return fmt.Errorf(
 				"Route with combination of prefix (%s) and host (%s) already exist. Existing Route: %s",
 				route.Prefix, route.Host, routeName)
 		}
 	}
+	// no error
 	return nil
 }
 
+// GetRoute returns the Route, if it exists. Otherwise nil
 func (g *Gateway) GetRoute(routeName string) *route.Route {
 
 	if route, found := g.Routes[routeName]; found {
@@ -122,6 +145,9 @@ func (g *Gateway) GetRoute(routeName string) *route.Route {
 	return nil
 }
 
+// RegisterRoute registers a new Route to the Gateway
+// if Route is valid, the route is added to the Gateway
+// and the Gateway is reloaded
 func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 	var err error
 	log.Debugf("Trying to register new route %s", newRoute.Name)
@@ -151,6 +177,9 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 	return nil
 }
 
+// RemoveRoute removes the Route from the Gateway and stops/removes
+// all children of the Route (backends, monitoring components)
+// then reload the Gateway
 func (g *Gateway) RemoveRoute(name string) *route.Route {
 
 	g.mux.Lock()
@@ -171,6 +200,8 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 	return nil
 }
 
+// ServeHTTP is the required interface to quality as http.Handler
+// so the Gateway can be executed as a http.Server
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	if router, found := g.Router[req.Host]; found {
@@ -183,14 +214,13 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (g *Gateway) GetRouteByName(name string) *route.Route {
-	return g.Routes[name]
-}
-
+// GetRoutes returns all Routes that are configured for the Gateway
 func (g *Gateway) GetRoutes() map[string]*route.Route {
 	return g.Routes
 }
 
+// Stop executes a shutdown of the Gateway server and removes all
+// routes of the Gateway
 func (g *Gateway) Stop() {
 
 	for routeName := range g.Routes {

@@ -8,7 +8,8 @@ import (
 )
 
 var (
-	TotalHttpRequests = prometheus.NewCounterVec(
+	// TotalHTTPRequests is the total amount of http requests that were received
+	TotalHTTPRequests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "total_http_requests",
 			Help: "the total amount of http requests that were received",
@@ -16,6 +17,7 @@ var (
 		[]string{"route", "backend", "code", "method"},
 	)
 
+	// AvgResponseTime is the average response time of the backend
 	AvgResponseTime = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "average_response_time",
@@ -24,6 +26,7 @@ var (
 		[]string{"route", "backend"},
 	)
 
+	// AvgContentLength is the average content length of requests
 	AvgContentLength = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "average_content_length",
@@ -34,7 +37,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(TotalHttpRequests)
+	prometheus.MustRegister(TotalHTTPRequests)
 	prometheus.MustRegister(AvgResponseTime)
 	prometheus.MustRegister(AvgContentLength)
 }

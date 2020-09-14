@@ -33,20 +33,13 @@ type RouteRequest struct {
 func (s *StateMgt) GetRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
 	name := ps.ByName("name")
-	route := s.Gateway.GetRouteByName(name)
+	route := s.Gateway.GetRoute(name)
 	if route == nil {
 		w.WriteHeader(404)
 		return
 	}
-	bJson, err := json.Marshal(route)
-	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "Unable to marshal route", 500)
-		return
-	}
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(bJson)
+
+	marshalAndReturn(w, req, route)
 }
 
 // GetAllRoutes returns all defined routes of the Gateway

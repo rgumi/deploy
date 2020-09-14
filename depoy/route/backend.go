@@ -110,24 +110,31 @@ func (b *Backend) Monitor() {
 		select {
 		case _ = <-b.killChan:
 			return
+
 		case alert := <-b.AlertChan:
 			log.Warnf("Backend %v received %v", b.ID, alert)
-			if alert.Type == "Alarming" {
 
+			if alert.Type == "Alarming" {
+				// Alarm condition was active for long enought => alarming
 				b.ActiveAlerts[alert.Metric] = alert
 				b.UpdateStatus(false)
-				continue
-			}
 
-			// there can only be one active alert per metric
-			delete(b.ActiveAlerts, alert.Metric)
+			} else if alert.Type == "Pending" {
+				// Alarm condition was reached
+				b.ActiveAlerts[alert.Metric] = alert
 
-			// if no alert is currently active, set active to true
-			if len(b.ActiveAlerts) == 0 {
-				b.UpdateStatus(true)
+			} else {
+				// alert.Type == "Resolved"
+
+				// there can only be one active alert per metric
+				delete(b.ActiveAlerts, alert.Metric)
+
+				// if no alert is currently active, set active to true
+				if len(b.ActiveAlerts) == 0 {
+					b.UpdateStatus(true)
+				}
 			}
 		}
-
 	}
 }
 

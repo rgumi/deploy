@@ -29,6 +29,8 @@ var (
 		"5xxRate",
 		"6xxRate",
 	}
+	metricsChannelPuffersize       = 50
+	scrapeMetricsChannelPuffersize = 50
 )
 
 type Storage interface {
@@ -95,9 +97,9 @@ type Repository struct {
 // NewMetricsRepository creates a new instance of NewMetricsRepository
 // return a channel for Metrics
 func NewMetricsRepository(st Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
-	channel := make(chan Metrics, 50)
-	scrapeMetricsChannel := make(chan ScrapeMetrics, 50)
-	log.Debug("Created new metricsRepository")
+	channel := make(chan Metrics, metricsChannelPuffersize)
+	scrapeMetricsChannel := make(chan ScrapeMetrics, scrapeMetricsChannelPuffersize)
+	log.Info("Created new metricsRepository")
 	return channel, &Repository{
 		Storage:              st,
 		PromMetrics:          NewPromMetrics(),
@@ -272,7 +274,7 @@ func (m *Repository) Monitor(
 						continue
 					}
 
-					// new alarm for metric
+					// new alarm for metric aka not yet in backend.activeAlerts
 
 					if isReached {
 						alert := &Alert{
@@ -284,6 +286,8 @@ func (m *Repository) Monitor(
 							StartTime:  time.Now(),
 						}
 						backend.activeAlerts[condition.Metric] = alert
+						// sending pending alarming to backend
+						backend.AlertChannel <- *alert
 
 						log.Debugf("New alert registered: %v", alert)
 					}
@@ -318,22 +322,25 @@ func (m *Repository) Listen() {
 
 			// update Prometheus Metrics
 
-			TotalHttpRequests.With(
+			TotalHTTPRequests.With(
 				prometheus.Labels{
 					"route":   metrics.Route,
 					"backend": metrics.BackendID.String(),
 					"code":    strconv.Itoa(metrics.ResponseStatus),
-					"method":  metrics.RequestMethod}).Inc()
+					"method":  metrics.RequestMethod},
+			).Inc()
 
 			AvgResponseTime.With(
 				prometheus.Labels{
 					"route":   metrics.Route,
-					"backend": metrics.BackendID.String()}).Set(m.PromMetrics.GetAvgResponseTime(metrics.Route, metrics.BackendID))
+					"backend": metrics.BackendID.String()},
+			).Set(m.PromMetrics.GetAvgResponseTime(metrics.Route, metrics.BackendID))
 
 			AvgContentLength.With(
 				prometheus.Labels{
 					"route":   metrics.Route,
-					"backend": metrics.BackendID.String()}).Set(m.PromMetrics.GetAvgContentLength(metrics.Route, metrics.BackendID))
+					"backend": metrics.BackendID.String()},
+			).Set(m.PromMetrics.GetAvgContentLength(metrics.Route, metrics.BackendID))
 
 			// Get Scrape Metrics and persist to Storage
 			backend, found := m.Backends[metrics.BackendID]
