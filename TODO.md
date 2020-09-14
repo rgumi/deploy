@@ -1,7 +1,7 @@
 # TODO
 
-[x] == solved
-[ ] == not solved
+- [x] == solved
+- [ ] == not solved
 
 ## Tasks
 
