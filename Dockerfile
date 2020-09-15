@@ -1,11 +1,15 @@
 FROM node AS vueBuilder
 ENV NODE_ENV=production
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
 WORKDIR /usr/src/app
 COPY vue ./
 RUN npm install
 RUN npm run build
 
 FROM golang:1.15 AS goBuilder
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
 WORKDIR /go/src/app
 COPY depoy ./
 COPY --from=vueBuilder /usr/src/app/dist ../vue/dist
