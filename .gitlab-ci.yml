@@ -2,6 +2,7 @@
 
 variables:
   TAG: $CI_COMMIT_REF_NAME
+  PROXY: "http://$WB_HTTP_PROXY_HOST:$WB_HTTP_PROXY_PORT"
 
 stages:
   - build
@@ -23,7 +24,12 @@ build:docker:
   tags:
     - run_shell
   script:
-    - docker build --tag $MTR_URL/depoy:$TAG --file Dockerfile .
+    - "docker build
+      --build-arg HTTP_PROXY=$PROXY
+      --build-arg HTTPS_PROXY=$PROXY
+      --tag $MTR_URL/depoy:$TAG
+      --file Dockerfile ."
+
     - docker push $MTR_URL/depoy:$TAG
     - docker image rm $MTR_URL/depoy:$TAG
 
