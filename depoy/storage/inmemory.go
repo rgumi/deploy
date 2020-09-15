@@ -6,12 +6,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 type LocalStorage struct {
-	pufferMux sync.RWMutex
-	mux       sync.RWMutex                      // concurrent rw on maps is not possible
-	puffer    map[string]map[uuid.UUID][]Metric // puffer storage until the averaging job is executed
+	pufferMux       sync.RWMutex
+	mux             sync.RWMutex                      // concurrent rw on maps is not possible
+	puffer          map[string]map[uuid.UUID][]Metric // puffer storage until the averaging job is executed
+	RetentionPeriod time.Duration                     // time after which an entry is deleted from storage
+	Granularity     time.Duration                     // time after which the puffer is read and averages are saved in data
+	killChan        chan int
 
 	data map[string]map[uuid.UUID]map[time.Time]Metric // map of backend to metrics
 
@@ -26,90 +30,50 @@ func NewLocalStorage() *LocalStorage {
 	st.data = make(map[string]map[uuid.UUID]map[time.Time]Metric)
 	st.puffer = make(map[string]map[uuid.UUID][]Metric)
 	st.overview = make(map[string]map[uuid.UUID]Metric)
+	st.killChan = make(chan int, 1)
+
+	st.RetentionPeriod = 10 * time.Minute
+	st.Granularity = 5 * time.Second
 
 	// time for averiging and saving to data
-	go st.Job(5 * time.Second)
+	go st.Job()
 	return st
 }
 
-func (st *LocalStorage) readPuffer() {
-
-	for routeName, routeData := range st.puffer {
-
-		for backendID, backendData := range routeData {
-
-			// no new data
-			if len(st.puffer[routeName][backendID]) == 0 {
-				continue
-			}
-
-			if _, found := st.data[routeName]; !found {
-
-				st.data[routeName] = make(map[uuid.UUID]map[time.Time]Metric)
-				st.data[routeName][backendID] = make(map[time.Time]Metric)
-			} else {
-
-				if _, found := st.data[routeName][backendID]; !found {
-					st.data[routeName][backendID] = make(map[time.Time]Metric)
-				}
-			}
-			// write pufferdata to data
-			st.data[routeName][backendID][time.Now()] = makeAverageBackend(backendData)
-			// empty puffer
-			st.puffer[routeName][backendID] = []Metric{}
-		}
-	}
-}
-
-func (st *LocalStorage) deleteOldData() {
-
-	deletePeriod := 10 * time.Minute
-
-	// for each route
-	for _, routeData := range st.data {
-
-		//outer:
-		// for each backend of route
-		for _, backendData := range routeData {
-
-			// for each timestamped, averaged metric of backend
-			for timestamp := range backendData {
-				if timestamp.Add(deletePeriod).Before(time.Now()) {
-					// metric is out of retention period => delete it
-					delete(backendData, timestamp)
-				}
-				// continue
-			}
-		}
-	}
+// Stop stops the job loop
+func (st *LocalStorage) Stop() {
+	log.Warn("Shutting down storage")
+	st.killChan <- 1
 }
 
 // Job loops over puffer and makes an average of all metrics
 // that were collected in $interval
 // the averages are then written to data with the current time
 // Also old entries in data are removed periodicly
-func (st *LocalStorage) Job(interval time.Duration) {
+func (st *LocalStorage) Job() {
 
 	for {
-		go func() {
-			//log.Warn("Acquiring lock in Job")
+		select {
+		case _ = <-st.killChan:
+			// exit loop
+			return
 
-			// Lock & Unlock data
-			st.mux.Lock()
-			defer st.mux.Unlock()
+		default:
+			time.Sleep(st.Granularity)
+			go func() {
+				// Lock & Unlock data
+				st.mux.Lock()
+				defer st.mux.Unlock()
 
-			// Lock & Unlock puffer
-			st.pufferMux.Lock()
-			defer st.pufferMux.Unlock()
+				// Lock & Unlock puffer
+				st.pufferMux.Lock()
+				defer st.pufferMux.Unlock()
 
-			// execute operations
-			st.deleteOldData()
-			st.readPuffer()
-
-			//defer log.Warn("Released lock in Job")
-		}()
-
-		time.Sleep(interval)
+				// execute operations
+				st.deleteOldData()
+				st.readPuffer()
+			}()
+		}
 	}
 }
 
@@ -161,7 +125,7 @@ func (st *LocalStorage) ReadData() map[string]map[uuid.UUID]map[time.Time]Metric
 	return st.data
 }
 
-// ReadAll returns all metrics in data that are within the given timeframe
+// ReadAllRoutes returns all metrics in data that are within the given timeframe
 func (st *LocalStorage) ReadAllRoutes(start, end time.Time) map[string]Metric {
 
 	st.mux.RLock()
@@ -204,6 +168,7 @@ func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Me
 	return Metric{}, fmt.Errorf("Could not find provided backend %v", backend)
 }
 
+// ReadAllBackends returns all metrics by backend that are withing the given timeframe
 func (st *LocalStorage) ReadAllBackends(start, end time.Time) map[string]map[uuid.UUID]Metric {
 
 	metricsByBackends := make(map[string]map[uuid.UUID]Metric)
@@ -354,5 +319,57 @@ func makeAverage(in map[uuid.UUID]Metric, finalMetric *Metric) {
 
 	for key, val := range finalMetric.CustomMetrics {
 		finalMetric.CustomMetrics[key] = val / float64(length)
+	}
+}
+
+func (st *LocalStorage) readPuffer() {
+
+	for routeName, routeData := range st.puffer {
+
+		for backendID, backendData := range routeData {
+
+			// no new data
+			if len(st.puffer[routeName][backendID]) == 0 {
+				continue
+			}
+
+			if _, found := st.data[routeName]; !found {
+
+				st.data[routeName] = make(map[uuid.UUID]map[time.Time]Metric)
+				st.data[routeName][backendID] = make(map[time.Time]Metric)
+			} else {
+
+				if _, found := st.data[routeName][backendID]; !found {
+					st.data[routeName][backendID] = make(map[time.Time]Metric)
+				}
+			}
+			// write pufferdata to data
+			st.data[routeName][backendID][time.Now()] = makeAverageBackend(backendData)
+			// empty puffer
+			st.puffer[routeName][backendID] = []Metric{}
+		}
+	}
+}
+
+func (st *LocalStorage) deleteOldData() {
+
+	deletePeriod := st.RetentionPeriod
+
+	// for each route
+	for _, routeData := range st.data {
+
+		//outer:
+		// for each backend of route
+		for _, backendData := range routeData {
+
+			// for each timestamped, averaged metric of backend
+			for timestamp := range backendData {
+				if timestamp.Add(deletePeriod).Before(time.Now()) {
+					// metric is out of retention period => delete it
+					delete(backendData, timestamp)
+				}
+				// continue
+			}
+		}
 	}
 }

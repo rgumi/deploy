@@ -120,13 +120,11 @@ func (b *Backend) Monitor() {
 				b.UpdateStatus(false)
 
 			} else if alert.Type == "Pending" {
-				// Alarm condition was reached
+				// Alarm condition was reached initially
 				b.ActiveAlerts[alert.Metric] = alert
 
 			} else {
 				// alert.Type == "Resolved"
-
-				// there can only be one active alert per metric
 				delete(b.ActiveAlerts, alert.Metric)
 
 				// if no alert is currently active, set active to true

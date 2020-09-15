@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	defaultMetricRates = []string{
+	// DefaultMetrics are the default metrics that are offered
+	DefaultMetrics = []string{
 		"ContentLength",
 		"ResponseTime",
 		"2xxRate",
@@ -29,8 +30,16 @@ var (
 		"5xxRate",
 		"6xxRate",
 	}
-	metricsChannelPuffersize       = 50
-	scrapeMetricsChannelPuffersize = 50
+	// MetricsChannelPuffersize defines the maximal puffer size of the
+	// Metric Channel. This can be increased by there are too many concurrent
+	// requests and the Storage Job cannot keep up
+	MetricsChannelPuffersize = 100
+	// ScrapeMetricsChannelPuffersize defines the maximal puffer size of
+	// the Scrape Metric Channel. This should never be a problem
+	ScrapeMetricsChannelPuffersize = 50
+	// MonitoringGranularity defines the granularity of the metrics that are evaluated
+	// in the Monitoring-Job. The higher the value, the more historic data will be used
+	MonitoringGranularity = 10 * time.Second
 )
 
 type Storage interface {
@@ -40,6 +49,7 @@ type Storage interface {
 	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
 	ReadBackend(backend uuid.UUID, start, end time.Time) (storage.Metric, error)
 	ReadRoute(route string, start, end time.Time) storage.Metric
+	Stop()
 }
 
 type Alert struct {
@@ -97,8 +107,8 @@ type Repository struct {
 // NewMetricsRepository creates a new instance of NewMetricsRepository
 // return a channel for Metrics
 func NewMetricsRepository(st Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
-	channel := make(chan Metrics, metricsChannelPuffersize)
-	scrapeMetricsChannel := make(chan ScrapeMetrics, scrapeMetricsChannelPuffersize)
+	channel := make(chan Metrics, MetricsChannelPuffersize)
+	scrapeMetricsChannel := make(chan ScrapeMetrics, ScrapeMetricsChannelPuffersize)
 	log.Info("Created new metricsRepository")
 	return channel, &Repository{
 		Storage:              st,
@@ -179,6 +189,7 @@ func (m *Repository) Stop() {
 	for _, b := range m.Backends {
 		b.stopMonitoring <- 1
 	}
+	m.Storage.Stop()
 }
 
 // Monitor stats the monitor loop which checks every $timeout interval
@@ -206,7 +217,7 @@ func (m *Repository) Monitor(
 				// read the collected metric from the storage
 				// may be an average over 1s, 10s, 1m? Configure that
 				now := time.Now()
-				collected, err := m.ReadRatesOfBackend(backendID, now.Add(-10*time.Second), now)
+				collected, err := m.ReadRatesOfBackend(backendID, now.Add(-MonitoringGranularity), now)
 
 				if err != nil {
 					log.Debugf("Unable to obtain rates of backend for the last 10 seconds (%v)", err)

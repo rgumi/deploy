@@ -7,6 +7,28 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// PromMetric stores all metrics of a Backend for the runtime
+// it is cumulative
+// it is used by Prometheus to expose metrics
+type PromMetric struct {
+	TotalResponses    int64
+	ResponseStatus200 int64
+	ResponseStatus300 int64
+	ResponseStatus400 int64
+	ResponseStatus500 int64
+	ResponseStatus600 int64
+	ContentLength     float64
+	ResponseTime      float64
+	GetRequest        int64
+	PostRequest       int64
+	DeleteRequest     int64
+}
+
+type PromMetrics struct {
+	mux     sync.RWMutex
+	Metrics map[string]map[uuid.UUID]*PromMetric
+}
+
 var (
 	// TotalHTTPRequests is the total amount of http requests that were received
 	TotalHTTPRequests = prometheus.NewCounterVec(
@@ -40,28 +62,6 @@ func init() {
 	prometheus.MustRegister(TotalHTTPRequests)
 	prometheus.MustRegister(AvgResponseTime)
 	prometheus.MustRegister(AvgContentLength)
-}
-
-// PromMetric stores all metrics of a Backend for the runtime
-// it is cumulative
-// it is used by Prometheus to expose metrics
-type PromMetric struct {
-	TotalResponses    int64
-	ResponseStatus200 int64
-	ResponseStatus300 int64
-	ResponseStatus400 int64
-	ResponseStatus500 int64
-	ResponseStatus600 int64
-	ContentLength     float64
-	ResponseTime      float64
-	GetRequest        int64
-	PostRequest       int64
-	DeleteRequest     int64
-}
-
-type PromMetrics struct {
-	mux     sync.RWMutex
-	Metrics map[string]map[uuid.UUID]*PromMetric
 }
 
 func (p *PromMetrics) GetCurrentMetrics() map[string]map[uuid.UUID]*PromMetric {
