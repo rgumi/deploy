@@ -14,31 +14,6 @@ cache:
   paths:
     - target/
 
-build:binary:
-  stage: build
-  only:
-    refs:
-      - master
-      - tags
-  tags:
-    - run_docker
-  image: golang:latest
-  script:
-    - mkdir target || true
-
-    # Test
-    #- go test -coverprofile=target/coverage-report.out ./src/**
-    #- go test -json > target/test-report.out ./src/**
-
-    # Build & Compile
-    - go get -u github.com/gobuffalo/packr/packr
-    - CGO_ENABLED=0 GOARCH=amd64 GOOS=linux packr build -a -o target/depoy .
-
-  artifacts:
-    paths:
-      - target/depoy
-    expire_in: 1 hour
-
 build:docker:
   stage: build
   only:
@@ -55,19 +30,19 @@ build:docker:
   artifacts:
     paths:
       - target/depoy
+
     expire_in: 1 hour
 
 sonar scan:
   stage: scan
   image: $MTR_URL/sonar-scanner:master
-  needs: ["build:binary"]
   only:
     refs:
       - master
       - tags
 
   variables:
-    SONAR_OPTS: " -Dsonar.sources=./src/
+    SONAR_OPTS: " -Dsonar.sources=./depoy/
       -Dsonar.projectKey=depoy
       -Dsonar.host.url=$SONAR_HOST_URL
       -Dsonar.login=58f3327099aa01d9eaaf8fe7a7bbe8a9cbda2b00
