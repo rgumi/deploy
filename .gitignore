@@ -4,7 +4,9 @@ dist
 packrd
 main-packr.go
 __pycache__
-
+.scannerwork
+*.properties
+cover.out
 
 # linux executables
 depoy

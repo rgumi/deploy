@@ -12,7 +12,7 @@ import (
 var route1 = &route.Route{}
 var route2 = &route.Route{}
 var route3 = &route.Route{}
-var g = NewGateway(":10010")
+var g = NewGateway(":10010", 5000, 5000)
 
 func testHandle(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(200)
@@ -25,19 +25,19 @@ func init() {
 	route1.Host = "example.com"
 	route1.Methods = []string{"GET", "POST", "UPDATE"}
 	route1.Prefix = "/"
-	route1.Handler = testHandle
+	route1.Strategy.Handler = testHandle
 
 	route2.Name = "route2"
 	route2.Host = "example.com"
 	route2.Methods = []string{"POST", "UPDATE"}
 	route2.Prefix = "/route2"
-	route2.Handler = testHandle
+	route2.Strategy.Handler = testHandle
 
 	route3.Name = "route3"
 	route3.Host = "*"
 	route3.Methods = []string{"GET"}
 	route3.Prefix = "/"
-	route3.Handler = testHandle
+	route3.Strategy.Handler = testHandle
 }
 
 func Test_RegisterRoutes(t *testing.T) {
