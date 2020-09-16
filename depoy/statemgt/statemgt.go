@@ -72,9 +72,11 @@ func (s *StateMgt) Start() {
 	router.Handle("GET", "/v1/monitoring/routes/:name", SetupHeaders(s.GetMetricsOfRoute))
 	router.Handle("GET", "/v1/monitoring", SetupHeaders(s.GetMetricsData))
 	router.Handle("GET", "/v1/monitoring/prometheus", SetupHeaders(s.GetPromMetrics))
+	router.Handle("GET", "/v1/monitoring/alerts", SetupHeaders(s.GetActiveAlerts))
 
 	// etc
 	router.NotFound = http.FileServer(s.Box)
+
 	router.PanicHandler = func(w http.ResponseWriter, req *http.Request, err interface{}) {
 		returnError(
 			w, req, 500,
@@ -89,7 +91,7 @@ func (s *StateMgt) Start() {
 		Handler:           middleware.LogRequest(router),
 		IdleTimeout:       30 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      5 * time.Second,
+		WriteTimeout:      10 * time.Second,
 		ReadHeaderTimeout: 2 * time.Second,
 	}
 

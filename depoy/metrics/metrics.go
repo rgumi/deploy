@@ -192,6 +192,21 @@ func (m *Repository) Stop() {
 	m.Storage.Stop()
 }
 
+// RegisterAlert adds a "Pending" Alert to the backend for the provided metric
+func (m *Repository) RegisterAlert(backendID uuid.UUID, alertType, metric string, threshold, value float64) {
+	alert := &Alert{
+		Type:       alertType,
+		BackendID:  backendID,
+		Metric:     metric,
+		Threshhold: threshold,
+		Value:      value,
+		StartTime:  time.Now(),
+	}
+
+	m.Backends[backendID].activeAlerts[metric] = alert
+	m.Backends[backendID].AlertChannel <- *alert
+}
+
 // Monitor stats the monitor loop which checks every $timeout interval
 // if an alert needs to be sent
 // $activeFor defines for how long a threshhold needs to be reached to
@@ -225,9 +240,9 @@ func (m *Repository) Monitor(
 					continue
 				}
 
-				log.Debug(collected)
+				log.Debugf("Rates of Backend %v: %v", backendID, collected)
+
 				// loop over every metric that was collected
-				// collected := map[string]float64
 				for _, condition := range backend.MetricThreshholds {
 
 					// get the treshhold for this metric
@@ -323,7 +338,7 @@ func (m *Repository) Listen() {
 		// received the metrics struct with backendID and all metrics
 		case metrics := <-m.InChannel:
 
-			log.Debug(metrics)
+			log.Trace(metrics)
 
 			// update PromMetrics
 
@@ -522,6 +537,14 @@ func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time)
 		metricRates[customScrapeMetricName] = customScrapeMetricValue
 	}
 	return metricRates, nil
+}
+
+func (m *Repository) GetActiveAlerts() map[uuid.UUID]map[string]*Alert {
+	alertMap := make(map[uuid.UUID]map[string]*Alert)
+	for id, backend := range m.Backends {
+		alertMap[id] = backend.activeAlerts
+	}
+	return alertMap
 }
 
 /*

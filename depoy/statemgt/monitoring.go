@@ -168,3 +168,9 @@ func (s *StateMgt) GetPromMetrics(w http.ResponseWriter, req *http.Request, _ ht
 	w.WriteHeader(200)
 	w.Write(b)
 }
+
+func (s *StateMgt) GetActiveAlerts(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+	alerts := s.Gateway.MetricsRepo.GetActiveAlerts()
+
+	marshalAndReturn(w, req, alerts)
+}

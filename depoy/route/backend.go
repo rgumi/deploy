@@ -91,9 +91,9 @@ func (b *Backend) UpdateStatus(status bool) {
 	b.updateWeigth()
 
 	if status {
-		log.Warnf("Enabling backend %v: %v", b.ID, b.Active)
+		log.Infof("Enabling backend %v: %v", b.ID, b.Active)
 	} else {
-		log.Warnf("Disabling backend %v: %v", b.ID, b.Active)
+		log.Infof("Disabling backend %v: %v", b.ID, b.Active)
 	}
 
 }
@@ -112,7 +112,7 @@ func (b *Backend) Monitor() {
 			return
 
 		case alert := <-b.AlertChan:
-			log.Warnf("Backend %v received %v", b.ID, alert)
+			log.Debugf("Backend %v received %v", b.ID, alert.Type)
 
 			if alert.Type == "Alarming" {
 				// Alarm condition was active for long enought => alarming

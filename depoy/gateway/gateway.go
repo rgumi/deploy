@@ -173,7 +173,6 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 
 	g.Routes[newRoute.Name] = newRoute
 
-	go g.Reload()
 	return nil
 }
 

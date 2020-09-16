@@ -6,288 +6,628 @@
 	},
 	"item": [
 		{
-			"name": "PUT Route",
-			"request": {
-				"method": "PUT",
-				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\r\n    \"prefix\": \"/test123/\",\r\n    \"methods\": [\r\n        \"GET\",\r\n        \"POST\"\r\n    ],\r\n    \"host\": \"*\",\r\n    \"rewrite\": \"/\",\r\n    \"targets\": [\r\n        {\r\n            \"id\": \"158dc668-e5f7-41ce-a5e2-3267b2b4be2f\",\r\n            \"name\": \"Test1\",\r\n            \"addr\": \"http://localhost:7070\",\r\n            \"State\": \"\",\r\n            \"active\": true,\r\n            \"scrape\": false,\r\n            \"scrape_fail_counter\": 0,\r\n            \"scrape_addr\": \"\",\r\n            \"scrape_metrics\": null,\r\n            \"scrape_interval\": 0\r\n        },\r\n        {\r\n            \"id\": \"4b67e345-dc98-415d-bfb5-1a2d030848ef\",\r\n            \"name\": \"Test2\",\r\n            \"addr\": \"http://localhost:9090\",\r\n            \"State\": \"\",\r\n            \"active\": true,\r\n            \"scrape\": false,\r\n            \"scrape_fail_counter\": 0,\r\n            \"scrape_addr\": \"\",\r\n            \"scrape_metrics\": null,\r\n            \"scrape_interval\": 0\r\n        }\r\n    ]\r\n}",
-					"options": {
-						"raw": {
-							"language": "json"
+			"name": "Switchover",
+			"item": [
+				{
+					"name": "Remove Switchover",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/RouteSlippery/switchover",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"RouteSlippery",
+								"switchover"
+							]
 						}
-					}
+					},
+					"response": []
 				},
-				"url": {
-					"raw": "http://localhost:8081/v1/routes/255129187",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"routes",
-						"255129187"
-					]
-				},
-				"description": "replace a current route with this one"
-			},
-			"response": []
-		},
-		{
-			"name": "GET Route",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8081/v1/routes/255129187",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"routes",
-						"255129187"
-					]
-				},
-				"description": "get a route by parameter ID"
-			},
-			"response": []
-		},
-		{
-			"name": "GET Routes",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8081/v1/routes",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"routes"
-					]
-				},
-				"description": "Get all routes"
-			},
-			"response": []
-		},
-		{
-			"name": "DELETE Route",
-			"request": {
-				"method": "DELETE",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8081/v1/routes/Route1",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"routes",
-						"Route1"
-					]
-				},
-				"description": "Remove route from gateway"
-			},
-			"response": []
-		},
-		{
-			"name": "Backend Metrics",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "localhost:8081/v1/monitoring/backend/137050a0-6ccb-44ae-bc82-895ff9df8a5c?timeframe=60",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"monitoring",
-						"backend",
-						"137050a0-6ccb-44ae-bc82-895ff9df8a5c"
-					],
-					"query": [
-						{
-							"key": "timeframe",
-							"value": "60"
+				{
+					"name": "Get Current Switchover",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/RouteSlippery/switchover",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"RouteSlippery",
+								"switchover"
+							]
 						}
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "Test",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "localhost:8080/test/",
-					"host": [
-						"localhost"
-					],
-					"port": "8080",
-					"path": [
-						"test",
-						""
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "Route Metrics",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "localhost:8081/v1/monitoring/route/Route1?timeframe=30",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"monitoring",
-						"route",
-						"Route1"
-					],
-					"query": [
-						{
-							"key": "timeframe",
-							"value": "30"
+					},
+					"response": []
+				},
+				{
+					"name": "Create switchover ",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"to\": \"Test2\",\r\n    \"from\": \"Test1\",\r\n    \"force\": true,\r\n    \"conditions\": [\r\n        {\r\n            \"metric\": \"ResponseTime\",\r\n            \"operator\": \"<\",\r\n            \"threshold\": 1000,\r\n            \"active_for\": 10\r\n        },\r\n        {\r\n            \"metric\": \"6xxRate\",\r\n            \"operator\": \"<\",\r\n            \"threshold\": 0.1,\r\n            \"active_for\": 10\r\n        },\r\n        {\r\n            \"metric\": \"5xxRate\",\r\n            \"operator\": \"<\",\r\n            \"threshold\": 0.3,\r\n            \"active_for\": 10\r\n        },\r\n        {\r\n            \"metric\": \"4xxRate\",\r\n            \"operator\": \"<\",\r\n            \"threshold\": 0.6,\r\n            \"active_for\": 10\r\n        }\r\n    ],\r\n    \"timeout\": 15,\r\n    \"weight_change\": 10\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/RouteSlippery/switchover",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"RouteSlippery",
+								"switchover"
+							]
 						}
-					]
+					},
+					"response": []
 				}
-			},
-			"response": []
+			],
+			"protocolProfileBehavior": {}
 		},
 		{
-			"name": "All Metrics",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8081/v1/monitoring/all",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"monitoring",
-						"all"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "All Backend Metrics",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8081/v1/monitoring/backends?timeframe=30",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"monitoring",
-						"backends"
-					],
-					"query": [
-						{
-							"key": "timeframe",
-							"value": "30"
+			"name": "Route mgt",
+			"item": [
+				{
+					"name": "Create new Route (Slippery)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"RouteSlippery\",\r\n    \"prefix\": \"/slippery/\",\r\n    \"methods\": [\r\n        \"GET\",\r\n        \"POST\"\r\n    ],\r\n    \"host\": \"*\",\r\n    \"rewrite\": \"/\",\r\n    \"cookie_ttl\": 120000000000,\r\n    \"strategy\": {\r\n        \"type\": \"slippery\"\r\n    },\r\n    \"backends\": [\r\n        {\r\n            \"name\": \"Test1\",\r\n            \"addr\": \"http://localhost:7070\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:7071/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"5xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.3,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"4xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.6,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:7070/\"\r\n        },\r\n        {\r\n            \"name\": \"Test2\",\r\n            \"addr\": \"http://localhost:9090\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:9091/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:9090/\"\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/routes",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes"
+							]
 						}
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "All Routes Metrics",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8081/v1/monitoring/routes?timeframe=30",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"monitoring",
-						"routes"
-					],
-					"query": [
-						{
-							"key": "timeframe",
-							"value": "30"
+					},
+					"response": []
+				},
+				{
+					"name": "Create new Route (Sticky)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"RouteSticky\",\r\n    \"prefix\": \"/sticky/\",\r\n    \"methods\": [\r\n        \"GET\",\r\n        \"POST\"\r\n    ],\r\n    \"host\": \"*\",\r\n    \"rewrite\": \"/\",\r\n    \"cookie_ttl\": 120000000000,\r\n    \"strategy\": {\r\n        \"type\": \"sticky\"\r\n    },\r\n    \"backends\": [\r\n        {\r\n            \"name\": \"Test1\",\r\n            \"addr\": \"http://localhost:7070\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:7071/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"5xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.3,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"4xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.6,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:7070/\"\r\n        },\r\n               {\r\n            \"name\": \"Test2\",\r\n            \"addr\": \"http://localhost:9090\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:9091/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:9090/\"\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/routes",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes"
+							]
 						}
-					]
+					},
+					"response": []
+				},
+				{
+					"name": "Create new Route (Shadow)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"RouteShadow\",\r\n    \"prefix\": \"/shadow/\",\r\n    \"methods\": [\r\n        \"GET\",\r\n        \"POST\"\r\n    ],\r\n    \"host\": \"*\",\r\n    \"rewrite\": \"/\",\r\n    \"cookie_ttl\": 120000000000,\r\n    \"strategy\": {\r\n        \"type\": \"shadow\",\r\n        \"shadow_backend\": \"Test2\"\r\n    },\r\n    \"backends\": [\r\n        {\r\n            \"name\": \"Test1\",\r\n            \"addr\": \"http://localhost:7070\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:7071/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"5xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.3,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"4xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.6,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:7070/\"\r\n        },\r\n               {\r\n            \"name\": \"Test2\",\r\n            \"addr\": \"http://localhost:9090\",\r\n            \"weight\": 0,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:9091/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:9090/\"\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/routes",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create new Route (Header)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"RouteHeader\",\r\n    \"prefix\": \"/header/\",\r\n    \"methods\": [\r\n        \"GET\",\r\n        \"POST\"\r\n    ],\r\n    \"host\": \"*\",\r\n    \"rewrite\": \"/\",\r\n    \"cookie_ttl\": 120000000000,\r\n    \"strategy\": {\r\n        \"type\": \"header\",\r\n        \"header_name\": \"ToTest2\",\r\n        \"header_value\": \"true\",\r\n        \"old_backend\": \"Test1\",\r\n        \"new_backend\": \"Test2\"\r\n    },\r\n    \"backends\": [\r\n        {\r\n            \"name\": \"Test1\",\r\n            \"addr\": \"http://localhost:7070\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:7071/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"5xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.3,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"4xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.6,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:7070/\"\r\n        },\r\n               {\r\n            \"name\": \"Test2\",\r\n            \"addr\": \"http://localhost:9090\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:9091/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:9090/\"\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/routes",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "DELETE Route",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/Route6",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"Route6"
+							]
+						},
+						"description": "Remove route from gateway"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Route",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/RouteSlippery",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"RouteSlippery"
+							]
+						},
+						"description": "get a route by parameter ID"
+					},
+					"response": []
+				},
+				{
+					"name": "GET Routes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/routes",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes"
+							]
+						},
+						"description": "Get all routes"
+					},
+					"response": []
+				},
+				{
+					"name": "PUT Route",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"name\": \"Route2\",\r\n    \"prefix\": \"/test2/\",\r\n    \"methods\": [\r\n        \"GET\",\r\n        \"POST\"\r\n    ],\r\n    \"host\": \"*\",\r\n    \"rewrite\": \"/\",\r\n    \"cookie_ttl\": 120000000000,\r\n    \"strategy\": {\r\n        \"type\": \"sticky\"\r\n    },\r\n    \"backends\": [\r\n        {\r\n            \"name\": \"Test2\",\r\n            \"addr\": \"http://localhost:7070\",\r\n            \"weight\": 100,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:7071/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"5xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.3,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"4xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.6,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:7070/\",\r\n            \"active_alerts\": {}\r\n        }\r\n    ]\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/Route2",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"Route2"
+							]
+						},
+						"description": "replace a current route with this one"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Backend to Route",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n            \"name\": \"Test3\",\r\n            \"addr\": \"http://localhost:9090\",\r\n            \"weight\": 0,\r\n            \"active\": false,\r\n            \"scrape_url\": \"http://localhost:9091/metrics\",\r\n            \"scrape_metrics\": [\r\n                \"go_goroutines\"\r\n            ],\r\n            \"metric_thresholds\": [\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"ResponseTime\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 1000,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                },\r\n                {\r\n                    \"status\": false,\r\n                    \"metric\": \"6xxRate\",\r\n                    \"operator\": \">\",\r\n                    \"threshold\": 0.1,\r\n                    \"active_for\": 10,\r\n                    \"trigger_time\": \"0001-01-01T00:00:00Z\"\r\n                }\r\n            ],\r\n            \"healthcheck_url\": \"http://localhost:9090/\"\r\n        }",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/RouteSlippery",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"RouteSlippery"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Backend from Route",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/routes/RouteSlippery/backends/14b6dc47-d2c9-4aaf-beac-65670f0207b8",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"routes",
+								"RouteSlippery",
+								"backends",
+								"14b6dc47-d2c9-4aaf-beac-65670f0207b8"
+							]
+						}
+					},
+					"response": []
 				}
-			},
-			"response": []
+			],
+			"protocolProfileBehavior": {}
 		},
 		{
-			"name": "Prometheus Metrics",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8081/v1/monitoring/prometheus",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8081",
-					"path": [
-						"v1",
-						"monitoring",
-						"prometheus"
-					]
+			"name": "General",
+			"item": [
+				{
+					"name": "Update Live Config",
+					"protocolProfileBehavior": {
+						"disabledSystemHeaders": {}
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"addr\": \":8080\",\r\n    \"read_timeout\": 5000,\r\n    \"write_timeout\": 5000,\r\n    \"routes\": {\r\n        \"Route123\": {\r\n            \"name\": \"Route123\",\r\n            \"prefix\": \"/\",\r\n            \"methods\": [\r\n                \"GET\",\r\n                \"POST\"\r\n            ],\r\n            \"host\": \"*\",\r\n            \"rewrite\": \"/\",\r\n            \"cookieTTL\": \"2m0s\",\r\n            \"backends\": {\r\n                \"892323a0-dc7c-468a-9233-c9a8414fcf21\": {\r\n                    \"id\": \"892323a0-dc7c-468a-9233-c9a8414fcf21\",\r\n                    \"name\": \"Test2\",\r\n                    \"addr\": \"http://localhost:7070\",\r\n                    \"weight\": 100,\r\n                    \"active\": true,\r\n                    \"scrape_url\": \"http://localhost:7071/metrics\",\r\n                    \"scrape_metrics\": [\r\n                        \"go_goroutines\"\r\n                    ],\r\n                    \"metric_thresholds\": [\r\n                        {\r\n                            \"metric\": \"ResponseTime\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 1000,\r\n                            \"active_for\": 10\r\n                        },\r\n                        {\r\n                            \"metric\": \"6xxRate\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 0.1,\r\n                            \"active_for\": 10\r\n                        },\r\n                        {\r\n                            \"metric\": \"5xxRate\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 0.3,\r\n                            \"active_for\": 10\r\n                        },\r\n                        {\r\n                            \"metric\": \"4xxRate\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 0.6,\r\n                            \"active_for\": 10\r\n                        }\r\n                    ],\r\n                    \"healthcheck_url\": \"http://localhost:7070/\"\r\n                },\r\n                \"1006aff9-d4a0-4d4e-9f85-283e1d8c385c\": {\r\n                    \"id\": \"1006aff9-d4a0-4d4e-9f85-283e1d8c385c\",\r\n                    \"name\": \"Test2\",\r\n                    \"addr\": \"http://localhost:7070\",\r\n                    \"weight\": 0,\r\n                    \"active\": false,\r\n                    \"scrape_url\": \"http://localhost:7071/metrics\",\r\n                    \"scrape_metrics\": [\r\n                        \"go_goroutines\"\r\n                    ],\r\n                    \"metric_thresholds\": [\r\n                        {\r\n                            \"metric\": \"ResponseTime\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 1000,\r\n                            \"active_for\": 10\r\n                        },\r\n                        {\r\n                            \"metric\": \"6xxRate\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 0.1,\r\n                            \"active_for\": 10\r\n                        },\r\n                        {\r\n                            \"metric\": \"5xxRate\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 0.3,\r\n                            \"active_for\": 10\r\n                        },\r\n                        {\r\n                            \"metric\": \"4xxRate\",\r\n                            \"operator\": \">\",\r\n                            \"threshold\": 0.6,\r\n                            \"active_for\": 10\r\n                        }\r\n                    ],\r\n                    \"healthcheck_url\": \"http://localhost:7070/\"\r\n                }\r\n            }\r\n        }\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8081/v1/config",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"config"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current Config as YAML",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/config",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"config"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/test/",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"test",
+								""
+							]
+						}
+					},
+					"response": []
 				}
-			},
-			"response": []
+			],
+			"protocolProfileBehavior": {}
 		},
 		{
-			"name": "Prometheus Scrape Endpoint",
-			"request": {
-				"method": "GET",
-				"header": [],
-				"url": {
-					"raw": "http://localhost:8084/metrics",
-					"protocol": "http",
-					"host": [
-						"localhost"
-					],
-					"port": "8084",
-					"path": [
-						"metrics"
-					]
+			"name": "Monitoring",
+			"item": [
+				{
+					"name": "Backend Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8081/v1/monitoring/backends/137050a0-6ccb-44ae-bc82-895ff9df8a5c?timeframe=60",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"monitoring",
+								"backends",
+								"137050a0-6ccb-44ae-bc82-895ff9df8a5c"
+							],
+							"query": [
+								{
+									"key": "timeframe",
+									"value": "60"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Route Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8081/v1/monitoring/routes/RouteSlippery?timeframe=60",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"monitoring",
+								"routes",
+								"RouteSlippery"
+							],
+							"query": [
+								{
+									"key": "timeframe",
+									"value": "60"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "All Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/monitoring",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"monitoring"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "All Backend Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/monitoring/backends?timeframe=60",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"monitoring",
+								"backends"
+							],
+							"query": [
+								{
+									"key": "timeframe",
+									"value": "60"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "All Routes Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/monitoring/routes?timeframe=30",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"monitoring",
+								"routes"
+							],
+							"query": [
+								{
+									"key": "timeframe",
+									"value": "30"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Prometheus Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/monitoring/prometheus",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"monitoring",
+								"prometheus"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "All Alerts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8081/v1/monitoring/alerts",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8081",
+							"path": [
+								"v1",
+								"monitoring",
+								"alerts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Prometheus Scrape Endpoint",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8084/metrics",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8084",
+							"path": [
+								"metrics"
+							]
+						}
+					},
+					"response": []
 				}
-			},
-			"response": []
+			],
+			"protocolProfileBehavior": {}
 		}
 	],
 	"protocolProfileBehavior": {}

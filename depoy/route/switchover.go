@@ -93,7 +93,7 @@ outer:
 	for {
 		select {
 		case _ = <-s.killChan:
-			log.Warnf("Killed SwitchOver %v", s)
+			log.Warnf("Killed SwitchOver %v of Route %v", s.ID, s.Route.Name)
 			return
 
 		default:
@@ -110,9 +110,10 @@ outer:
 			for _, condition := range s.Conditions {
 				status, err := condition.IsTrue(metrics)
 				if err != nil {
-					// TODO: Handle this somehow
+					// should never happen
 					panic(err)
 				}
+
 				if status && s.To.Active {
 
 					if condition.TriggerTime.IsZero() {
@@ -164,10 +165,11 @@ outer:
 				condition.Status = false
 			}
 
-			if s.From.Weigth == 0 {
+			if s.From.Weigth == 0 || s.To.Weigth == 100 {
 				// switchover was successful, all traffic is forwarded to new backend
 
-				log.Warnf("Switchover from %v to %v was successful", s.From, s.To)
+				log.Warnf("Switchover from %v to %v was successful", s.From.ID, s.To.ID)
+				s.Status = "Success"
 				s.Stop()
 			}
 		}

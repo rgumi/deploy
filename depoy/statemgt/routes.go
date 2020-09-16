@@ -6,7 +6,6 @@ import (
 	"depoy/upstreamclient"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/dealancer/validate.v2"
 )
 
 /*
@@ -80,7 +78,13 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		myRoute.Methods,
 		upstreamclient.NewDefaultClient(),
 	)
+
 	if err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+
+	if err = myRoute.Strategy.Validate(newRoute); err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
@@ -103,7 +107,16 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 
 	}
 
+	err = myRoute.Strategy.Reset(newRoute)
+	if err != nil {
+		// rollback
+		s.Gateway.RemoveRoute(newRoute.Name)
+		returnError(w, req, 400, err, nil)
+		return
+	}
+
 	newRoute.Reload()
+	s.Gateway.Reload()
 	marshalAndReturn(w, req, s.Gateway.Routes[newRoute.Name])
 }
 
@@ -149,6 +162,11 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		return
 	}
 
+	if err = myRoute.Strategy.Validate(newRoute); err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+
 	// remove first
 	s.Gateway.RemoveRoute(newRoute.Name)
 
@@ -163,14 +181,27 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 			cond.IsTrue = cond.Compile()
 		}
 
-		newRoute.AddBackend(
+		_, err := newRoute.AddBackend(
 			myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
 			myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
 		)
 
+		if err != nil {
+			returnError(w, req, 400, err, nil)
+			return
+		}
+	}
+
+	err = myRoute.Strategy.Reset(newRoute)
+	if err != nil {
+		// rollback
+		s.Gateway.RemoveRoute(newRoute.Name)
+		returnError(w, req, 400, err, nil)
+		return
 	}
 
 	newRoute.Reload()
+	s.Gateway.Reload()
 	marshalAndReturn(w, req, s.Gateway.Routes[newRoute.Name])
 }
 
@@ -193,16 +224,23 @@ func (s *StateMgt) AddNewBackendToRoute(w http.ResponseWriter, req *http.Request
 
 	if err := readBodyAndUnmarshal(req, myBackend); err != nil {
 		returnError(w, req, 400, err, nil)
+		return
 	}
 
 	for _, cond := range myBackend.Metricthresholds {
 		cond.IsTrue = cond.Compile()
 	}
 
-	route.AddBackend(
+	_, err := route.AddBackend(
 		myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
 		myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
 	)
+
+	if err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+
 	route.Reload()
 
 	log.Debug("Sucessfully updated route")
@@ -239,11 +277,13 @@ func (s *StateMgt) RemoveBackendFromRoute(w http.ResponseWriter, req *http.Reque
 // it is a wrapper for the actual SwitchOver struct and replaces
 // the actual backends (from and to) with their corrosponding ids
 type SwitchOverRequest struct {
-	From         uuid.UUID                `json:"from" validate:"empty=false"`
-	To           uuid.UUID                `json:"to" validate:"empty=false"`
+	From         string                   `json:"from" validate:"empty=false"`
+	To           string                   `json:"to" validate:"empty=false"`
 	Conditions   []*conditional.Condition `json:"conditions" validate:"empty=false"`
 	Timeout      int                      `json:"timeout" default:"2m0s"`
 	WeightChange uint8                    `json:"weight_change" default:"5"`
+	// Force overwrites the current config of the backends to enable switchover (if required)
+	Force bool `json:"force" default:"false"`
 }
 
 // CreateSwitchover adds a switchover struct to the given route
@@ -259,21 +299,8 @@ func (s *StateMgt) CreateSwitchover(w http.ResponseWriter, req *http.Request, ps
 		return
 	}
 
-	b, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		returnError(w, req, 500, err, nil)
-		return
-	}
+	readBodyAndUnmarshal(req, mySwitchOver)
 
-	if err := json.Unmarshal(b, mySwitchOver); err != nil {
-		returnError(w, req, 400, err, nil)
-		return
-	}
-	err = validate.Validate(mySwitchOver)
-	if err != nil {
-		returnError(w, req, 400, err, nil)
-		return
-	}
 	timeout := time.Duration(mySwitchOver.Timeout) * time.Second
 
 	newSwitchover, err := route.StartSwitchOver(
@@ -282,6 +309,7 @@ func (s *StateMgt) CreateSwitchover(w http.ResponseWriter, req *http.Request, ps
 		mySwitchOver.Conditions,
 		timeout,
 		mySwitchOver.WeightChange,
+		mySwitchOver.Force,
 	)
 	if err != nil {
 		returnError(w, req, 400, err, nil)
