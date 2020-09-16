@@ -6,7 +6,6 @@ variables:
 
 stages:
   - build
-  - scan
   - test
 
 cache:
@@ -38,31 +37,3 @@ build:docker:
       - target/depoy
 
     expire_in: 1 hour
-
-sonar scan:
-  stage: scan
-  image: $MTR_URL/sonar-scanner:master
-  only:
-    refs:
-      - master
-      - tags
-
-  variables:
-    SONAR_OPTS: " -Dsonar.sources=./depoy/
-      -Dsonar.projectKey=depoy
-      -Dsonar.host.url=$SONAR_HOST_URL
-      -Dsonar.login=58f3327099aa01d9eaaf8fe7a7bbe8a9cbda2b00
-      -Dsonar.gitlab.commit_sha=$CI_COMMIT_SHA
-      -Dsonar.gitlab.ref_name=$CI_COMMIT_REF_NAME
-      -Dsonar.gitlab.project_id=$CI_PROJECT_ID
-      -Dsonar.branch.name=$CI_COMMIT_REF_NAME
-      -Dsonar.go.tests.reportPaths=target/test-report.out
-      -Dsonar.go.coverage.reportPaths=target/coverage-report.out
-      -Dsonar.tests=./depoy/
-      -Dsonar.test.inclusions=./src/**/*_test.go
-      -Dsonar.test.exclusions=./src/**/vendor/**
-      --debug -Dsonar.verbose=true"
-  tags:
-    - run_docker
-  script:
-    - "sonar-scanner $SONAR_OPTS"

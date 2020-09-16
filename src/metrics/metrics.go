@@ -484,7 +484,6 @@ func (m *Repository) GetMetricsForBackend(
 	log.Warnf("Using %v datapoints", dataPoints)
 
 	metricData := make(map[time.Time]storage.Metric, dataPoints)
-	start = start
 
 	for idx := 0; idx < dataPoints; idx++ {
 		end := start.Add(time.Duration((dataPoints-idx)*int(granularity)) * time.Second)

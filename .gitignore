@@ -1,13 +1,16 @@
 node_modules/
 dist
-*.exe
 packrd
 main-packr.go
 __pycache__
 .scannerwork
 *.properties
 cover.out
+pkg
+coverage*
+test-report.out
 
-# linux executables
+# executables
 depoy
 test
+*.exe

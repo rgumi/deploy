@@ -11,7 +11,7 @@ FROM golang:1.15 AS goBuilder
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 WORKDIR /go/src/app
-COPY depoy ./
+COPY src ./
 COPY --from=vueBuilder /usr/src/app/dist ../vue/dist
 RUN go get -u github.com/gobuffalo/packr/packr && \
     CGO_ENABLED=0 GOARCH=amd64 GOOS=linux packr build -a -o depoy .

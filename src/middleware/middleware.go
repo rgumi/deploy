@@ -22,8 +22,10 @@ func LogRequest(handler http.Handler) http.Handler {
 }
 
 // SetRequestID sets a unique ID for each request. Allows for better tracing
-func SetRequestID(r *http.Request) {
-
-	r.Header.Set("X-Request-ID", uuid.New().String())
-
+func SetRequestID(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := uuid.New().String()
+		r.Header.Set("X-Request-ID", id)
+		w.Header().Set("X-Request-ID", id)
+	})
 }

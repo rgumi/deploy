@@ -10,7 +10,8 @@ import (
 )
 
 func defaultErrorHandler(w http.ResponseWriter, r *http.Request, e error) {
-	w.WriteHeader(503)
+	w.WriteHeader(500)
+	w.Write([]byte(e.Error()))
 }
 
 func defaultNotFoundHandler(w http.ResponseWriter, r *http.Request) {
@@ -127,8 +128,6 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			r.ErrorHandler(w, req, err.(error))
 		}
 	}()
-
-	// middleware.SetRequestID(req)
 
 	if _, found := r.tree[req.Method]; found {
 		if _, h, found := r.tree[req.Method].LongestPrefix(req.URL.String()); found {
