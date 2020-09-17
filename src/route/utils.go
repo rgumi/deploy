@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io/ioutil"
 	"net"
-	_ "net"
 	"net/http"
 	"strings"
 	"time"

@@ -1,14 +1,15 @@
 package route
 
 import (
-	"depoy/conditional"
-	"depoy/metrics"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rgumi/depoy/conditional"
+	"github.com/rgumi/depoy/metrics"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"

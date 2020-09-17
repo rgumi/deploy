@@ -1,13 +1,14 @@
 package statemgt
 
 import (
-	"depoy/conditional"
-	"depoy/route"
-	"depoy/upstreamclient"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/rgumi/depoy/conditional"
+	"github.com/rgumi/depoy/route"
+	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/creasty/defaults"
 	"github.com/google/uuid"

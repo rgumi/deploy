@@ -1,4 +1,4 @@
-module depoy
+module github.com/rgumi/depoy
 
 go 1.15
 

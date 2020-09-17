@@ -1,11 +1,12 @@
 package config
 
 import (
-	"depoy/gateway"
-	"depoy/route"
-	"depoy/upstreamclient"
 	"encoding/json"
 	"io/ioutil"
+
+	"github.com/rgumi/depoy/gateway"
+	"github.com/rgumi/depoy/route"
+	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/creasty/defaults"
 	"github.com/prometheus/common/log"

@@ -3,8 +3,6 @@ package metrics
 import (
 	"bufio"
 	"bytes"
-	"depoy/conditional"
-	"depoy/storage"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rgumi/depoy/conditional"
+	"github.com/rgumi/depoy/storage"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"

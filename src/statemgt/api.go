@@ -1,11 +1,12 @@
 package statemgt
 
 import (
-	"depoy/config"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/rgumi/depoy/config"
 
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"

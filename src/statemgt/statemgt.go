@@ -2,13 +2,14 @@ package statemgt
 
 import (
 	"context"
-	"depoy/gateway"
-	"depoy/middleware"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/rgumi/depoy/gateway"
+	"github.com/rgumi/depoy/middleware"
 
 	"github.com/creasty/defaults"
 	"github.com/gobuffalo/packr/v2"

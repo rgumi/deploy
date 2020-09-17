@@ -1,6 +1,23 @@
-language: go
+matrix:
+  include:
+    - language: node
+      node:
+        - "latest"
+      before_script:
+        - cd vue
+      script:
+        - npm run build
 
-go:
-  - "1.15"
+    - language: go
+      go:
+        - "1.15"
+      before_script:
+        - cd src
+      scrpt:
+        - go test ./... -coverprofile="coverage-report.out"
+        - go test ./... -json > test-report.out
+        - GOOS=linux GOARCH=amd64 go build
 
-script: build.sh
+notifications:
+  email:
+    - ron.gummich@outlook.de

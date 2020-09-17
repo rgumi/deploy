@@ -2,12 +2,13 @@ package upstreamclient
 
 import (
 	"crypto/tls"
-	"depoy/metrics"
 	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
 	"time"
+
+	"github.com/rgumi/depoy/metrics"
 
 	log "github.com/sirupsen/logrus"
 )

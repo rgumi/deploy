@@ -1,9 +1,10 @@
 package route
 
 import (
-	"depoy/conditional"
 	"fmt"
 	"time"
+
+	"github.com/rgumi/depoy/conditional"
 
 	log "github.com/sirupsen/logrus"
 )

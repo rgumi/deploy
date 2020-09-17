@@ -2,15 +2,16 @@ package gateway
 
 import (
 	"context"
-	"depoy/metrics"
-	"depoy/route"
-	"depoy/router"
-	"depoy/storage"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/rgumi/depoy/metrics"
+	"github.com/rgumi/depoy/route"
+	"github.com/rgumi/depoy/router"
+	"github.com/rgumi/depoy/storage"
 
 	yaml "gopkg.in/yaml.v3"
 

@@ -1,15 +1,16 @@
 package main
 
 import (
-	"depoy/config"
-	"depoy/gateway"
-	"depoy/statemgt"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/rgumi/depoy/config"
+	"github.com/rgumi/depoy/gateway"
+	"github.com/rgumi/depoy/statemgt"
 
 	packr "github.com/gobuffalo/packr/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
