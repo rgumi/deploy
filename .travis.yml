@@ -1,11 +1,12 @@
 matrix:
   include:
-    - language: node
+    - language: node_js
       node:
-        - "latest"
+        - "node"
       before_script:
         - cd vue
       script:
+        - npm install
         - npm run build
 
     - language: go
@@ -14,9 +15,10 @@ matrix:
       before_script:
         - cd src
       scrpt:
+        - go env -w GO111MODULE=on -w GOOS=linux -w GOARCH=amd64
         - go test ./... -coverprofile="coverage-report.out"
         - go test ./... -json > test-report.out
-        - GOOS=linux GOARCH=amd64 go build
+        - go build
 
 notifications:
   email:
