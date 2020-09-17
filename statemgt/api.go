@@ -1,6 +1,7 @@
 package statemgt
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -77,7 +78,7 @@ func (s *StateMgt) SetCurrentConfig(w http.ResponseWriter, r *http.Request, _ ht
 		return
 	}
 
-	newGateway, err := config.ParseFromBinaryJSON(b)
+	newGateway, err := config.ParseFromBinary(json.Unmarshal, b)
 	if err != nil {
 		log.Error(err)
 		returnError(w, r, 400, err, nil)

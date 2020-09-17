@@ -293,35 +293,6 @@ func makeAverageBackend(in []Metric) Metric {
 	return finalMetric
 }
 
-func makeAverage(in map[uuid.UUID]Metric, finalMetric *Metric) {
-
-	length := len(in)
-	for _, metric := range in {
-		//		length += len(metrics)
-		//		for _, metric := range metrics {
-		finalMetric.ContentLength += metric.ContentLength
-		finalMetric.ResponseTime += metric.ResponseTime
-		finalMetric.TotalResponses += metric.TotalResponses
-		finalMetric.ResponseStatus200 += metric.ResponseStatus200
-		finalMetric.ResponseStatus300 += metric.ResponseStatus300
-		finalMetric.ResponseStatus400 += metric.ResponseStatus400
-		finalMetric.ResponseStatus500 += metric.ResponseStatus500
-		finalMetric.ResponseStatus600 += metric.ResponseStatus600
-
-		for key, val := range metric.CustomMetrics {
-			finalMetric.CustomMetrics[key] += val
-		}
-		//		}
-	}
-
-	finalMetric.ContentLength = finalMetric.ContentLength / float64(length)
-	finalMetric.ResponseTime = finalMetric.ResponseTime / float64(length)
-
-	for key, val := range finalMetric.CustomMetrics {
-		finalMetric.CustomMetrics[key] = val / float64(length)
-	}
-}
-
 func (st *LocalStorage) readPuffer() {
 
 	for routeName, routeData := range st.puffer {

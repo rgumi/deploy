@@ -18,6 +18,25 @@ routes:
             old_backend: Test1
             new_backend: Test2
         backends:
+            d08736c3-6c55-4254-bc6b-d9189f684222:
+                id: d08736c3-6c55-4254-bc6b-d9189f684222
+                name: Test2
+                addr: http://localhost:9090
+                weight: 100
+                active: false
+                scrape_url: http://localhost:9091/metrics
+                scrape_metrics:
+                    - go_goroutines
+                metric_thresholds:
+                    - metric: ResponseTime
+                      operator: '>'
+                      threshold: 1000
+                      active_for: 10
+                    - metric: 6xxRate
+                      operator: '>'
+                      threshold: 0.1
+                      active_for: 10
+                healthcheck_url: http://localhost:9090/
             5fd9985f-3f4d-4965-9f52-a3b887ba0558:
                 id: 5fd9985f-3f4d-4965-9f52-a3b887ba0558
                 name: Test1
@@ -45,25 +64,6 @@ routes:
                       threshold: 0.6
                       active_for: 10
                 healthcheck_url: http://localhost:7070/
-            d08736c3-6c55-4254-bc6b-d9189f684222:
-                id: d08736c3-6c55-4254-bc6b-d9189f684222
-                name: Test2
-                addr: http://localhost:9090
-                weight: 100
-                active: false
-                scrape_url: http://localhost:9091/metrics
-                scrape_metrics:
-                    - go_goroutines
-                metric_thresholds:
-                    - metric: ResponseTime
-                      operator: '>'
-                      threshold: 1000
-                      active_for: 10
-                    - metric: 6xxRate
-                      operator: '>'
-                      threshold: 0.1
-                      active_for: 10
-                healthcheck_url: http://localhost:9090/
     RouteShadow:
         name: RouteShadow
         prefix: /shadow/
@@ -135,6 +135,25 @@ routes:
         strategy:
             type: sticky
         backends:
+            4798c023-1e78-40cc-a167-84cfaca30686:
+                id: 4798c023-1e78-40cc-a167-84cfaca30686
+                name: Test3
+                addr: http://localhost:9090
+                weight: 0
+                active: false
+                scrape_url: http://localhost:9091/metrics
+                scrape_metrics:
+                    - go_goroutines
+                metric_thresholds:
+                    - metric: ResponseTime
+                      operator: '>'
+                      threshold: 1000
+                      active_for: 10
+                    - metric: 6xxRate
+                      operator: '>'
+                      threshold: 0.1
+                      active_for: 10
+                healthcheck_url: http://localhost:9090/
             5414b6ab-3fe9-40c0-a892-ffc45d33d352:
                 id: 5414b6ab-3fe9-40c0-a892-ffc45d33d352
                 name: Test2
@@ -159,25 +178,6 @@ routes:
                 name: Test1
                 addr: http://localhost:9090
                 weight: 100
-                active: false
-                scrape_url: http://localhost:9091/metrics
-                scrape_metrics:
-                    - go_goroutines
-                metric_thresholds:
-                    - metric: ResponseTime
-                      operator: '>'
-                      threshold: 1000
-                      active_for: 10
-                    - metric: 6xxRate
-                      operator: '>'
-                      threshold: 0.1
-                      active_for: 10
-                healthcheck_url: http://localhost:9090/
-            4798c023-1e78-40cc-a167-84cfaca30686:
-                id: 4798c023-1e78-40cc-a167-84cfaca30686
-                name: Test3
-                addr: http://localhost:9090
-                weight: 0
                 active: false
                 scrape_url: http://localhost:9091/metrics
                 scrape_metrics:
