@@ -1,7 +1,7 @@
 matrix:
   include:
     - language: node_js
-      node:
+      node_js:
         - "node"
       before_script:
         - cd vue
@@ -14,12 +14,11 @@ matrix:
         - "1.15"
       before_script:
         - cd src
+        - export GO111MODULE=on
+        - export GOOS=linux
+        - export GOARCH=amd64
+        - export GOPATH=$PWD;$GOPATH
       scrpt:
-        - go env -w GO111MODULE=on -w GOOS=linux -w GOARCH=amd64
         - go test ./... -coverprofile="coverage-report.out"
         - go test ./... -json > test-report.out
         - go build
-
-notifications:
-  email:
-    - ron.gummich@outlook.de
