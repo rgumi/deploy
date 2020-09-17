@@ -14,11 +14,13 @@ matrix:
         - "1.15"
       before_script:
         - cd src
+        - go vet ./...
+      scrpt:
         - export GO111MODULE=on
         - export GOOS=linux
         - export GOARCH=amd64
-        - export GOPATH=$PWD;$GOPATH
-      scrpt:
-        - go test ./... -coverprofile="coverage-report.out"
-        - go test ./... -json > test-report.out
+        - export GOPATH=$PWD:$GOPATH
+
+        - go get -t -v ./...
+        - go test -v ./...
         - go build

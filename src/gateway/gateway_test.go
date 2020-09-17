@@ -1,10 +1,11 @@
 package gateway
 
 import (
-	"depoy/route"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/rgumi/depoy/route"
 
 	log "github.com/sirupsen/logrus"
 )
