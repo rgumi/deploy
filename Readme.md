@@ -1,5 +1,8 @@
 # Depoy
 
+[![Build Status](https://travis-ci.com/rgumi/depoy.svg?branch=master)](https://travis-ci.com/rgumi/depoy)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=rgumi_deploy&metric=alert_status)](https://sonarcloud.io/dashboard?id=rgumi_deploy)
+
 ## Execute Sonarqube
 
 - cd src
