@@ -84,14 +84,17 @@ func (r *Route) GetHandler() http.HandlerFunc {
 
 func (r *Route) updateWeights() {
 
+	var sum uint8
+	k := 0
+	i := 0
+
 	// avoid any race conditions when multiple backends are used
 	r.mux.Lock()
 	defer r.mux.Unlock()
 
-	k := 0
 	listWeights := make([]uint8, len(r.Backends))
 	activeBackends := []*Backend{}
-	i := 0
+
 	for _, backend := range r.Backends {
 		if backend.Active {
 			listWeights[i] = backend.Weigth
@@ -104,12 +107,11 @@ func (r *Route) updateWeights() {
 	ggt := GGT(listWeights) // if 0, return 0
 	log.Debugf("Current GGT of Weights is %d", ggt)
 
-	var sum uint8
 	if ggt > 0 {
 		for _, weight := range listWeights {
 			sum += weight / ggt
 		}
-		var distr = make([]*Backend, sum)
+		distr := make([]*Backend, sum)
 
 		for _, backend := range activeBackends {
 			for i := uint8(0); i < backend.Weigth/ggt; i++ {

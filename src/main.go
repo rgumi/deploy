@@ -17,6 +17,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	// web application files
+	distFilepath = "../vue/dist"
+)
+
 func main() {
 	var g *gateway.Gateway
 
@@ -53,7 +58,6 @@ func main() {
 
 	st := statemgt.NewStateMgt(":8081", g)
 
-	distFilepath := "../vue/dist"
 	// package static files into binary
 	box := packr.New("files", distFilepath)
 	st.Box = box
