@@ -16,9 +16,6 @@ matrix:
         - cd src
         - go vet ./...
       scrpt:
-        - export GOOS=linux
-        - export GOARCH=amd64
-        - export GOPATH=$PWD:$GOPATH
         - go get -t -v ./...
         - go test -v ./...
         - go build
