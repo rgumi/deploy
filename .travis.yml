@@ -14,8 +14,8 @@ matrix:
         - "1.15"
       before_script:
         - cd src
-        - go vet ./...
       scrpt:
+        - export GO111MODULE=on
         - go get -t -v ./...
         - go test -v ./...
         - go build
