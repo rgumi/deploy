@@ -13,7 +13,6 @@ matrix:
       go:
         - "1.15"
       before_script:
-        - cd src
         - go get -t -v ./...
       scrpt:
         - export GO111MODULE=on
