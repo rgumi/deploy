@@ -20,7 +20,7 @@ import (
 
 const (
 	// web application files
-	distFilepath = "../vue/dist"
+	distFilepath = "vue/dist"
 )
 
 func main() {

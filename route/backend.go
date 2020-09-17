@@ -47,7 +47,7 @@ func NewBackend(
 	}
 
 	if weight > 100 {
-		panic(fmt.Errorf("Weight cannot be larger than 100(%)"))
+		panic(fmt.Errorf("Weight cannot be larger than 100"))
 	}
 
 	url, err := url.Parse(addr)

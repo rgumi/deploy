@@ -80,6 +80,10 @@ func (r *Route) SetStrategy(strategy *Strategy) {
 }
 
 func (r *Route) GetHandler() http.HandlerFunc {
+	if r.Strategy == nil {
+		panic(fmt.Errorf("No strategy is set for %s", r.Name))
+	}
+
 	return r.Strategy.Handler
 }
 
