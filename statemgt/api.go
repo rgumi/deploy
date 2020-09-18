@@ -98,18 +98,3 @@ func (s *StateMgt) SetCurrentConfig(w http.ResponseWriter, r *http.Request, _ ht
 		go s.Gateway.Run()
 	}()
 }
-
-/*
-
-	Helper functions
-
-*/
-func SetupHeaders(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, Methods, Content-Type")
-
-		h(w, r, ps)
-	}
-}

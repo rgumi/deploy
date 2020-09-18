@@ -471,45 +471,6 @@ func (m *Repository) jobLoop() {
 
 }
 
-// GetMetricsForBackend retrieves the metrics for $backend and the given timeframe ($end-$start)
-// with the average over $granularity seconds
-// e. g. retrieve for backend1 last 1min of metrics with granularity 10s would return 6 values with each
-// representing the granularity over 10s
-func (m *Repository) GetMetricsForBackend(
-	backend uuid.UUID, start, end time.Time, granularity time.Duration) map[time.Time]storage.Metric {
-
-	// get the delta of start and end
-	timeDelta := end.Sub(start)
-
-	dataPoints := int(math.Abs(float64(timeDelta / granularity)))
-	log.Warnf("Using %v datapoints", dataPoints)
-
-	metricData := make(map[time.Time]storage.Metric, dataPoints)
-
-	for idx := 0; idx < dataPoints; idx++ {
-		end := start.Add(time.Duration((dataPoints-idx)*int(granularity)) * time.Second)
-
-		val, err := m.Storage.ReadBackend(backend, start, end)
-		log.Warn(val)
-		if err != nil {
-			log.Errorf("Unable to get requested metrics for backend %v (%v)", backend, err)
-			return nil
-		}
-		metricData[end] = val
-		start = end
-	}
-
-	return metricData
-}
-
-// GetMetricsForRoute retrieves the metrics for $route and the given timeframe ($end-$start)
-// with the average over $avg seconds
-// e. g. retrieve for route1 last 1min of metrics with avg 10s would return 6 values with each
-// representing the avg over 10s
-func (m *Repository) GetMetricsForRoute(route string, start, end time.Time, avg time.Duration) map[string]float64 {
-	return nil
-}
-
 // ReadRatesOfBackend makes rates (average) of all metrics of the backend within the given timeframe
 func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
 

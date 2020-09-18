@@ -316,17 +316,19 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 		r.MetricsRepo.InChannel <- m
 
 		// send request to shadowed backend
-		b, _ = ioutil.ReadAll(req.Body)
-		defer req.Body.Close()
+		go func() {
+			b, _ = ioutil.ReadAll(req.Body)
+			defer req.Body.Close()
 
-		resp, m, err = r.sendRequestToUpstream(shadow, req, b)
-		if err != nil {
-			log.Warnf("Unable to send request to upstream client: %v", err)
-			return
-		}
-		b, _ = ioutil.ReadAll(resp.Body)
-		defer resp.Body.Close()
-		m.ContentLength = int64(len(b))
-		r.MetricsRepo.InChannel <- m
+			resp, m, err = r.sendRequestToUpstream(shadow, req, b)
+			if err != nil {
+				log.Warnf("Unable to send request to upstream client: %v", err)
+				return
+			}
+			b, _ = ioutil.ReadAll(resp.Body)
+			defer resp.Body.Close()
+			m.ContentLength = int64(len(b))
+			r.MetricsRepo.InChannel <- m
+		}()
 	}
 }

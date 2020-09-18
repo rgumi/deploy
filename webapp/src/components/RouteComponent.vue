@@ -2,7 +2,7 @@
   <div class="routeWrapper elevation-3">
     <!-- Info row -->
     <v-row fluid no-gutters dense>
-      <h1>{{ route.Value }} ({{ route.ID }})</h1>
+      <h1>{{ route.name }}</h1>
       <v-spacer></v-spacer>
       <v-icon class="routeButton">mdi-pencil</v-icon>
       <v-icon class="routeButton">mdi-delete</v-icon>
@@ -10,25 +10,35 @@
     <v-divider></v-divider>
 
     <v-row fluid no-gutters dense>
-      <!-- v-on:click="$router.push(routeLink)" -->
       <v-col>
-        <v-row fluid class="text">
+        <v-row fluid class="text text-left">
           <span>
-            {{ route.From }}
-            &#8594;
-            {{ route.To }}
+            Prefix: {{route.prefix}}
+            <br />
+            Methods: {{route.methods}}
+            <br />
+            Host: {{route.host}}
+            <br />
+            CookieTTL: {{route.cookie_ttl/1000000000}} seconds
+            <br />
+            Strategy: {{route.strategy}}
+            <div v-for="backend in route.backends" :key="backend.id">
+              <br />
+              {{backend.name}}: {{backend.addr}}
+            </div>
           </span>
         </v-row>
+        <v-row fluid class="text"></v-row>
       </v-col>
-      <!-- v-on:click="$router.push(dashboadLink)"-->
+      <!-- v-on:click="$router.push(dashboadLink)"
       <v-col>
         <v-icon
           size="60"
           class="statusIcon"
           :color="this.getIcon(route.Status).color"
-          >{{ this.getIcon(route.Status).icon }}</v-icon
-        >
+        >{{ this.getIcon(route.Status).icon }}</v-icon>
       </v-col>
+      -->
     </v-row>
     <v-divider></v-divider>
     <!-- Links-->
@@ -45,12 +55,15 @@ export default {
   props: {
     route: Object
   },
+  created() {
+    console.log("Created RouteComponent ", this.route);
+  },
   computed: {
     routeLink: function() {
-      return "/routes/" + this.route.ID;
+      return "/routes/" + this.route.name;
     },
     dashboadLink: function() {
-      return "/dashboard/" + this.route.ID;
+      return "/dashboard/" + this.route.name;
     }
   },
   methods: {
@@ -82,7 +95,7 @@ h1 {
   padding: 1vh;
 }
 .text {
-  padding: 5%;
+  padding: 15px;
   margin: 5px;
   font-weight: 500;
   font-size: 2vh;

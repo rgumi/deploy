@@ -9,6 +9,7 @@ cover.out
 pkg
 coverage*
 test-report.out
+nuxt
 
 # executables
 depoy

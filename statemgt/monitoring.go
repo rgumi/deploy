@@ -2,6 +2,7 @@ package statemgt
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,9 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/prometheus/common/log"
+	"github.com/rgumi/depoy/storage"
 )
 
-var defaultTimeframe = 10 * time.Second
+var (
+	defaultTimeframe = 10 * time.Second
+)
 
 type ErrorMessage struct {
 	StatusCode int       `json:"status_code"`
@@ -21,9 +25,9 @@ type ErrorMessage struct {
 	Details    []string  `json:"details"`
 }
 
-func getTimeframeFromURLQuery(req *http.Request, defaultValue time.Duration) (time.Duration, error) {
+func getTimeDurationFromURLQuery(paramName string, req *http.Request, defaultValue time.Duration) (time.Duration, error) {
 	queryValues := req.URL.Query()
-	queryTimeframe := queryValues.Get("timeframe")
+	queryTimeframe := queryValues.Get(paramName)
 	if queryTimeframe != "" {
 		timeframe, err := strconv.Atoi(queryTimeframe)
 		if err != nil {
@@ -40,7 +44,7 @@ func getTimeframeFromURLQuery(req *http.Request, defaultValue time.Duration) (ti
 
 func (s *StateMgt) GetMetricsOfAllRoutes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
-	timeframe, err := getTimeframeFromURLQuery(req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
 	if err != nil {
 		// failure in atoi
 		returnError(w, req, 400, err, nil)
@@ -61,7 +65,7 @@ func (s *StateMgt) GetMetricsOfAllRoutes(w http.ResponseWriter, req *http.Reques
 
 func (s *StateMgt) GetMetricsOfAllBackends(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
-	timeframe, err := getTimeframeFromURLQuery(req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
 	if err != nil {
 		// failure in atoi
 		returnError(w, req, 400, err, nil)
@@ -98,12 +102,19 @@ func (s *StateMgt) GetMetricsOfBackend(w http.ResponseWriter, req *http.Request,
 
 	backendID := ps.ByName("id")
 
-	timeframe, err := getTimeframeFromURLQuery(req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
+	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
 	if err != nil {
 		// failure in atoi
 		returnError(w, req, 400, err, nil)
 		return
 	}
+
+	if timeframe < granularity {
+		returnError(w, req, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
+		return
+	}
+
 	// parse uuid
 	id, err := uuid.Parse(backendID)
 	if err != nil {
@@ -111,62 +122,108 @@ func (s *StateMgt) GetMetricsOfBackend(w http.ResponseWriter, req *http.Request,
 		returnError(w, req, 400, err, nil)
 		return
 	}
-
-	// get data
-	data, err := s.Gateway.MetricsRepo.Storage.ReadBackend(id, time.Now().Add(-timeframe), time.Now())
-	if err != nil {
-		// failure in ReadBackend, wrong timeframe or backend not found
-		returnError(w, req, 400, err, nil)
+	if _, found := s.Gateway.MetricsRepo.Backends[id]; !found {
+		returnError(w, req, 404, fmt.Errorf("Could not find backend with id %v", id), nil)
 		return
 	}
 
-	// marshal data
-	b, err := json.Marshal(data)
+	if timeframe == granularity {
+		data, err := s.Gateway.MetricsRepo.Storage.ReadBackend(id, time.Now().Add(-timeframe), time.Now())
+		if err != nil {
+			// failure in ReadBackend, wrong timeframe or backend not found
+			data = storage.Metric{}
+		}
 
-	if err != nil {
-		log.Errorf(err.Error())
-		returnError(w, req, 500, err, nil)
-		return
+		marshalAndReturn(w, req, data)
+
+	} else {
+		steps := int(timeframe / granularity)
+		data := make(map[time.Time]storage.Metric, steps)
+
+		for i := 0; i < steps; i++ {
+			maxTime := time.Now().Add(-timeframe + granularity)
+			data[maxTime], err = s.Gateway.MetricsRepo.Storage.ReadBackend(id, time.Now().Add(-timeframe), maxTime)
+			if err != nil {
+				// errors are ignored and just empty metrics are returned instead
+				data[maxTime] = storage.Metric{}
+			}
+
+			timeframe = timeframe - granularity
+		}
+		marshalAndReturn(w, req, data)
 	}
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(b)
+
 }
 
 // GetMetricsOfRoute returns all metrics for the route
 func (s *StateMgt) GetMetricsOfRoute(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	routeName := ps.ByName("name")
 
-	timeframe, err := getTimeframeFromURLQuery(req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
+	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
 	if err != nil {
 		// failure in atoi
 		returnError(w, req, 400, err, nil)
 		return
 	}
 
-	// marshal data
-	b, err := json.Marshal(s.Gateway.MetricsRepo.Storage.ReadRoute(routeName, time.Now().Add(-timeframe), time.Now()))
+	if timeframe == granularity {
+		data := s.Gateway.MetricsRepo.Storage.ReadRoute(routeName, time.Now().Add(-timeframe), time.Now())
+		if err != nil {
+			data = storage.Metric{}
+		}
+		marshalAndReturn(w, req, data)
 
-	if err != nil {
-		log.Errorf(err.Error())
-		returnError(w, req, 500, err, nil)
-		return
+	} else {
+		steps := int(timeframe / granularity)
+		data := make(map[time.Time]storage.Metric, steps)
+
+		for i := 0; i < steps; i++ {
+			maxTime := time.Now().Add(-timeframe + granularity)
+			data[maxTime] = s.Gateway.MetricsRepo.Storage.ReadRoute(routeName, time.Now().Add(-timeframe), maxTime)
+			timeframe = timeframe - granularity
+			if err != nil {
+				// errors are ignored and just empty metrics are returned instead
+				data[maxTime] = storage.Metric{}
+			}
+
+		}
+		marshalAndReturn(w, req, data)
 	}
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(b)
 }
 
 func (s *StateMgt) GetPromMetrics(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
-	b, err := json.Marshal(s.Gateway.MetricsRepo.PromMetrics.Metrics)
-	if err != nil {
-		returnError(w, req, 500, err, nil)
-	}
+	var metrics interface{}
 
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(b)
+	route := req.URL.Query().Get("route")
+	backend := req.URL.Query().Get("backend")
+
+	if route != "" {
+		if metricsOfRoute, found := s.Gateway.MetricsRepo.PromMetrics.Metrics[route]; found {
+			metrics = metricsOfRoute
+		}
+	} else if backend != "" {
+
+		backendID, err := uuid.Parse(backend)
+		if err != nil {
+			err := fmt.Errorf("Unable to parse backendID from query parameter (%v)", err)
+			log.Error(err)
+			returnError(w, req, 400, err, nil)
+			return
+		}
+
+		for _, b := range s.Gateway.MetricsRepo.PromMetrics.Metrics {
+			for id := range b {
+				if id == backendID {
+					metrics = b[id]
+				}
+			}
+		}
+	} else {
+		metrics = s.Gateway.MetricsRepo.PromMetrics.Metrics
+	}
+	marshalAndReturn(w, req, metrics)
 }
 
 func (s *StateMgt) GetActiveAlerts(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"io/ioutil"
 
 	"gopkg.in/yaml.v3"
@@ -14,15 +13,6 @@ import (
 	"github.com/prometheus/common/log"
 	"gopkg.in/dealancer/validate.v2"
 )
-
-func JsonUnmarshal(b []byte) (*gateway.Gateway, error) {
-	var out *gateway.Gateway
-	err := json.Unmarshal(b, out)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
 
 type UnmarshalFunc func(data []byte, v interface{}) error
 

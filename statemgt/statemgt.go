@@ -67,8 +67,8 @@ func (s *StateMgt) Start() {
 	router.Handle("DELETE", "/v1/routes/:name/switchover", SetupHeaders(s.DeleteSwitchover))
 
 	// monitoring
-	router.Handle("GET", "/v1/monitoring/routes", SetupHeaders(s.GetMetricsOfAllRoutes))
-	router.Handle("GET", "/v1/monitoring/backends", SetupHeaders(s.GetMetricsOfAllBackends))
+	router.Handle("GET", "/v1/monitoring/routes/", SetupHeaders(s.GetMetricsOfAllRoutes))
+	router.Handle("GET", "/v1/monitoring/backends/", SetupHeaders(s.GetMetricsOfAllBackends))
 	router.Handle("GET", "/v1/monitoring/backends/:id", SetupHeaders(s.GetMetricsOfBackend))
 	router.Handle("GET", "/v1/monitoring/routes/:name", SetupHeaders(s.GetMetricsOfRoute))
 	router.Handle("GET", "/v1/monitoring", SetupHeaders(s.GetMetricsData))
@@ -172,4 +172,14 @@ func readBodyAndUnmarshal(req *http.Request, out interface{}) error {
 	}
 
 	return nil
+}
+
+func SetupHeaders(h httprouter.Handle) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET")
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, Methods, Content-Type")
+
+		h(w, r, ps)
+	}
 }

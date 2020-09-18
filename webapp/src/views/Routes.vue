@@ -12,8 +12,7 @@
         style="margin: 5px;"
         @click="getRoutes"
         :disabled="currentlyLoading"
-        >mdi-refresh</v-icon
-      >
+      >mdi-refresh</v-icon>
 
       <!-- Open a pop up with configs for route-->
       <v-icon size="32" style="margin: 5px;" @click="sayHello">mdi-plus</v-icon>
@@ -30,48 +29,44 @@
     </v-row>
     <v-row>
       <v-col xs12 class="text-center" mt-3>
-        <List :data="this.routes"></List>
+        <p v-if="routes.keys().length == 0">No routes found.</p>
+        <div>
+          <v-row v-for="(item) in routes" :key="item.name">
+            <RouteComponent :route="item"></RouteComponent>
+          </v-row>
+        </div>
       </v-col>
     </v-row>
   </v-container>
 </template>
 
 <script>
-import List from "@/components/List.vue";
-
+import RouteComponent from "@/components/RouteComponent.vue";
+import { mapState } from "vuex";
 export default {
   name: "Routes",
   components: {
-    List
+    RouteComponent
   },
   data: () => {
-    return {
-      info: null,
-      showRunning: true,
-      showIdle: true
-    };
+    return {};
   },
   created() {
-    this.$store.commit("pullRoutes");
+    this.$store.commit("pullRoute");
+    console.log("Routes: ", this.routes);
   },
-  mounted() {
-    this.info = this.$store.getters.getRoutes;
-  },
+  mounted() {},
   methods: {
     sayHello() {
       console.log("hello world");
     },
     getRoutes() {
-      this.$store.commit("pullRoutes");
+      this.$store.commit("pullRoute");
     }
   },
-  computed: {
-    currentlyLoading: function() {
-      return this.$store.getters.getLoading;
-    },
-    routes: function() {
-      return this.$store.getters.getRoutes;
-    }
-  }
+  computed: mapState({
+    routes: state => state.routes,
+    currentlyLoading: state => state.loading
+  })
 };
 </script>

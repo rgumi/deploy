@@ -3,20 +3,13 @@
 [![Build Status](https://travis-ci.com/rgumi/depoy.svg?branch=master)](https://travis-ci.com/rgumi/depoy)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=rgumi_deploy&metric=alert_status)](https://sonarcloud.io/dashboard?id=rgumi_deploy)
 
-## Execute Sonarqube
+Depoy is an API-Gateway which natively supports Continous Deployment (CD) of RESTful-Application. It evaluates the state of an upstream application by collecting HTTP-Connection metrics and by scraping the Prometheus-Endpoint of the upstream application - if provided. It integrates into Prometheus and offers a reactive web-application for configuration and monitoring.
 
-- cd src
-- go test ./... -coverprofile="coverage-report.out"
-- go test ./... -json > test-report.out
+![API-Gateway functionality](images/APIGAtewayOverview.png "API-Gateway functionality")
 
-```properties
-sonar.projectKey=depoy
-sonar.sourceEncoding=UTF-8
-sonar.host.url=http://localhost:9000
-sonar.exclusions=**/*_test.go,**/vendor/**
-sonar.test.inclusuins=**/*_test.go
-sonar.test.exclusions=**/vendor/**
-sonar.sources=.
-sonar.go.tests.reportPaths=test-report.out
-sonar.go.coverage.reportPaths=coverage-report.out
-```
+
+## Architecture
+
+The API-Gateway is built using Go for all backend tasks and Vue for the web-application. 
+
+![Depoy components](images/OverviewDiagram.png "Depoy Components")

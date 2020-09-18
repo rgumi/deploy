@@ -3,7 +3,7 @@ ENV NODE_ENV=production
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 WORKDIR /usr/src/app
-COPY vue ./
+COPY webapp ./
 RUN npm install
 RUN npm run build
 

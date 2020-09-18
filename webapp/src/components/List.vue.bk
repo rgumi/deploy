@@ -8,8 +8,7 @@
             :size="25"
             v-bind:class="{ rotate: !showRunning }"
             style="margin-right: 5px"
-            >mdi-arrow-down-bold-circle-outline</v-icon
-          >Running Routes
+          >mdi-arrow-down-bold-circle-outline</v-icon>Running Routes
         </v-btn>
       </v-row>
 
@@ -28,8 +27,7 @@
             :size="25"
             v-bind:class="{ rotate: !showIdle }"
             style="margin-right: 5px"
-            >mdi-arrow-down-bold-circle-outline</v-icon
-          >Idle Routes
+          >mdi-arrow-down-bold-circle-outline</v-icon>Idle Routes
         </v-btn>
       </v-row>
 
@@ -56,7 +54,7 @@ export default {
     };
   },
   props: {
-    data: Object
+    data: {}
   },
   computed: {
     runningRoutes: function() {
