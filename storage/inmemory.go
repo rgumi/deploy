@@ -125,21 +125,6 @@ func (st *LocalStorage) ReadData() map[string]map[uuid.UUID]map[time.Time]Metric
 	return st.data
 }
 
-// ReadAllRoutes returns all metrics in data that are within the given timeframe
-func (st *LocalStorage) ReadAllRoutes(start, end time.Time) map[string]Metric {
-
-	st.mux.RLock()
-	defer st.mux.RUnlock()
-
-	m := make(map[string]Metric)
-
-	for name := range st.data {
-		metric := st.ReadRoute(name, start, end)
-		m[name] = metric
-	}
-	return m
-}
-
 // ReadBackend returns all metrics for the backend that are within the given timeframe
 func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Metric, error) {
 
@@ -166,26 +151,6 @@ func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Me
 		}
 	}
 	return Metric{}, fmt.Errorf("Could not find provided backend %v", backend)
-}
-
-// ReadAllBackends returns all metrics by backend that are withing the given timeframe
-func (st *LocalStorage) ReadAllBackends(start, end time.Time) map[string]map[uuid.UUID]Metric {
-
-	metricsByBackends := make(map[string]map[uuid.UUID]Metric)
-	for routeName, backends := range st.data {
-
-		metricsByBackends[routeName] = make(map[uuid.UUID]Metric)
-		for backendID := range backends {
-
-			m, err := st.ReadBackend(backendID, start, end)
-			if err != nil {
-				panic(err)
-			}
-			metricsByBackends[routeName][backendID] = m
-		}
-	}
-
-	return metricsByBackends
 }
 
 // ReadRoute returns all metrics for the route that are within the given timeframe
@@ -220,35 +185,6 @@ func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 
 	// not found
 	return Metric{}
-}
-
-// ReadRatesOfBackend makes rates (average) of all metrics of the backend within the given timeframe
-func (st *LocalStorage) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
-
-	m := make(map[string]float64)
-
-	current, err := st.ReadBackend(backend, start, end)
-
-	if err != nil {
-		return nil, err
-	}
-	// there were no responses yet
-	if current.TotalResponses == 0 {
-		current.TotalResponses = 1
-	}
-
-	m["2xxRate"] = float64(current.ResponseStatus200 / current.TotalResponses)
-	m["3xxRate"] = float64(current.ResponseStatus300 / current.TotalResponses)
-	m["4xxRate"] = float64(current.ResponseStatus400 / current.TotalResponses)
-	m["5xxRate"] = float64(current.ResponseStatus500 / current.TotalResponses)
-	m["6xxRate"] = float64(current.ResponseStatus600 / current.TotalResponses)
-	m["ResponseTime"] = current.ResponseTime
-	m["ContentLength"] = float64(current.ContentLength)
-
-	for customScrapeMetricName, customScrapeMetricValue := range current.CustomMetrics {
-		m[customScrapeMetricName] = customScrapeMetricValue
-	}
-	return m, nil
 }
 
 /*

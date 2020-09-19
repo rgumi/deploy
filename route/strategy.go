@@ -168,6 +168,9 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 	return func(w http.ResponseWriter, req *http.Request) {
+
+		defer req.Body.Close()
+
 		//var err error
 		var b []byte
 
@@ -180,14 +183,13 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 		b, _ = ioutil.ReadAll(req.Body)
 
-		defer req.Body.Close()
-
 		resp, m, err := r.sendRequestToUpstream(currentTarget, req, b)
 		if err != nil {
 			log.Warnf("Unable to send request to upstream client: %v", err)
 			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
+		defer resp.Body.Close()
 		m.ContentLength = int64(sendResponse(resp, w))
 		r.MetricsRepo.InChannel <- m
 	}
@@ -199,6 +201,9 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 	return func(w http.ResponseWriter, req *http.Request) {
+
+		defer req.Body.Close()
+
 		//var err error
 		var b []byte
 		var err error
@@ -234,7 +239,6 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 	forward:
 
 		b, _ = ioutil.ReadAll(req.Body)
-		defer req.Body.Close()
 
 		resp, m, err := r.sendRequestToUpstream(currentTarget, req, b)
 		if err != nil {
@@ -242,6 +246,8 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
+		defer resp.Body.Close()
+
 		m.ContentLength = int64(sendResponse(resp, w))
 		r.MetricsRepo.InChannel <- m
 	}
@@ -251,6 +257,7 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 // if a routing header is found, the request is routed to the specified backend
 func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
 		var b []byte
 
 		// check if header exist
@@ -258,7 +265,6 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 			// header is set therefore new backend will be used
 			// headerValue is ignored
 			b, _ = ioutil.ReadAll(req.Body)
-			defer req.Body.Close()
 
 			resp, m, err := r.sendRequestToUpstream(new, req, b)
 			if err != nil {
@@ -273,7 +279,6 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 
 		// header is not set therefore old backend is used
 		b, _ = ioutil.ReadAll(req.Body)
-		defer req.Body.Close()
 
 		resp, m, err := r.sendRequestToUpstream(old, req, b)
 		if err != nil {
@@ -281,6 +286,8 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
+		defer resp.Body.Close()
+
 		m.ContentLength = int64(sendResponse(resp, w))
 		r.MetricsRepo.InChannel <- m
 		return
@@ -292,11 +299,11 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 // returned. Both responses can then be compared
 func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
 		var b []byte
 
 		// send request to old backend
 		b, _ = ioutil.ReadAll(req.Body)
-		defer req.Body.Close()
 
 		currentTarget, err := r.getNextBackend()
 		if err != nil {
@@ -311,6 +318,7 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 			http.Error(w, "Unable to send request to upstream client", 503)
 			return
 		}
+		defer resp.Body.Close()
 
 		m.ContentLength = int64(sendResponse(resp, w))
 		r.MetricsRepo.InChannel <- m
@@ -320,13 +328,13 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 			b, _ = ioutil.ReadAll(req.Body)
 			defer req.Body.Close()
 
-			resp, m, err = r.sendRequestToUpstream(shadow, req, b)
+			respShadow, m, err := r.sendRequestToUpstream(shadow, req, b)
 			if err != nil {
 				log.Warnf("Unable to send request to upstream client: %v", err)
 				return
 			}
-			b, _ = ioutil.ReadAll(resp.Body)
-			defer resp.Body.Close()
+			b, _ = ioutil.ReadAll(respShadow.Body)
+			defer respShadow.Body.Close()
 			m.ContentLength = int64(len(b))
 			r.MetricsRepo.InChannel <- m
 		}()

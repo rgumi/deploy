@@ -3,8 +3,12 @@ dist
 .git
 .gitignore
 __pycache__
-*.yaml
 *.bk
 .scannerwork
 *.properties
 pkg
+.scannerwork
+examples
+http-test
+images
+packrd

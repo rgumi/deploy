@@ -4,7 +4,7 @@ matrix:
       node_js:
         - "node"
       before_script:
-        - cd vue
+        - cd webapp
       script:
         - npm install
         - npm run build

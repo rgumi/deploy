@@ -342,8 +342,8 @@ func (r *Route) healthCheck(backend *Backend) bool {
 		log.Error(err.Error())
 		return false
 	}
-
 	resp, m, err := r.Client.Send(req)
+	defer resp.Body.Close()
 	if err != nil {
 
 		log.Infof("Healthcheck for %v failed due to %v", backend.ID, err)

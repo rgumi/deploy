@@ -51,7 +51,6 @@ func appendHostToXForwardHeader(r http.Header, host string) {
 func sendResponse(resp *http.Response, w http.ResponseWriter) int {
 	log.Debug("Sending response to downstream client")
 	b, _ := ioutil.ReadAll(resp.Body)
-	defer resp.Body.Close()
 
 	copyHeaders(resp.Header, w.Header())
 

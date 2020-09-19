@@ -45,8 +45,6 @@ var (
 
 type Storage interface {
 	Write(string, uuid.UUID, map[string]float64, int64, int64, int)
-	ReadAllRoutes(start, end time.Time) map[string]storage.Metric
-	ReadAllBackends(start, end time.Time) map[string]map[uuid.UUID]storage.Metric
 	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
 	ReadBackend(backend uuid.UUID, start, end time.Time) (storage.Metric, error)
 	ReadRoute(route string, start, end time.Time) storage.Metric
@@ -82,6 +80,7 @@ type ScrapeMetrics struct {
 
 type MonitoredBackend struct {
 	ID                 uuid.UUID
+	Route              string
 	ScrapeURL          string
 	Errors             int
 	nextTimeout        time.Duration
@@ -141,6 +140,7 @@ func (m *Repository) RegisterBackend(
 
 	newBackend := &MonitoredBackend{
 		ID:                 backendID,
+		Route:              routeName,
 		ScrapeURL:          scrapeURL,
 		Errors:             0,
 		nextTimeout:        0,
@@ -506,6 +506,135 @@ func (m *Repository) GetActiveAlerts() map[uuid.UUID]map[string]*Alert {
 		alertMap[id] = backend.activeAlerts
 	}
 	return alertMap
+}
+
+// ReadAllBackends returns all metrics by backend that are withing the given timeframe
+func (m *Repository) ReadAllBackends(start, end time.Time, granularity time.Duration) (map[string]map[uuid.UUID]map[time.Time]storage.Metric, error) {
+
+	metricsByBackends := make(map[string]map[uuid.UUID]map[time.Time]storage.Metric)
+	for backendID, backend := range m.Backends {
+
+		metricsByBackends[backend.Route] = make(map[uuid.UUID]map[time.Time]storage.Metric)
+
+		metrics, err := m.ReadBackend(backendID, start, end, granularity)
+		if err != nil {
+			return nil, err
+		}
+		metricsByBackends[backend.Route][backendID] = metrics
+	}
+
+	return metricsByBackends, nil
+}
+
+// ReadAllRoutes returns all metrics in data that are within the given timeframe
+func (m *Repository) ReadAllRoutes(start, end time.Time, granularity time.Duration) (map[string]map[time.Time]storage.Metric, error) {
+
+	var err error
+
+	metricsByRoute := make(map[string]map[time.Time]storage.Metric)
+
+	for _, backend := range m.Backends {
+		if _, found := metricsByRoute[backend.Route]; !found {
+			metricsByRoute[backend.Route], err = m.ReadRoute(backend.Route, start, end, granularity)
+		}
+	}
+	return metricsByRoute, err
+}
+
+func (m *Repository) ReadBackend(backendID uuid.UUID, start, end time.Time, granularity time.Duration) (map[time.Time]storage.Metric, error) {
+
+	var err error
+
+	if _, found := m.Backends[backendID]; !found {
+		return nil, fmt.Errorf("Could not find backend with ID %v", backendID)
+	}
+
+	if granularity == 0 {
+		granularity = MonitoringGranularity
+	}
+
+	timeframe := end.Sub(start)
+
+	if timeframe < granularity {
+		return nil, fmt.Errorf("Timeframe must be greater than granulartiy (%v > %v)", timeframe, granularity)
+	}
+
+	// only return avg over the timeframe
+	if timeframe == granularity {
+		data := make(map[time.Time]storage.Metric, 1)
+		data[time.Now()], err = m.Storage.ReadBackend(backendID, start, end)
+
+		if err != nil {
+
+			return nil, err
+		}
+		return data, err
+
+	}
+
+	steps := int(timeframe / granularity)
+	data := make(map[time.Time]storage.Metric, steps)
+	maxTime := start
+	for i := 0; i < steps; i++ {
+
+		maxTime = maxTime.Add(granularity)
+
+		data[maxTime], err = m.Storage.ReadBackend(backendID, start, maxTime)
+		if err != nil {
+			// errors are ignored and just empty metrics are returned instead
+			data[maxTime] = storage.Metric{}
+		}
+		start = maxTime
+	}
+
+	return data, nil
+}
+
+func (m *Repository) ReadRoute(routeName string, start, end time.Time, granularity time.Duration) (map[time.Time]storage.Metric, error) {
+
+	var err error
+
+	if granularity == 0 {
+		granularity = MonitoringGranularity
+	}
+
+	// if granularity is greater than the timeframe, return an error
+	// granualrity < MonitoringGranularity is ignored
+	timeframe := end.Sub(start)
+	if timeframe < granularity {
+		return nil, fmt.Errorf("Timeframe must be greater than granulartiy (%v must be larger than %v)", timeframe, granularity)
+	}
+
+	// only return avg over the timeframe
+	if timeframe == granularity {
+		data := make(map[time.Time]storage.Metric, 1)
+		data[end] = m.Storage.ReadRoute(routeName, start, end)
+
+		if err != nil {
+
+			return nil, err
+		}
+		return data, nil
+
+	}
+	steps := int(timeframe / granularity)
+	data := make(map[time.Time]storage.Metric, steps)
+	maxTime := start
+
+	for i := 0; i < steps; i++ {
+
+		maxTime = maxTime.Add(granularity)
+
+		data[maxTime] = m.Storage.ReadRoute(routeName, start, maxTime)
+		if err != nil {
+			// errors are ignored and just empty metrics are returned instead
+			data[maxTime] = storage.Metric{}
+		}
+
+		start = maxTime
+	}
+	return data, nil
+
 }
 
 /*
