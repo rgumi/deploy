@@ -5,6 +5,7 @@ ARG HTTPS_PROXY
 WORKDIR /usr/src/app
 COPY webapp ./
 RUN npm install
+RUN npm list -g --depth 0
 RUN npm run build
 
 FROM golang:1.15 AS goBuilder
