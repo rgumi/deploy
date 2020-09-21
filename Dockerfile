@@ -5,7 +5,9 @@ ARG HTTPS_PROXY
 WORKDIR /usr/src/app
 COPY webapp/package*.json ./
 RUN npm install
+RUN ls -ltr node_modules/.bin
 RUN npm install -g @vue/cli
+RUN ls -ltr node_modules/.bin
 COPY webapp ./
 RUN npm run build
 
