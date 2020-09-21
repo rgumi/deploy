@@ -21,11 +21,13 @@ func (s *StateMgt) GetStaticFiles(w http.ResponseWriter, r *http.Request, _ http
 }
 
 func (s *StateMgt) GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	w.WriteHeader(200)
 	html, err := s.Box.Find("index.html")
 	if err != nil {
-		http.Error(w, "", 500)
+		log.Error(err)
+		returnError(w, r, 500, err, nil)
+		return
 	}
+	w.WriteHeader(200)
 	w.Write(html)
 }
 
