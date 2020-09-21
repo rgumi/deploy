@@ -52,14 +52,13 @@ type Route struct {
 	mux             sync.RWMutex
 }
 
+// New creates a new route-object with the provided config
 func New(
 	name, prefix, rewrite, host, proxy string,
 	methods []string,
 	timeout, idleTimeout time.Duration,
 	doHealthCheck bool,
 ) (*Route, error) {
-
-	fmt.Println(timeout, idleTimeout)
 
 	route := new(Route)
 

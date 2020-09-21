@@ -6,7 +6,7 @@ import (
 )
 
 func Test_NewClient(t *testing.T) {
-	uc := NewDefaultClient()
+	uc := NewClient(100, 5*time.Second, 30*time.Second, "", false)
 	client := uc.GetClient()
 	expectedTimeout := 5000 * time.Millisecond
 	if client.Timeout != expectedTimeout {

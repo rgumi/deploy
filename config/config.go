@@ -13,10 +13,10 @@ import (
 	"gopkg.in/dealancer/validate.v2"
 )
 
+// UnmarshalFunc implements the UnmarshalFunc interface
 type UnmarshalFunc func(data []byte, v interface{}) error
 
-func parseDuration(data []byte) {}
-
+// ParseFromBinary uses the provided unmarshalFunc to create a new gateway object from b
 func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error) {
 	var err error
 	myGateway := &gateway.Gateway{}
@@ -31,8 +31,6 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 	if err != nil {
 		return nil, err
 	}
-
-	myGateway.SaveConfigToFile("examples/test.yaml")
 
 	newGateway := gateway.NewGateway(
 		myGateway.Addr,
@@ -99,17 +97,16 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 	return newGateway, nil
 }
 
+// LoadFromFile can be used at startup to read the config from a yaml-file
 func LoadFromFile(file string) *gateway.Gateway {
 
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
-		log.Error(err)
-		return nil
+		panic(err)
 	}
 	g, err := ParseFromBinary(yaml.Unmarshal, b)
 	if err != nil {
-		log.Error(err)
-		return nil
+		panic(err)
 	}
 	return g
 }
