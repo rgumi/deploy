@@ -6,7 +6,7 @@ variables:
   GO_VERSION: 1.15
 
 stages:
-  - build-vue
+  - buildvue
   - build
   - test
 
@@ -16,7 +16,7 @@ cache:
   paths:
     - target/
 
-build-vue:vue:
+buildvue:vue:
   stage: build
   tags:
     - run_docker
