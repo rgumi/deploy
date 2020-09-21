@@ -36,10 +36,10 @@ build:go:
     - run_docker
   image: golang:$GO_VERSION
   script:
-    - ls -ltr
     - ls -ltr webapp/dist
     - go env -w GOOS=linux GOARCH=amd64 CGO_ENABLED=0 
     - go get -u github.com/gobuffalo/packr/packr
+    - ls -ltr
     - packr build -a -o depoy .
   artifacts:
     paths:
