@@ -3,7 +3,7 @@
 variables:
   TAG: $CI_COMMIT_REF_NAME
   PROXY: "http://$WB_HTTP_PROXY_HOST:$WB_HTTP_PROXY_PORT"
-  GO_VERSION: 1.15
+  GO_VERSION: "1.15"
 
 stages:
   - buildvue
