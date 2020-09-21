@@ -16,10 +16,6 @@ cache:
 
 build:docker:
   stage: build
-  only:
-    refs:
-      - master
-      - tags
   tags:
     - run_shell
   script:
