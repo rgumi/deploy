@@ -3,8 +3,10 @@
 variables:
   TAG: $CI_COMMIT_REF_NAME
   PROXY: "http://$WB_HTTP_PROXY_HOST:$WB_HTTP_PROXY_PORT"
+  GO_VERSION: 1.15
 
 stages:
+  - build-vue
   - build
   - test
 
@@ -13,6 +15,34 @@ cache:
   policy: pull-push
   paths:
     - target/
+
+build-vue:vue:
+  stage: build
+  tags:
+    - run_docker
+  image: node
+  script:
+    - cd webapp
+    - npm install 
+    - npm run build
+  artifacts:
+    paths:
+      - webapp/dist
+    expire_in: 1 hour
+
+build:go:
+  stage: build
+  tags:
+    - run_docker
+  image: golang:$GO_VERSION
+  script:
+    - go env -w GOOS=linux -w GOARCH=amd64 -w CGO_ENABLED=0 
+    - go get -u github.com/gobuffalo/packr/packr
+    - packr build -a -o depoy .
+  artifacts:
+    paths:
+      - depoy
+    expire_in: 1 hour
 
 build:docker:
   stage: build
@@ -27,9 +57,3 @@ build:docker:
 
     - docker push $MTR_URL/depoy:$TAG
     - docker image rm $MTR_URL/depoy:$TAG
-
-  artifacts:
-    paths:
-      - target/depoy
-
-    expire_in: 1 hour
