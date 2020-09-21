@@ -14,7 +14,7 @@ cache:
   key: ${CI_COMMIT_REF_SLUG}
   policy: pull-push
   paths:
-    - target/
+    - webapp/dist
 
 build:vue:
   stage: build1
@@ -36,6 +36,8 @@ build:go:
     - run_docker
   image: golang:$GO_VERSION
   script:
+    - ls -ltr
+    - ls -ltr webapp/dist
     - go env -w GOOS=linux GOARCH=amd64 CGO_ENABLED=0 
     - go get -u github.com/gobuffalo/packr/packr
     - packr build -a -o depoy .
