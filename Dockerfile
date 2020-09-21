@@ -1,5 +1,5 @@
 FROM node AS vueBuilder
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 WORKDIR /usr/src/app
