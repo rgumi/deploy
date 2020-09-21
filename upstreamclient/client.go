@@ -32,9 +32,8 @@ func NewDefaultClient() UpstreamClient {
 	return client
 }
 
-func NewClient(maxIdleConns,
-	timeoutMs,
-	idleConnTimeoutMs int,
+func NewClient(maxIdleConns int,
+	timeout, idleConnTimeout time.Duration,
 	proxy string,
 	tlsVerify bool) UpstreamClient {
 
@@ -48,7 +47,7 @@ func NewClient(maxIdleConns,
 		client.Proxy = ""
 	}
 
-	client.configClient(maxIdleConns, timeoutMs, idleConnTimeoutMs, 0, 0, true)
+	client.configClient(maxIdleConns, timeout, idleConnTimeout, 0, 0, true)
 	return client
 }
 
@@ -71,11 +70,11 @@ func (uc *upstreamClient) getProxy(_ *http.Request) (*url.URL, error) {
 }
 
 func (uc *upstreamClient) configClient(
-	maxIdleConns,
-	timeoutMs,
-	idleConnTimeoutMs,
-	responseHeaderTimeoutMs,
-	tlsHandshakeTimeoutMs int,
+	maxIdleConns int,
+	timeout,
+	idleConnTimeout,
+	responseHeaderTimeout,
+	tlsHandshakeTimeout time.Duration,
 	tlsVerify bool) {
 
 	// if a proxy is required it will be set
@@ -98,11 +97,10 @@ func (uc *upstreamClient) configClient(
 			}).DialContext,
 			MaxIdleConnsPerHost:   maxIdleConns,
 			MaxIdleConns:          maxIdleConns,
-			IdleConnTimeout:       time.Duration(idleConnTimeoutMs) * time.Millisecond,
-			ResponseHeaderTimeout: time.Duration(responseHeaderTimeoutMs) * time.Millisecond,
-			TLSHandshakeTimeout:   time.Duration(tlsHandshakeTimeoutMs) * time.Millisecond,
-
-			DisableCompression: true,
+			IdleConnTimeout:       idleConnTimeout,
+			ResponseHeaderTimeout: responseHeaderTimeout,
+			TLSHandshakeTimeout:   tlsHandshakeTimeout,
+			DisableCompression:    true,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: tlsVerify,
 			},
@@ -111,7 +109,7 @@ func (uc *upstreamClient) configClient(
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Timeout: time.Duration(timeoutMs) * time.Millisecond,
+		Timeout: timeout,
 	}
 }
 

@@ -28,7 +28,7 @@ routes:
                 name: Test2
                 addr: http://localhost:9090
                 weight: 100
-                active: false
+                active: true
                 scrape_url: http://localhost:9091/metrics
                 scrape_metrics:
                     - go_goroutines
@@ -47,7 +47,7 @@ routes:
                 name: Test1
                 addr: http://localhost:7070
                 weight: 100
-                active: false
+                active: true
                 scrape_url: http://localhost:7071/metrics
                 scrape_metrics:
                     - go_goroutines
@@ -86,31 +86,12 @@ routes:
         idleTimeout: 10s
         proxy: ""
         backends:
-            931a7ab0-01a4-4a26-af40-b4e211745df4:
-                id: 931a7ab0-01a4-4a26-af40-b4e211745df4
-                name: Test2
-                addr: http://localhost:9090
-                weight: 0
-                active: false
-                scrape_url: http://localhost:9091/metrics
-                scrape_metrics:
-                    - go_goroutines
-                metric_thresholds:
-                    - metric: ResponseTime
-                      operator: '>'
-                      threshold: 1000
-                      active_for: 10s
-                    - metric: 6xxRate
-                      operator: '>'
-                      threshold: 0.1
-                      active_for: 10s
-                healthcheck_url: http://localhost:9090/
             9ceb0690-e941-41a1-a3f9-048e3364055d:
                 id: 9ceb0690-e941-41a1-a3f9-048e3364055d
                 name: Test1
                 addr: http://localhost:7070
                 weight: 100
-                active: false
+                active: true
                 scrape_url: http://localhost:7071/metrics
                 scrape_metrics:
                     - go_goroutines
@@ -132,6 +113,25 @@ routes:
                       threshold: 0.6
                       active_for: 10s
                 healthcheck_url: http://localhost:7070/
+            931a7ab0-01a4-4a26-af40-b4e211745df4:
+                id: 931a7ab0-01a4-4a26-af40-b4e211745df4
+                name: Test2
+                addr: http://localhost:9090
+                weight: 0
+                active: true
+                scrape_url: http://localhost:9091/metrics
+                scrape_metrics:
+                    - go_goroutines
+                metric_thresholds:
+                    - metric: ResponseTime
+                      operator: '>'
+                      threshold: 1000
+                      active_for: 10s
+                    - metric: 6xxRate
+                      operator: '>'
+                      threshold: 0.1
+                      active_for: 10s
+                healthcheck_url: http://localhost:9090/
     RouteSlippery:
         name: RouteSlippery
         prefix: /slippery/
@@ -153,7 +153,7 @@ routes:
                 name: Test3
                 addr: http://localhost:9090
                 weight: 0
-                active: false
+                active: true
                 scrape_url: http://localhost:9091/metrics
                 scrape_metrics:
                     - go_goroutines
@@ -172,7 +172,7 @@ routes:
                 name: Test2
                 addr: http://localhost:9090
                 weight: 100
-                active: false
+                active: true
                 scrape_url: http://localhost:9091/metrics
                 scrape_metrics:
                     - go_goroutines
@@ -191,7 +191,7 @@ routes:
                 name: Test1
                 addr: http://localhost:9090
                 weight: 100
-                active: false
+                active: true
                 scrape_url: http://localhost:9091/metrics
                 scrape_metrics:
                     - go_goroutines
@@ -226,7 +226,7 @@ routes:
                 name: Test1
                 addr: http://localhost:7070
                 weight: 100
-                active: false
+                active: true
                 scrape_url: http://localhost:7071/metrics
                 scrape_metrics:
                     - go_goroutines
@@ -237,7 +237,7 @@ routes:
                 name: Test2
                 addr: http://localhost:9090
                 weight: 100
-                active: false
+                active: true
                 scrape_url: http://localhost:9091/metrics
                 scrape_metrics:
                     - go_goroutines

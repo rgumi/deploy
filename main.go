@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/rgumi/depoy/config"
 	"github.com/rgumi/depoy/gateway"
@@ -48,7 +49,7 @@ func main() {
 	} else {
 		// if no config file is configured, a new instance will be started
 
-		g = gateway.NewGateway(":8080", 5000, 5000)
+		g = gateway.NewGateway(":8080", 5*time.Second, 5*time.Second, 5*time.Second)
 	}
 
 	/*

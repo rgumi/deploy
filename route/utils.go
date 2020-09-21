@@ -123,3 +123,49 @@ func checkCookie(req *http.Request, name string) (string, time.Time) {
 	}
 	return cookie.Value, cookie.Expires
 }
+
+type GatewayError interface {
+	Error() string
+	Code() int
+}
+
+// NewGatewayError returns a new instance of GatewayError which
+// implements the error-Interface and also returns the status code
+// based on the net.Error
+func NewGatewayError(err error) GatewayError {
+	// if net.Error
+	if err, ok := err.(net.Error); ok {
+
+		if err.Timeout() {
+
+			return &gatewayError{
+				code: 504,
+				s:    "Upstream connection timed out",
+			}
+		}
+		return &gatewayError{
+			code: 502,
+			s:    "Upstream service is unable to handle request",
+		}
+		// every other error
+	} else if err != nil {
+		return &gatewayError{
+			code: 500,
+			s:    "Server is  unable to handle request",
+		}
+	}
+	return nil
+}
+
+type gatewayError struct {
+	code int
+	s    string
+}
+
+func (e *gatewayError) Error() string {
+	return e.s
+}
+
+func (e *gatewayError) Code() int {
+	return e.code
+}

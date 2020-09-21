@@ -27,26 +27,28 @@ var (
 
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
-	mux          sync.Mutex                `yaml:"-" json:"-"`
-	Addr         string                    `yaml:"addr" json:"addr" validate:"empty=false"`
-	ReadTimeout  int                       `yaml:"read_timeout" json:"read_timeout" default:"5000"`
-	WriteTimeout int                       `yaml:"write_timeout" json:"write_timeout" default:"5000"`
-	Routes       map[string]*route.Route   `yaml:"routes" json:"routes"`
-	Router       map[string]*router.Router `yaml:"-" json:"-"`
-	MetricsRepo  *metrics.Repository       `yaml:"-" json:"-"`
-	server       http.Server               `yaml:"-" json:"-"`
+	mux            sync.Mutex                `yaml:"-" json:"-"`
+	Addr           string                    `yaml:"addr" json:"addr" validate:"empty=false"`
+	ReadTimeout    time.Duration             `yaml:"read_timeout" json:"read_timeout" default:"5s"`
+	WriteTimeout   time.Duration             `yaml:"write_timeout" json:"write_timeout" default:"5s"`
+	ScrapeInterval time.Duration             `yaml:"scrape_interval" json:"scrape_interval" default:"5s"`
+	Routes         map[string]*route.Route   `yaml:"routes" json:"routes"`
+	Router         map[string]*router.Router `yaml:"-" json:"-"`
+	MetricsRepo    *metrics.Repository       `yaml:"-" json:"-"`
+	server         http.Server               `yaml:"-" json:"-"`
 }
 
 //NewGateway returns a new instance of Gateway
-func NewGateway(addr string, readTimeout, writeTimeout int) *Gateway {
+func NewGateway(addr string, readTimeout, writeTimeout, scrapeInterval time.Duration) *Gateway {
 	g := new(Gateway)
 
 	// initialize a new MetricsRepo for metric collection and evaluation
-	_, g.MetricsRepo = metrics.NewMetricsRepository(storage.NewLocalStorage(), scrapeIntervalTimeout)
+	_, g.MetricsRepo = metrics.NewMetricsRepository(storage.NewLocalStorage(), scrapeInterval)
 
 	// start the listening-loop of the MetricsRepo
 	go g.MetricsRepo.Listen()
 
+	g.ScrapeInterval = scrapeInterval
 	g.Addr = addr
 	// initialize the map for storing the routes
 	g.Routes = make(map[string]*route.Route)

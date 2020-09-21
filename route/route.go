@@ -10,6 +10,7 @@ import (
 
 	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/metrics"
+	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -20,6 +21,8 @@ var (
 	cookieTTL           = 120 * time.Second
 	monitorTimeout      = 5 * time.Second
 	activeFor           = 10 * time.Second
+	maxIdleConns        = 100
+	tlsVerify           = false
 )
 
 // UpstreamClient is an interface for the http.Client
@@ -36,23 +39,31 @@ type Route struct {
 	Rewrite         string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
 	CookieTTL       time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"2m0s"`
 	Strategy        *Strategy              `json:"strategy" yaml:"strategy"`
+	HealthCheck     bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
+	Timeout         time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
+	IdleTimeout     time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"5s"`
+	Proxy           string                 `json:"proxy" yaml:"proxy" default:""`
 	Backends        map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
+	SwitchOver      *SwitchOver            `json:"switchover" yaml:"-"`
 	Client          UpstreamClient         `json:"-" yaml:"-"`
 	NextTargetDistr []*Backend             `json:"-" yaml:"-"`
 	MetricsRepo     *metrics.Repository    `json:"-" yaml:"-"`
-	SwitchOver      *SwitchOver            `json:"switchover" yaml:"-"`
-	killHealthCheck chan int               `json:"-" yaml:"-"`
-	mux             sync.RWMutex           `json:"-" yaml:"-"`
+	killHealthCheck chan int
+	mux             sync.RWMutex
 }
 
 func New(
-	name, prefix, rewrite, host string,
+	name, prefix, rewrite, host, proxy string,
 	methods []string,
-	upstreamClient UpstreamClient,
+	timeout, idleTimeout time.Duration,
+	doHealthCheck bool,
 ) (*Route, error) {
 
+	fmt.Println(timeout, idleTimeout)
+
 	route := new(Route)
-	client := upstreamClient
+
+	client := upstreamclient.NewClient(maxIdleConns, timeout, idleTimeout, proxy, tlsVerify)
 	route.Client = client
 
 	// fix prefix if prefix does not end with /
@@ -64,13 +75,19 @@ func New(
 	route.Rewrite = rewrite
 	route.Methods = methods
 	route.Host = host
+	route.Proxy = proxy
+	route.Timeout = timeout
+	route.IdleTimeout = idleTimeout
+	route.HealthCheck = doHealthCheck
 	route.Strategy = nil
 	route.Backends = make(map[uuid.UUID]*Backend)
 	route.killHealthCheck = make(chan int, 1)
 
 	route.CookieTTL = cookieTTL
 
-	go route.RunHealthCheckOnBackends()
+	if route.HealthCheck {
+		go route.RunHealthCheckOnBackends()
+	}
 
 	return route, nil
 }
@@ -185,8 +202,13 @@ func (r *Route) Reload() {
 		// when the backend is ready again, the alarm
 		// will eventually be resolved and the backend
 		// is set to active
-		go r.validateStatus(backend)
+		if r.HealthCheck {
+			go r.validateStatus(backend)
+		} else {
+			r.updateWeights()
+		}
 	}
+
 }
 
 func (r *Route) validateStatus(backend *Backend) {
@@ -207,7 +229,7 @@ func (r *Route) validateStatus(backend *Backend) {
 func (r *Route) sendRequestToUpstream(
 	target *Backend,
 	req *http.Request,
-	body []byte) (*http.Response, metrics.Metrics, error) {
+	body []byte) (*http.Response, metrics.Metrics, GatewayError) {
 
 	url := req.URL.String()
 
@@ -224,16 +246,18 @@ func (r *Route) sendRequestToUpstream(
 	// reuses TCP-Connection
 	resp, m, err := r.Client.Send(newReq)
 	if err != nil {
+		gErr := NewGatewayError(err)
 
-		target.UpdateStatus(false)
+		//target.UpdateStatus(false)
+
 		m.Route = r.Name
 		m.RequestMethod = req.Method
 		m.DownstreamAddr = req.RemoteAddr
-		m.ResponseStatus = 600
+		m.ResponseStatus = gErr.Code()
 		m.ContentLength = -1
 		m.BackendID = target.ID
 
-		return nil, m, err
+		return nil, m, gErr
 	}
 
 	m.Route = r.Name
@@ -259,7 +283,10 @@ func (r *Route) AddBackend(
 		name, addr, scrapeURL, healthCheckURL, scrapeMetrics, metricsThresholds, weight)
 
 	backend.updateWeigth = r.updateWeights
-	backend.Active = false
+
+	if r.HealthCheck {
+		backend.Active = false
+	}
 
 	for _, backend := range r.Backends {
 		if backend.Name == name {
@@ -286,8 +313,12 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 		}
 	}
 
+	// status will be set by first healthcheck
+	if r.HealthCheck {
+		backend.Active = false
+	}
+
 	backend.updateWeigth = r.updateWeights
-	backend.Active = false
 	backend.ActiveAlerts = make(map[string]metrics.Alert)
 	backend.killChan = make(chan int, 1)
 
@@ -343,23 +374,24 @@ func (r *Route) healthCheck(backend *Backend) bool {
 		return false
 	}
 	resp, m, err := r.Client.Send(req)
-	defer resp.Body.Close()
 	if err != nil {
 
 		log.Infof("Healthcheck for %v failed due to %v", backend.ID, err)
 		if backend.Active {
 			backend.UpdateStatus(false)
 		}
+		err := NewGatewayError(err)
 
 		m.Route = r.Name
 		m.RequestMethod = req.Method
 		m.DownstreamAddr = req.RemoteAddr
-		m.ResponseStatus = 600
+		m.ResponseStatus = err.Code()
 		m.ContentLength = 0
 		m.BackendID = backend.ID
 		r.MetricsRepo.InChannel <- m
 		return false
 	}
+	resp.Body.Close()
 
 	m.Route = r.Name
 	m.RequestMethod = req.Method

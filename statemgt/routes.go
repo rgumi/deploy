@@ -8,7 +8,6 @@ import (
 
 	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/route"
-	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/creasty/defaults"
 	"github.com/google/uuid"
@@ -76,8 +75,11 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		myRoute.Prefix,
 		myRoute.Rewrite,
 		myRoute.Host,
+		myRoute.Proxy,
 		myRoute.Methods,
-		upstreamclient.NewDefaultClient(),
+		myRoute.Timeout,
+		myRoute.IdleTimeout,
+		myRoute.HealthCheck,
 	)
 
 	if err != nil {
@@ -154,8 +156,11 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		myRoute.Prefix,
 		myRoute.Rewrite,
 		myRoute.Host,
+		myRoute.Proxy,
 		myRoute.Methods,
-		upstreamclient.NewDefaultClient(),
+		myRoute.Timeout,
+		myRoute.IdleTimeout,
+		myRoute.HealthCheck,
 	)
 
 	if err != nil {

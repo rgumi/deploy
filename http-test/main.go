@@ -64,9 +64,9 @@ func main() {
 	server1 := http.Server{
 		Addr:         *addr,
 		Handler:      router1,
-		ReadTimeout:  time.Second * 2,
-		WriteTimeout: time.Second * 2,
-		IdleTimeout:  time.Second * 20,
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 10,
+		IdleTimeout:  time.Second * 30,
 	}
 
 	log.Fatal(server1.ListenAndServe())

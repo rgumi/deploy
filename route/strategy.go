@@ -183,10 +183,10 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 		b, _ = ioutil.ReadAll(req.Body)
 
-		resp, m, err := r.sendRequestToUpstream(currentTarget, req, b)
-		if err != nil {
-			log.Warnf("Unable to send request to upstream client: %v", err)
-			http.Error(w, "Unable to send request to upstream client", 503)
+		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, b)
+		if gErr != nil {
+			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
+			http.Error(w, gErr.Error(), gErr.Code())
 			return
 		}
 		defer resp.Body.Close()
@@ -204,9 +204,8 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 		defer req.Body.Close()
 
-		//var err error
-		var b []byte
 		var err error
+		var b []byte
 		var currentTarget *Backend
 		cookieName := strings.ToUpper(r.Name) + "_SESSIONCOOKIE"
 
@@ -240,10 +239,10 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 		b, _ = ioutil.ReadAll(req.Body)
 
-		resp, m, err := r.sendRequestToUpstream(currentTarget, req, b)
-		if err != nil {
-			log.Warnf("Unable to send request to upstream client: %v", err)
-			http.Error(w, "Unable to send request to upstream client", 503)
+		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, b)
+		if gErr != nil {
+			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
+			http.Error(w, gErr.Error(), gErr.Code())
 			return
 		}
 		defer resp.Body.Close()
@@ -266,10 +265,10 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 			// headerValue is ignored
 			b, _ = ioutil.ReadAll(req.Body)
 
-			resp, m, err := r.sendRequestToUpstream(new, req, b)
-			if err != nil {
-				log.Warnf("Unable to send request to upstream client: %v", err)
-				http.Error(w, "Unable to send request to upstream client", 503)
+			resp, m, gErr := r.sendRequestToUpstream(new, req, b)
+			if gErr != nil {
+				log.Warnf("%s %v %s. Error: %v", r.Name, new.ID, new.Name, gErr)
+				http.Error(w, gErr.Error(), gErr.Code())
 				return
 			}
 			m.ContentLength = int64(sendResponse(resp, w))
@@ -280,10 +279,10 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 		// header is not set therefore old backend is used
 		b, _ = ioutil.ReadAll(req.Body)
 
-		resp, m, err := r.sendRequestToUpstream(old, req, b)
-		if err != nil {
-			log.Warnf("Unable to send request to upstream client: %v", err)
-			http.Error(w, "Unable to send request to upstream client", 503)
+		resp, m, gErr := r.sendRequestToUpstream(old, req, b)
+		if gErr != nil {
+			log.Warnf("%s %v %s. Error: %v", r.Name, old.ID, old.Name, gErr)
+			http.Error(w, gErr.Error(), gErr.Code())
 			return
 		}
 		defer resp.Body.Close()
@@ -312,10 +311,10 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 			return
 		}
 
-		resp, m, err := r.sendRequestToUpstream(currentTarget, req, b)
-		if err != nil {
-			log.Warnf("Unable to send request to upstream client: %v", err)
-			http.Error(w, "Unable to send request to upstream client", 503)
+		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, b)
+		if gErr != nil {
+			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
+			http.Error(w, gErr.Error(), gErr.Code())
 			return
 		}
 		defer resp.Body.Close()
@@ -328,9 +327,10 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 			b, _ = ioutil.ReadAll(req.Body)
 			defer req.Body.Close()
 
-			respShadow, m, err := r.sendRequestToUpstream(shadow, req, b)
-			if err != nil {
-				log.Warnf("Unable to send request to upstream client: %v", err)
+			respShadow, m, gErr := r.sendRequestToUpstream(shadow, req, b)
+			if gErr != nil {
+				log.Warnf("%s %v %s. Error: %v", r.Name, shadow.ID, shadow.Name, gErr)
+				http.Error(w, gErr.Error(), gErr.Code())
 				return
 			}
 			b, _ = ioutil.ReadAll(respShadow.Body)

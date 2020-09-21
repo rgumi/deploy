@@ -16,7 +16,7 @@ type Condition struct {
 	Metric      string                                   `json:"metric" yaml:"metric"`         // Name of the metric
 	Operator    string                                   `json:"operator" yaml:"operator"`     // < > ==
 	Threshold   float64                                  `json:"threshold" yaml:"threshold"`   // Threshhold that is checked
-	ActiveFor   int                                      `json:"active_for" yaml:"active_for"` // Duration for which the condition has to be met
+	ActiveFor   time.Duration                            `json:"active_for" yaml:"active_for"` // Duration for which the condition has to be met
 	TriggerTime time.Time                                `json:"trigger_time" yaml:"-"`        // time the condition was first true
 	IsTrue      func(m map[string]float64) (bool, error) `json:"-" yaml:"-"`                   // Condtional function to evaluate condition
 }
@@ -60,7 +60,7 @@ func (c *Condition) Compile() func(m map[string]float64) (bool, error) {
 
 // NewCondition returns a new condition for the given parameters
 // Initializes correctly by setting up IsTrue to a conditional function
-func NewCondition(metric, operator string, threshhold float64, activeFor int) *Condition {
+func NewCondition(metric, operator string, threshhold float64, activeFor time.Duration) *Condition {
 
 	if metric == "" || operator == "" || activeFor == 0 {
 		panic(fmt.Errorf("Parameters cannot be empty"))

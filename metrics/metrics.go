@@ -85,23 +85,23 @@ type MonitoredBackend struct {
 	Errors             int
 	nextTimeout        time.Duration
 	MetricThreshholds  []*conditional.Condition
-	AlertChannel       chan Alert        `yaml:"-" json:"-"`
-	stopMonitoring     chan int          `yaml:"-" json:"-"` // Channel to kill Monitor-Loop
-	activeAlerts       map[string]*Alert `json:"-" yaml:"-"`
+	AlertChannel       chan Alert
+	stopMonitoring     chan int // Channel to kill Monitor-Loop
+	activeAlerts       map[string]*Alert
 	ScrapeMetrics      []string
-	ScrapeMetricPuffer map[string]float64 `yaml:"-" json:"-"`
+	ScrapeMetricPuffer map[string]float64
 }
 
 type Repository struct {
 	Storage              Storage                         `yaml:"-" json:"-"`
 	PromMetrics          *PromMetrics                    `yaml:"-" json:"-"`
 	ScrapeInterval       time.Duration                   `yaml:"scrape_interval" json:"scrapeInterval"`
-	client               *http.Client                    `yaml:"-" json:"-"`
 	InChannel            chan (Metrics)                  `yaml:"-" json:"-"`
-	scrapeMetricsChannel chan (ScrapeMetrics)            `yaml:"-" json:"-"`
 	Backends             map[uuid.UUID]*MonitoredBackend `yaml:"backends" json:"backends"`
-	stopScraping         chan int                        `yaml:"-" json:"-"`
-	shutdown             chan int                        `yaml:"-" json:"-"`
+	client               *http.Client
+	scrapeMetricsChannel chan (ScrapeMetrics)
+	stopScraping         chan int
+	shutdown             chan int
 }
 
 // NewMetricsRepository creates a new instance of NewMetricsRepository
@@ -193,7 +193,7 @@ func (m *Repository) Stop() {
 	m.Storage.Stop()
 }
 
-// RegisterAlert adds a "Pending" Alert to the backend for the provided metric
+// RegisterAlert adds an Alert to the backend for the provided metric
 func (m *Repository) RegisterAlert(backendID uuid.UUID, alertType, metric string, threshold, value float64) {
 	alert := &Alert{
 		Type:       alertType,
@@ -236,7 +236,7 @@ func (m *Repository) Monitor(
 				collected, err := m.ReadRatesOfBackend(backendID, now.Add(-MonitoringGranularity), now)
 
 				if err != nil {
-					log.Debugf("Unable to obtain rates of backend for the last 10 seconds (%v)", err)
+					log.Tracef("Unable to obtain rates of backend for the last 10 seconds (%v)", err)
 					time.Sleep(timeout)
 					continue
 				}

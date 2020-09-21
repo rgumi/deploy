@@ -7,7 +7,6 @@ import (
 
 	"github.com/rgumi/depoy/gateway"
 	"github.com/rgumi/depoy/route"
-	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/creasty/defaults"
 	"github.com/prometheus/common/log"
@@ -15,6 +14,8 @@ import (
 )
 
 type UnmarshalFunc func(data []byte, v interface{}) error
+
+func parseDuration(data []byte) {}
 
 func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error) {
 	var err error
@@ -31,15 +32,29 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		return nil, err
 	}
 
+	myGateway.SaveConfigToFile("examples/test.yaml")
+
 	newGateway := gateway.NewGateway(
-		myGateway.Addr, myGateway.ReadTimeout, myGateway.WriteTimeout)
+		myGateway.Addr,
+		myGateway.ReadTimeout,
+		myGateway.WriteTimeout,
+		myGateway.ScrapeInterval,
+	)
 
 	for routeName, existingRoute := range myGateway.Routes {
 		log.Debugf("Adding existing route %v to  new Gateway", routeName)
 
 		newRoute, err := route.New(
-			existingRoute.Name, existingRoute.Prefix, existingRoute.Rewrite, existingRoute.Host,
-			existingRoute.Methods, upstreamclient.NewDefaultClient())
+			existingRoute.Name,
+			existingRoute.Prefix,
+			existingRoute.Rewrite,
+			existingRoute.Host,
+			existingRoute.Proxy,
+			existingRoute.Methods,
+			existingRoute.Timeout,
+			existingRoute.IdleTimeout,
+			existingRoute.HealthCheck,
+		)
 
 		if err != nil {
 			return nil, err

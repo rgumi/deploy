@@ -23,11 +23,11 @@ type Backend struct {
 	Scrapemetrics    []string                 `json:"scrape_metrics" yaml:"scrape_metrics"`
 	Metricthresholds []*conditional.Condition `json:"metric_thresholds" yaml:"metric_thresholds"`
 	Healthcheckurl   string                   `json:"healthcheck_url" yaml:"healthcheck_url" validate:"empty=true | format=url"`
-	AlertChan        <-chan metrics.Alert     `json:"-" yaml:"-"`
-	updateWeigth     func()                   `json:"-" yaml:"-"`
-	mux              sync.Mutex               `json:"-" yaml:"-"`
 	ActiveAlerts     map[string]metrics.Alert `json:"active_alerts" yaml:"-"`
-	killChan         chan int                 `json:"-" yaml:"-"`
+	AlertChan        <-chan metrics.Alert     `json:"-" yaml:"-"`
+	updateWeigth     func()
+	mux              sync.Mutex
+	killChan         chan int
 }
 
 // NewBackend returns a new base Target
