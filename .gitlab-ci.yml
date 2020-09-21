@@ -6,9 +6,9 @@ variables:
   GO_VERSION: "1.15"
 
 stages:
-  - buildvue
-  - build
-  - test
+  - build1
+  - build2
+  - build3
 
 cache:
   key: ${CI_COMMIT_REF_SLUG}
@@ -16,8 +16,8 @@ cache:
   paths:
     - target/
 
-buildvue:vue:
-  stage: build
+build:vue:
+  stage: build1
   tags:
     - run_docker
   image: node
@@ -31,7 +31,7 @@ buildvue:vue:
     expire_in: 1 hour
 
 build:go:
-  stage: build
+  stage: build2
   tags:
     - run_docker
   image: golang:$GO_VERSION
@@ -45,7 +45,7 @@ build:go:
     expire_in: 1 hour
 
 build:docker:
-  stage: build
+  stage: build3
   tags:
     - run_shell
   script:
