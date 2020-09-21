@@ -39,6 +39,7 @@ scan:go:
     - run_docker
   image: $MTR_URL/sonar-scanner:golang
   script:
+    - mkdir -p sonar/
     - go env -w GOOS=linux GOARCH=amd64 CGO_ENABLED=0
     - go build
 
@@ -66,7 +67,6 @@ build:go:
     - run_docker
   image: golang:$GO_VERSION
   script:
-    - mkdir sonar/ | true
     - ls -ltr webapp/dist
     - go env -w GOOS=linux GOARCH=amd64 CGO_ENABLED=0
     - go get -u github.com/gobuffalo/packr/v2/packr2
