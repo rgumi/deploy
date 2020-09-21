@@ -4,8 +4,23 @@ variables:
   TAG: $CI_COMMIT_REF_NAME
   PROXY: "http://$WB_HTTP_PROXY_HOST:$WB_HTTP_PROXY_PORT"
   GO_VERSION: "1.15"
+  SONAR_OPTS: " -Dsonar.sources=.
+    -Dsonar.projectKey=depoy
+    -Dsonar.host.url=$SONAR_HOST_URL
+    -Dsonar.login=$SONAR_AUTH_TOKEN
+    -Dsonar.gitlab.commit_sha=$CI_COMMIT_SHA
+    -Dsonar.gitlab.ref_name=$CI_COMMIT_REF_NAME
+    -Dsonar.gitlab.project_id=$CI_PROJECT_ID
+    -Dsonar.branch.name=$CI_COMMIT_REF_NAME
+    -Dsonar.go.tests.reportPaths=sonar/test-report.out
+    -Dsonar.go.coverage.reportPaths=sonar/coverage-report.out
+    -Dsonar.tests=.
+    -Dsonar.test.inclusions=./**/*_test.go
+    -Dsonar.test.exclusions=./**/vendor/**
+    --debug -Dsonar.verbose=true"
 
 stages:
+  - scan
   - build1
   - build2
   - build3
@@ -15,6 +30,20 @@ cache:
   policy: pull-push
   paths:
     - webapp/dist
+    - sonar
+
+scan:go:
+  stage: scan
+  tags:
+    - run_docker
+  image: $MTR_URL/sonar-scanner:golang
+  script:
+    - go env -w GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+    - go build
+
+    - go test ./... -coverprofile="sonar/coverage-report.out"
+    - go test ./... -json > sonar/test-report.out
+    - sonar-scanner $SONAR_OPTS
 
 build:vue:
   stage: build1
@@ -23,7 +52,7 @@ build:vue:
   image: node
   script:
     - cd webapp
-    - npm install 
+    - npm install
     - npm run build
   artifacts:
     paths:
@@ -36,14 +65,16 @@ build:go:
     - run_docker
   image: golang:$GO_VERSION
   script:
+    - mkdir sonar/ | true
     - ls -ltr webapp/dist
-    - go env -w GOOS=linux GOARCH=amd64 CGO_ENABLED=0 
+    - go env -w GOOS=linux GOARCH=amd64 CGO_ENABLED=0
     - go get -u github.com/gobuffalo/packr/v2/packr2
     - packr2 build -a -o depoy .
-    - ls -ltr
+
   artifacts:
     paths:
       - depoy
+      - sonar/
     expire_in: 1 hour
 
 build:docker:

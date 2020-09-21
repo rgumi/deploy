@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rgumi/depoy/gateway"
 	"github.com/rgumi/depoy/middleware"
 
@@ -21,23 +22,27 @@ import (
 // StateMgt is the struct that serves the vue web app
 // and holds the configurations of the Gateway including Routes, Backends etc.
 type StateMgt struct {
-	Gateway *gateway.Gateway
-	Addr    string
-	server  http.Server
-	Box     *packr.Box
+	Gateway  *gateway.Gateway
+	Addr     string
+	server   http.Server
+	promPath string
+	Box      *packr.Box
 }
 
 // NewStateMgt returns a new instance of StateMgt with given parameters
-func NewStateMgt(addr string, g *gateway.Gateway) *StateMgt {
+func NewStateMgt(addr, promPath string, g *gateway.Gateway) *StateMgt {
 	return &StateMgt{
-		Gateway: g,
-		Addr:    addr,
+		Gateway:  g,
+		Addr:     addr,
+		promPath: promPath,
 	}
 }
 
 // Start the statemgt webserver
 func (s *StateMgt) Start() {
 	router := httprouter.New()
+
+	router.Handle("GET", s.promPath, Metrics(promhttp.Handler()))
 
 	// single page app routes
 	router.Handle("GET", "/help", s.GetIndexPage)
@@ -122,6 +127,11 @@ func (s *StateMgt) Stop() {
 	Helper functions
 
 */
+func Metrics(h http.Handler) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		h.ServeHTTP(w, r)
+	}
+}
 
 func returnError(w http.ResponseWriter, req *http.Request, errCode int, err error, details []string) {
 	msg := ErrorMessage{

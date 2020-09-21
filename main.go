@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,7 +13,6 @@ import (
 	"github.com/rgumi/depoy/statemgt"
 
 	packr "github.com/gobuffalo/packr/v2"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -30,10 +28,6 @@ func main() {
 	// set global config
 	flag.Parse()
 	log.SetLevel(log.Level(config.LogLevel))
-
-	// init prometheus
-	http.Handle(config.PromPath, promhttp.Handler())
-	go http.ListenAndServe(config.PromAddr, nil)
 
 	// read config from file if configured
 	if config.ConfigFile != "" {
@@ -58,7 +52,7 @@ func main() {
 	*/
 	go g.Run()
 
-	st := statemgt.NewStateMgt(":8081", g)
+	st := statemgt.NewStateMgt(":8081", config.PromPath, g)
 
 	// package static files into binary
 	box := packr.New("files", distFilepath)

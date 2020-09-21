@@ -13,5 +13,6 @@ EXPOSE 8080/tcp
 EXPOSE 8443/tcp
 EXPOSE 8081/tcp
 EXPOSE 8084/tcp
+
 ENTRYPOINT ["./depoy"]
 CMD ["-loglevel", "5"]
