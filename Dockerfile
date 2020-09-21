@@ -3,9 +3,10 @@ ENV NODE_ENV=production
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 WORKDIR /usr/src/app
-COPY webapp ./
+COPY webapp/package*.json ./
 RUN npm install
-RUN npm list -g --depth 0
+
+COPY webapp ./
 RUN npm run build
 
 FROM golang:1.15 AS goBuilder
