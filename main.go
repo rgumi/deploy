@@ -20,6 +20,7 @@ import (
 const (
 	// web application files
 	distFilepath = "webapp/dist"
+	signalMsg    = "Received Signal%v"
 )
 
 func main() {
@@ -66,13 +67,13 @@ func main() {
 	sig := <-signalChannel
 	switch sig {
 	case os.Interrupt:
-		log.Warnf("Received Signal%v", sig)
+		log.Warnf(signalMsg, sig)
 
 	case syscall.SIGTERM:
-		log.Warnf("Received Signal%v", sig)
+		log.Warnf(signalMsg, sig)
 
 	case syscall.SIGKILL:
-		log.Warnf("Received Signal%v", sig)
+		log.Warnf(signalMsg, sig)
 	}
 
 	if config.PersistConfigOnExit && config.ConfigFile != "" {

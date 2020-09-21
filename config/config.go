@@ -23,10 +23,6 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 	defaults.Set(myGateway)
 
 	err = unmarshal(b, myGateway)
-	if err != nil {
-		return nil, err
-	}
-
 	err = validate.Validate(myGateway)
 	if err != nil {
 		return nil, err

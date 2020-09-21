@@ -26,30 +26,21 @@ func (c *Condition) Compile() func(m map[string]float64) (bool, error) {
 	switch c.Operator {
 	case "<":
 		return func(m map[string]float64) (bool, error) {
-			if _, found := m[c.Metric]; !found {
-				return false, fmt.Errorf("Unknown metric")
-			}
-			if m[c.Metric] < c.Threshold {
+			if value, found := m[c.Metric]; found && value < c.Threshold {
 				return true, nil
 			}
 			return false, nil
 		}
 	case "==":
 		return func(m map[string]float64) (bool, error) {
-			if _, found := m[c.Metric]; !found {
-				return false, fmt.Errorf("Unknown metric")
-			}
-			if m[c.Metric] == c.Threshold {
+			if value, found := m[c.Metric]; found && value == c.Threshold {
 				return true, nil
 			}
 			return false, nil
 		}
 	case ">":
 		return func(m map[string]float64) (bool, error) {
-			if _, found := m[c.Metric]; !found {
-				return false, fmt.Errorf("Unknown metric")
-			}
-			if m[c.Metric] > c.Threshold {
+			if value, found := m[c.Metric]; found && value > c.Threshold {
 				return true, nil
 			}
 			return false, nil
