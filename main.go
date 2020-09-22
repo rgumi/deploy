@@ -84,7 +84,7 @@ func main() {
 	}
 
 	if config.PersistConfigOnExit && config.ConfigFile != "" {
-		st.Gateway.SaveConfigToFile(config.ConfigFile)
+		config.WriteToFile(st.Gateway, config.ConfigFile)
 	}
 	st.Stop()
 	st.Gateway.Stop()

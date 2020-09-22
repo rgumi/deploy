@@ -19,7 +19,7 @@ type UnmarshalFunc func(data []byte, v interface{}) error
 // ParseFromBinary uses the provided unmarshalFunc to create a new gateway object from b
 func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error) {
 	var err error
-	myGateway := &gateway.Gateway{}
+	myGateway := &InputGateway{}
 	defaults.Set(myGateway)
 
 	err = unmarshal(b, myGateway)
@@ -35,8 +35,8 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		myGateway.ScrapeInterval,
 	)
 
-	for routeName, existingRoute := range myGateway.Routes {
-		log.Debugf("Adding existing route %v to  new Gateway", routeName)
+	for _, existingRoute := range myGateway.Routes {
+		log.Debugf("Adding existing route %v to  new Gateway", existingRoute.Name)
 
 		newRoute, err := route.New(
 			existingRoute.Name,
@@ -64,15 +64,15 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 			return nil, err
 		}
 
-		for backendID, backend := range existingRoute.Backends {
+		for _, backend := range existingRoute.Backends {
 
-			log.Debugf("Adding existing backend %v to Route %v", backendID, routeName)
+			log.Debugf("Adding existing backend %v to Route %v", backend.ID, existingRoute.Name)
 
 			for _, cond := range backend.Metricthresholds {
 				cond.IsTrue = cond.Compile()
 			}
 
-			_, err := newGateway.Routes[routeName].AddExistingBackend(backend)
+			_, err := newGateway.Routes[existingRoute.Name].AddExistingBackend(backend)
 
 			if err != nil {
 				return nil, err
@@ -83,11 +83,11 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		// should never return an err
 		if err != nil {
 			// rollback
-			newGateway.RemoveRoute(routeName)
+			newGateway.RemoveRoute(existingRoute.Name)
 			return nil, err
 		}
 
-		newGateway.Routes[routeName].Reload()
+		newGateway.Routes[existingRoute.Name].Reload()
 	}
 
 	newGateway.Reload()
@@ -106,4 +106,47 @@ func LoadFromFile(file string) *gateway.Gateway {
 		panic(err)
 	}
 	return g
+}
+
+func WriteToFile(g *gateway.Gateway, file string) error {
+	out := new(InputGateway)
+	out.Addr = g.Addr
+	out.ReadTimeout = g.ReadTimeout
+	out.WriteTimeout = g.WriteTimeout
+	out.ScrapeInterval = g.ScrapeInterval
+	out.Routes = []*InputRoute{}
+
+	for _, r := range g.Routes {
+		outRoute := new(InputRoute)
+		outRoute.Backends = []*route.Backend{}
+		outRoute.CookieTTL = r.CookieTTL
+		outRoute.HealthCheck = r.HealthCheck
+		outRoute.Host = r.Host
+		outRoute.IdleTimeout = r.IdleTimeout
+		outRoute.Methods = r.Methods
+		outRoute.Name = r.Name
+		outRoute.Prefix = r.Prefix
+		outRoute.Proxy = r.Proxy
+		outRoute.Rewrite = r.Rewrite
+		outRoute.Strategy = r.Strategy
+		outRoute.Timeout = r.Timeout
+
+		for _, backend := range r.Backends {
+
+			outRoute.Backends = append(outRoute.Backends, backend)
+		}
+		out.Routes = append(out.Routes, outRoute)
+	}
+
+	b, err := yaml.Marshal(out)
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(file, b, 0777)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/rgumi/depoy/conditional"
-	"github.com/rgumi/depoy/gateway"
+	"github.com/rgumi/depoy/config"
 	"github.com/rgumi/depoy/route"
 
 	"github.com/creasty/defaults"
@@ -18,19 +18,6 @@ import (
 /*
 	Routes
 */
-
-type GatewayRequest struct {
-	gateway.Gateway
-	NewRoutes []*RouteRequest `json:"routes"`
-}
-
-// RouteRequest is a wrapper for the actual Route struct
-// it replaces the map[uuid.UUID]*Backend with an array and
-// avoids the required uuid.UUID when registering a new backend/route
-type RouteRequest struct {
-	route.Route
-	NewBackends []*route.Backend `json:"backends"`
-}
 
 // GetRouteByName returns the route with given name
 func (s *StateMgt) GetRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
@@ -68,7 +55,7 @@ func (s *StateMgt) GetAllRoutes(w http.ResponseWriter, req *http.Request, _ http
 // CreateRoute creates a new Route. If route already exist, error
 func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
-	myRoute := new(RouteRequest)
+	myRoute := new(config.InputRoute)
 
 	if err := readBodyAndUnmarshal(req, myRoute); err != nil {
 		returnError(w, req, 400, err, nil)
@@ -103,7 +90,7 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		return
 	}
 
-	for _, myBackend := range myRoute.NewBackends {
+	for _, myBackend := range myRoute.Backends {
 
 		for _, cond := range myBackend.Metricthresholds {
 			cond.IsTrue = cond.Compile()
@@ -142,7 +129,7 @@ func (s *StateMgt) DeleteRouteByName(w http.ResponseWriter, req *http.Request, p
 
 // UpdateRouteByName removed route and replaces it with new route
 func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	myRoute := new(RouteRequest)
+	myRoute := new(config.InputRoute)
 	routeName := ps.ByName("name")
 
 	if err := readBodyAndUnmarshal(req, myRoute); err != nil {
@@ -188,7 +175,7 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		return
 	}
 
-	for _, myBackend := range myRoute.NewBackends {
+	for _, myBackend := range myRoute.Backends {
 
 		for _, cond := range myBackend.Metricthresholds {
 			cond.IsTrue = cond.Compile()

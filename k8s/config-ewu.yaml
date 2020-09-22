@@ -12,8 +12,7 @@ data:
     write_timeout: 10s
     scrape_interval: 5s
     routes:
-      Grafana:
-        name: Grafana
+      - name: Grafana
         prefix: /grafana/
         methods:
           - GET
@@ -28,8 +27,7 @@ data:
         idleTimeout: 5s
         proxy: ""
         backends:
-          e9cfa68e-78ab-4d90-8648-8cdc5bec0f48:
-            id: e9cfa68e-78ab-4d90-8648-8cdc5bec0f48
+          - id: e9cfa68e-78ab-4d90-8648-8cdc5bec0f48
             name: grafana1
             addr: http://grafana-web.monitoring:3000
             weight: 100

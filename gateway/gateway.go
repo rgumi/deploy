@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"sync"
 	"time"
@@ -242,21 +241,6 @@ func (g *Gateway) Stop() {
 	if err := g.server.Shutdown(ctxShutDown); err != nil {
 		log.Fatalf("gateway server shutdown failed: %v\n", err)
 	}
-}
-
-// SaveConfigToFile saves the current config of the Gateway to a file
-func (g *Gateway) SaveConfigToFile(filename string) error {
-	b, err := g.ReadConfig()
-	if err != nil {
-		return err
-	}
-
-	err = ioutil.WriteFile(filename, b, 0777)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // ReadConfig reads the current config of the Gateway and returns a []byte
