@@ -14,7 +14,7 @@ import (
 
 	packr "github.com/gobuffalo/packr/v2"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -23,12 +23,19 @@ const (
 	signalMsg    = "Received Signal%v"
 )
 
-func main() {
-	var g *gateway.Gateway
+var (
+	logger = logrus.New()
+	log    = logger.WithFields(logrus.Fields{
+		"component": "main",
+	})
+	g *gateway.Gateway
+)
 
+func main() {
 	// set global config
 	flag.Parse()
-	log.SetLevel(log.Level(config.LogLevel))
+	// log.SetFormatter(&log.JSONFormatter{})
+	logrus.SetLevel(logrus.Level(config.LogLevel))
 
 	// read config from file if configured
 	if config.ConfigFile != "" {

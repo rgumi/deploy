@@ -25,6 +25,7 @@ stages:
   - build1
   - build2
   - build3
+  - deploy
 
 cache:
   key: ${CI_COMMIT_REF_SLUG}
@@ -35,6 +36,7 @@ cache:
 
 scan:go:
   stage: scan
+  needs: []
   tags:
     - run_docker
   image: $MTR_URL/sonar-scanner:golang
@@ -49,6 +51,7 @@ scan:go:
 
 build:vue:
   stage: build1
+  needs: []
   tags:
     - run_docker
   image: node
@@ -63,6 +66,7 @@ build:vue:
 
 build:go:
   stage: build2
+  needs: ["build:vue"]
   tags:
     - run_docker
   image: golang:$GO_VERSION
@@ -80,6 +84,7 @@ build:go:
 
 build:docker:
   stage: build3
+  needs: ["build:vue", "build:go"]
   tags:
     - run_shell
   script:
@@ -91,3 +96,19 @@ build:docker:
 
     - docker push $MTR_URL/depoy:$TAG
     - docker image rm $MTR_URL/depoy:$TAG
+
+ewu:
+  stage: deploy
+  tags:
+    - run_shell
+  when: manual
+  variables:
+    OVERLAY: "/k8s"
+  script:
+    - "docker run
+      -v $PWD/k8s:/k8s
+      -e KUBE_URL=$EWU_K8S_URL
+      -e KUBE_TOKEN=$EWU_ADMIN_K8S_TOKEN
+      -e DEPOY_TAG=$TAG
+      -w ${OVERLAY}
+      mtr.external.otc.telekomcloud.com/erpk/kubectl:latest exec"

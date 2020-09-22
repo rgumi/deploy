@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: depoy-svc
+  namespace: ingress-depoy
+
+spec:
+  type: NodePort
+  ports:
+    - name: gateway
+      port: 8080
+      targetPort: 8080
+      nodePort: 33080
+    - name: admin
+      port: 8081
+      targetPort: 8081
+      nodePort: 33081
+  selector:
+    app: depoy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: depoy
+  namespace: ingress-depoy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: depoy
+  template:
+    metadata:
+      labels:
+        app: depoy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: depoy
+          imagePullPolicy: Always
+          args:
+            - "--global.loglevel=3"
+            - "--global.configfile=/etc/depoy/"
+            - "--global.persistconfig=true"
+          image: depoy
+          resources:
+            limits:
+              memory: 128Mi
+            requests:
+              cpu: "0.15"
+              memory: 128Mi
+          ports:
+            - name: gateway
+              containerPort: 8080
+              protocol: TCP
+            - name: admin
+              containerPort: 8081
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: admin
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: admin
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          volumeMounts:
+            - name: depoy-config-volume
+              mountPath: /etc/depoy/
+      volumes:
+        - name: depoy-config-volume
+          configMap:
+            defaultMode: 0555
+            name: depoy-server-conf

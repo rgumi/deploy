@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
 )
 
 type LocalStorage struct {

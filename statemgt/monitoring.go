@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/prometheus/common/log"
 )
 
 var (

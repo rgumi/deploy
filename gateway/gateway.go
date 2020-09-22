@@ -12,13 +12,17 @@ import (
 	"github.com/rgumi/depoy/route"
 	"github.com/rgumi/depoy/router"
 	"github.com/rgumi/depoy/storage"
+	"github.com/sirupsen/logrus"
 
 	yaml "gopkg.in/yaml.v3"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var (
+	logger = logrus.New()
+	log    = logger.WithFields(logrus.Fields{
+		"component": "gateway",
+	})
+
 	httpTimeout           = 10 * time.Second
 	idleTimeout           = 30 * time.Second
 	readHeaderTimeout     = 2 * time.Second
@@ -27,7 +31,6 @@ var (
 
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
-	mux            sync.Mutex                `yaml:"-" json:"-"`
 	Addr           string                    `yaml:"addr" json:"addr" validate:"empty=false"`
 	ReadTimeout    time.Duration             `yaml:"read_timeout" json:"read_timeout" default:"5s"`
 	WriteTimeout   time.Duration             `yaml:"write_timeout" json:"write_timeout" default:"5s"`
@@ -35,7 +38,8 @@ type Gateway struct {
 	Routes         map[string]*route.Route   `yaml:"routes" json:"routes"`
 	Router         map[string]*router.Router `yaml:"-" json:"-"`
 	MetricsRepo    *metrics.Repository       `yaml:"-" json:"-"`
-	server         http.Server               `yaml:"-" json:"-"`
+	server         http.Server
+	mux            sync.Mutex
 }
 
 //NewGateway returns a new instance of Gateway

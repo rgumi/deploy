@@ -5,13 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	log "github.com/sirupsen/logrus"
 )
-
-func init() {
-	log.SetLevel(log.DebugLevel)
-}
 
 func testHandle(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)

@@ -9,8 +9,6 @@ import (
 	"github.com/rgumi/depoy/metrics"
 
 	"github.com/google/uuid"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Backend struct {

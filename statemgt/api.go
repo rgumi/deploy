@@ -10,7 +10,6 @@ import (
 	"github.com/rgumi/depoy/config"
 
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 )
 
 func (s *StateMgt) GetStaticFiles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
