@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rgumi/depoy/conditional"
+	"github.com/rgumi/depoy/gateway"
 	"github.com/rgumi/depoy/route"
 
 	"github.com/creasty/defaults"
@@ -17,6 +18,11 @@ import (
 /*
 	Routes
 */
+
+type GatewayRequest struct {
+	gateway.Gateway
+	NewRoutes []*RouteRequest `json:"routes"`
+}
 
 // RouteRequest is a wrapper for the actual Route struct
 // it replaces the map[uuid.UUID]*Backend with an array and

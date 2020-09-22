@@ -30,10 +30,9 @@ data:
         backends:
           e9cfa68e-78ab-4d90-8648-8cdc5bec0f48:
             id: e9cfa68e-78ab-4d90-8648-8cdc5bec0f48
-            name: Test1
+            name: grafana1
             addr: http://grafana-web.monitoring:3000
             weight: 100
-            active: false
             metric_thresholds:          
               - metric: ResponseTime
                 operator: ">"
@@ -43,4 +42,3 @@ data:
                 operator: ">"
                 threshold: 0.1
                 active_for: 10s
-            healthcheck_url: http://localhost:7070/
