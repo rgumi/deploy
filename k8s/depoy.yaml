@@ -10,11 +10,11 @@ spec:
     - name: gateway
       port: 8080
       targetPort: 8080
-      nodePort: 33080
+      nodePort: 30800
     - name: admin
       port: 8081
       targetPort: 8081
-      nodePort: 33081
+      nodePort: 30801
   selector:
     app: depoy
 ---
