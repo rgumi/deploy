@@ -40,7 +40,7 @@ spec:
           imagePullPolicy: Always
           args:
             - "--global.loglevel=3"
-            - "--global.configfile=/etc/depoy/"
+            - "--global.configfile=/etc/depoy/gateway-config.yaml"
             - "--global.persistconfig=true"
           image: depoy
           resources:
