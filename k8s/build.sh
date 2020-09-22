@@ -1,6 +1,6 @@
 #!/bin/sh
 
-$NS=ingress-depoy
+NS=ingress-depoy
 kubectl create ns $NS |true
 
 kustomize edit set image depoy=erpk/depoy:$DEPOY_TAG
