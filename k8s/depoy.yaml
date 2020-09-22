@@ -3,6 +3,10 @@ kind: Service
 metadata:
   name: depoy-svc
   namespace: ingress-depoy
+  annotations:
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: 8081
+    prometheus.io/scrape: "true"
 
 spec:
   type: NodePort
