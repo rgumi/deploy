@@ -15,7 +15,8 @@ export default {
     LineChart
   },
   props: {
-    data: Map,
+    data: Array,
+    timestamps: Array,
     selected: String,
     title: String,
     options: {}
@@ -26,15 +27,14 @@ export default {
     };
   },
   watch: {
-    statusData: function() {
-      console.log("statusData update");
+    data: function() {
       this.fillData();
     }
   },
   methods: {
     fillData() {
       this.responseStatusData = {
-        labels: this.data.keys(),
+        labels: this.timestamps,
         datasets: [
           {
             label: "2xx",
@@ -42,10 +42,7 @@ export default {
             backgroundColor: "rgba(50, 205, 50, 0.1)",
             fill: true,
             borderWidth: 1,
-            data: this.data
-              .values()
-              .filter()
-              .map(d => d["ResponseStatus200"])
+            data: this.data.map(d => d["ResponseStatus200"])
           },
           {
             label: "3xx",
@@ -53,7 +50,7 @@ export default {
             backgroundColor: "rgba(255,216,0, 0.1)",
             fill: true,
             borderWidth: 1,
-            data: this.data.values().map(d => d["ResponseStatus300"])
+            data: this.data.map(d => d["ResponseStatus300"])
           },
           {
             label: "4xx",
@@ -61,7 +58,7 @@ export default {
             backgroundColor: "rgba(0, 0, 128,0.1)",
             fill: true,
             borderWidth: 1,
-            data: this.data.values().map(d => d["ResponseStatus400"])
+            data: this.data.map(d => d["ResponseStatus400"])
           },
           {
             label: "5xx",
@@ -69,7 +66,7 @@ export default {
             backgroundColor: "rgba(96,96,96,0.1)",
             fill: true,
             borderWidth: 1,
-            data: this.data.values().map(d => d["ResponseStatus00"])
+            data: this.data.map(d => d["ResponseStatus00"])
           },
           {
             label: "6xx",
@@ -77,7 +74,7 @@ export default {
             backgroundColor: "rgba(255, 0, 0, 0.1)",
             fill: true,
             borderWidth: 1,
-            data: this.data.values().map(d => d["ResponseStatus600"])
+            data: this.data.map(d => d["ResponseStatus600"])
           }
         ]
       };

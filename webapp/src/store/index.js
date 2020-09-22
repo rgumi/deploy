@@ -10,7 +10,7 @@ export default new Vuex.Store({
     this.startPulling();
   },
   state: {
-    baseUrl: "http://192.168.0.62:8081", //location.origin,
+    baseUrl: location.origin, //"http://192.168.0.62:8081",
     iconList: {
       running: {
         color: "success",
@@ -23,91 +23,31 @@ export default new Vuex.Store({
     },
     loading: true,
     routes: new Map(),
-    timeframe: 60,
-    granularity: 5,
-    // lists all backends of route individually
-    metricsIndivBackends: {},
-    // backends of route are merged
-    metricsSummedBackends: {},
-    cumulativeData: {},
-
-    getTimestamp: function getTimestamp() {
-      var d = new Date();
-      var time =
-        d.getHours() +
-        ":" +
-        (d.getMinutes() < 10 ? "0" : "") +
-        d.getMinutes() +
-        ":" +
-        (d.getSeconds() < 10 ? "0" : "") +
-        d.getSeconds();
-
-      return time;
-    },
-    merge(data) {
-      return Object.values(data).reduce((a, b) => {
-        for (let k in b) {
-          if (k == "CustomMetrics") {
-            if (a[k] === undefined) {
-              a[k] = {};
-            }
-            for (let cm in b[k]) {
-              a[k][cm] = (a[k][cm] || 0) + b[k][cm];
-            }
-          } else {
-            a[k] = (a[k] || 0) + b[k];
-          }
-        }
-        return a;
-      }, {});
-    },
+    timeframe: 120,
+    granularity: 10,
+    routeMetrics: {},
+    backendMetrics: {},
   },
   actions: {
     async startPulling() {
-      console.log("Initial pulling started");
       this.commit("pullRoute");
-      this.commit("pullMetrics");
+      this.commit("pullMetricForBackend");
       this.commit("pullMetricForRoute");
 
       window.setInterval(() => {
-        this.commit("pullMetrics");
-        this.commit("pullMetricsCumulative");
-      }, 5000);
+        this.commit("pullMetricForBackend");
+        this.commit("pullMetricForRoute");
+      }, this.state.granularity * 1000); // in seconds
+    },
+    async refresh() {
+      this.commit("pullRoute");
+      this.commit("pullMetricForBackend");
+      this.commit("pullMetricForRoute");
     },
   },
   methods: {},
   mutations: {
-    pullMetricForRoute: function(state, route) {
-      state.loading = true;
-      if (route === undefined) {
-        route = "";
-      }
-      console.log("Getting metrics for /routes/" + route);
-      axios
-        .get(this.state.baseUrl + "/v1/monitoring/routes/" + route, null, {
-          params: {
-            timeframe: state.timeframe,
-            granularity: state.granularity,
-          },
-          timeout: 2,
-        })
-        .then((response) => {
-          console.log(response.data);
-
-          state.loading = false;
-        })
-        .catch((error) => {
-          console.error(error);
-          state.loading = false;
-          eventBus.$emit("showEvent", {
-            icon: "mdi-alert",
-            icon_color: "error",
-            title: "Error",
-            message: error.message,
-          });
-        });
-    },
-    pullRoute: function(state, route) {
+    pullRoute: async function(state, route) {
       state.loading = true;
 
       if (route === undefined) {
@@ -123,11 +63,8 @@ export default new Vuex.Store({
           state.routes = new Array();
           if (response.data !== {}) {
             Object.keys(response.data).forEach((key) => {
-              console.log(response.data[key]);
               state.routes.push(response.data[key]);
             });
-
-            console.log("State.routes: ", state.routes);
           }
           state.loading = false;
         })
@@ -142,79 +79,44 @@ export default new Vuex.Store({
           });
         });
     },
-
-    pullMetricsCumulative: function(state) {
+    pullMetricForRoute: async function(state, route) {
       state.loading = true;
+      if (route === undefined) {
+        route = "";
+      }
       axios
-        .get(
-          this.state.baseUrl + "/v1/monitoring/prometheus",
-          {},
-          { timeout: 2 }
-        )
-        .then((response) => {
-          // if response has metrics
-
-          if (state.cumulativeData.constructor === Object) {
-            state.cumulativeData = new Map();
-          }
-
-          if (Object.keys(response.data).length > 0) {
-            console.log("Object: ", state.cumulativeData);
-
-            state.cumulativeData["timestamps"] = state.getTimestamp();
-            state.cumulativeData["metrics"] = response.data;
-          }
-          console.log("Cumulative Data: ", state.cumulativeData);
-
-          state.loading = false;
+        .get(this.state.baseUrl + "/v1/monitoring/routes/" + route, {
+          data: {},
+          params: {
+            timeframe: this.state.timeframe,
+            granularity: this.state.granularity,
+          },
+          timeout: 2000,
         })
-        .catch((error) => {
-          console.error(error);
-          state.loading = false;
-          eventBus.$emit("showEvent", {
-            icon: "mdi-alert",
-            icon_color: "error",
-            title: "Error",
-            message: error.message,
-          });
-        });
-    },
-
-    pullMetrics: function(state) {
-      state.loading = true;
-
-      console.log("Pulling metrics");
-
-      axios
-        .get(
-          this.state.baseUrl + "/v1/monitoring/backends?timeframe=5",
-          {},
-          { timeout: 2 }
-        )
         .then((response) => {
-          if (state.cumulativeData.constructor === Object) {
-            state.metricsIndivBackends = new Map();
+          var myData = response.data;
+          var myMap = new Map();
 
-            state.metricsSummedBackends = new Map();
-          }
+          Object.keys(myData).forEach((routeName) => {
+            myMap.set(routeName, new Map());
 
-          if (Object.keys(response.data).length > 0) {
-            state.metricsIndivBackends[state.getTimestamp()] = response.data;
+            Object.keys(myData[routeName]).forEach((timestamp) => {
+              var d = new Date(Date.parse(timestamp));
+              var time =
+                d.getHours() +
+                ":" +
+                (d.getMinutes() < 10 ? "0" : "") +
+                d.getMinutes() +
+                ":" +
+                (d.getSeconds() < 10 ? "0" : "") +
+                d.getSeconds();
 
-            console.log("metricsIndivBackends: ", state.metricsIndivBackends);
-            /*
-              Sum metrics by route
-            */
-            let tmpObject = new Map();
-            Object.keys(response.data).forEach((key) => {
-              tmpObject[key] = state.merge(response.data[key]);
+              myMap.get(routeName).set(time, myData[routeName][timestamp]);
             });
+          });
+          state.routeMetrics = myMap;
 
-            state.metricsSummedBackends[state.getTimestamp()] = tmpObject;
-          }
-
-          console.log("metricsSummedBackends: ", state.metricsSummedBackends);
-
+          //console.log("RouteMetrics: ", state.routeMetrics);
           state.loading = false;
         })
         .catch((error) => {
@@ -228,8 +130,63 @@ export default new Vuex.Store({
           });
         });
     },
-    incrementTimestamp: function(state) {
-      state.timestamps.push(state.getTimestamp());
+    pullMetricForBackend: async function(state, backend) {
+      state.loading = true;
+      if (backend === undefined) {
+        backend = "";
+      }
+      axios
+        .get(this.state.baseUrl + "/v1/monitoring/backends/" + backend, {
+          data: {},
+          params: {
+            timeframe: this.state.timeframe,
+            granularity: this.state.granularity,
+          },
+          timeout: 2000,
+        })
+        .then((response) => {
+          var myData = response.data;
+          var myMap = new Map();
+
+          Object.keys(myData).forEach((routeName) => {
+            myMap.set(routeName, new Map());
+
+            Object.keys(myData[routeName]).forEach((backendID) => {
+              myMap.get(routeName).set(backendID, new Map());
+
+              Object.keys(myData[routeName][backendID]).forEach((timestamp) => {
+                var d = new Date(Date.parse(timestamp));
+                var time =
+                  d.getHours() +
+                  ":" +
+                  (d.getMinutes() < 10 ? "0" : "") +
+                  d.getMinutes() +
+                  ":" +
+                  (d.getSeconds() < 10 ? "0" : "") +
+                  d.getSeconds();
+
+                myMap
+                  .get(routeName)
+                  .get(backendID)
+                  .set(time, myData[routeName][backendID][timestamp]);
+              });
+            });
+          });
+          state.backendMetrics = myMap;
+          //console.log("BackendMetrics: ", state.backendMetrics);
+
+          state.loading = false;
+        })
+        .catch((error) => {
+          console.error(error);
+          state.loading = false;
+          eventBus.$emit("showEvent", {
+            icon: "mdi-alert",
+            icon_color: "error",
+            title: "Error",
+            message: error.message,
+          });
+        });
     },
   },
   modules: {},
@@ -237,8 +194,5 @@ export default new Vuex.Store({
     getIcon: (state) => (status) => state.iconList[status],
     getRoutes: (state) => state.routes,
     getLoading: (state) => state.loading,
-    getMetricsSummedBackends: (state) => state.metricsSummedBackends,
-    getMetricsIndivBackends: (state) => state.metricsIndivBackends,
-    getTimestamps: (state) => state.timestamps,
   },
 });

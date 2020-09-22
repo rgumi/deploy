@@ -24,5 +24,5 @@ func init() {
 
 	flag.StringVar(&PromPath, "statemgt.prompath", "/metrics", "path on which Prometheus metrics are served")
 	flag.IntVar(&ReadTimeout, "statemgt.readtimeout", 5000, "read timeout of the stateMgt")
-	flag.IntVar(&WriteTimeout, "statemgt.writeTimeout", 5000, "wr9te timeout of the stateMgt")
+	flag.IntVar(&WriteTimeout, "statemgt.writeTimeout", 5000, "write timeout of the stateMgt")
 }

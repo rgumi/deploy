@@ -519,7 +519,9 @@ func (m *Repository) ReadAllBackends(start, end time.Time, granularity time.Dura
 	metricsByBackends := make(map[string]map[uuid.UUID]map[time.Time]storage.Metric)
 	for backendID, backend := range m.Backends {
 
-		metricsByBackends[backend.Route] = make(map[uuid.UUID]map[time.Time]storage.Metric)
+		if _, found := metricsByBackends[backend.Route]; !found {
+			metricsByBackends[backend.Route] = make(map[uuid.UUID]map[time.Time]storage.Metric)
+		}
 
 		metrics, err := m.ReadBackend(backendID, start, end, granularity)
 		if err != nil {

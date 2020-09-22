@@ -36,24 +36,25 @@ type UpstreamClient interface {
 }
 
 type Route struct {
-	Name            string                 `json:"name" yaml:"name" validate:"empty=false"`
-	Prefix          string                 `json:"prefix" yaml:"prefix" validate:"empty=false"`
-	Methods         []string               `json:"methods" yaml:"methods" validate:"empty=false"`
-	Host            string                 `json:"host" yaml:"host" default:"*"`
-	Rewrite         string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
-	CookieTTL       time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"5m0s"`
-	Strategy        *Strategy              `json:"strategy" yaml:"strategy"`
-	HealthCheck     bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
-	Timeout         time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
-	IdleTimeout     time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"5s"`
-	Proxy           string                 `json:"proxy" yaml:"proxy" default:""`
-	Backends        map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
-	SwitchOver      *SwitchOver            `json:"switchover" yaml:"-"`
-	Client          UpstreamClient         `json:"-" yaml:"-"`
-	NextTargetDistr []*Backend             `json:"-" yaml:"-"`
-	MetricsRepo     *metrics.Repository    `json:"-" yaml:"-"`
-	killHealthCheck chan int
-	mux             sync.RWMutex
+	Name               string                 `json:"name" yaml:"name" validate:"empty=false"`
+	Prefix             string                 `json:"prefix" yaml:"prefix" validate:"empty=false"`
+	Methods            []string               `json:"methods" yaml:"methods" validate:"empty=false"`
+	Host               string                 `json:"host" yaml:"host" default:"*"`
+	Rewrite            string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
+	CookieTTL          time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"5m0s"`
+	Strategy           *Strategy              `json:"strategy" yaml:"strategy"`
+	HealthCheck        bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
+	Timeout            time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
+	IdleTimeout        time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"5s"`
+	Proxy              string                 `json:"proxy" yaml:"proxy" default:""`
+	Backends           map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
+	SwitchOver         *SwitchOver            `json:"switchover" yaml:"-"`
+	Client             UpstreamClient         `json:"-" yaml:"-"`
+	MetricsRepo        *metrics.Repository    `json:"-" yaml:"-"`
+	NextTargetDistr    []*Backend             `json:"-" yaml:"-"`
+	lenNextTargetDistr int
+	killHealthCheck    chan int
+	mux                sync.RWMutex
 }
 
 // New creates a new route-object with the provided config
@@ -152,19 +153,18 @@ func (r *Route) updateWeights() {
 		// no active backend
 		r.NextTargetDistr = make([]*Backend, 0)
 	}
+
+	r.lenNextTargetDistr = len(r.NextTargetDistr)
+
 }
 
 func (r *Route) getNextBackend() (*Backend, error) {
 
-	numberOfBackends := len(r.NextTargetDistr)
-
-	if numberOfBackends == 0 {
+	if r.lenNextTargetDistr == 0 {
 		return nil, fmt.Errorf("No backend is active")
 	}
 
-	n := rand.Intn(numberOfBackends)
-	backend := r.NextTargetDistr[n]
-
+	backend := r.NextTargetDistr[rand.Intn(r.lenNextTargetDistr)]
 	return backend, nil
 }
 
