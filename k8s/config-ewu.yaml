@@ -12,13 +12,14 @@ data:
     write_timeout: 10s
     scrape_interval: 5s
     routes:
-      RouteSticky:
-        name: RouteSticky
-        prefix: /sticky/
+      Grafana:
+        name: Grafana
+        prefix: /grafana/
         methods:
           - GET
+          - POST
         host: "*"
-        rewrite: /
+        rewrite: /grafana/
         cookieTTL: 2m0s
         strategy:
           type: sticky
@@ -30,12 +31,9 @@ data:
           e9cfa68e-78ab-4d90-8648-8cdc5bec0f48:
             id: e9cfa68e-78ab-4d90-8648-8cdc5bec0f48
             name: Test1
-            addr: http://localhost:7070
+            addr: http://grafana-web.monitoring:3000
             weight: 100
             active: false
-            scrape_url: http://localhost:7071/metrics
-            scrape_metrics:
-              - go_goroutines
             metric_thresholds:          
               - metric: ResponseTime
                 operator: ">"
@@ -46,22 +44,3 @@ data:
                 threshold: 0.1
                 active_for: 10s
             healthcheck_url: http://localhost:7070/
-          6fcce4ff-f3c8-4918-bb30-d905f1434235:
-            id: 6fcce4ff-f3c8-4918-bb30-d905f1434235
-            name: Test2
-            addr: http://localhost:9090
-            weight: 100
-            active: false
-            scrape_url: http://localhost:9091/metrics
-            scrape_metrics:
-              - go_goroutines
-            metric_thresholds:          
-              - metric: ResponseTime
-                operator: ">"
-                threshold: 1000
-                active_for: 10s
-              - metric: 6xxRate
-                operator: ">"
-                threshold: 0.1
-                active_for: 10s
-            healthcheck_url: http://localhost:9090/
