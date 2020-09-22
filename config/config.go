@@ -47,6 +47,7 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 			existingRoute.Methods,
 			existingRoute.Timeout,
 			existingRoute.IdleTimeout,
+			existingRoute.CookieTTL,
 			existingRoute.HealthCheck,
 		)
 

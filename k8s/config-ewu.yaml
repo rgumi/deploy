@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: depoy-server-conf
+  labels:
+    name: depoy-server-conf
+  namespace: ingress-depoy
+data:
+  gateway-config.yaml: |-
+    addr: :8080
+    read_timeout: 10s
+    write_timeout: 10s
+    scrape_interval: 5s
+    routes:
+      RouteSticky:
+        name: RouteSticky
+        prefix: /sticky/
+        methods:
+          - GET
+        host: "*"
+        rewrite: /
+        cookieTTL: 2m0s
+        strategy:
+          type: sticky
+        healthcheck: true
+        timeout: 5s
+        idleTimeout: 5s
+        proxy: ""
+        backends:
+          e9cfa68e-78ab-4d90-8648-8cdc5bec0f48:
+            id: e9cfa68e-78ab-4d90-8648-8cdc5bec0f48
+            name: Test1
+            addr: http://localhost:7070
+            weight: 100
+            active: false
+            scrape_url: http://localhost:7071/metrics
+            scrape_metrics:
+              - go_goroutines
+            metric_thresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+            healthcheck_url: http://localhost:7070/
+          6fcce4ff-f3c8-4918-bb30-d905f1434235:
+            id: 6fcce4ff-f3c8-4918-bb30-d905f1434235
+            name: Test2
+            addr: http://localhost:9090
+            weight: 100
+            active: false
+            scrape_url: http://localhost:9091/metrics
+            scrape_metrics:
+              - go_goroutines
+            metric_thresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+            healthcheck_url: http://localhost:9090/

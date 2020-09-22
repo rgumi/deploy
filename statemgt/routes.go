@@ -12,7 +12,6 @@ import (
 	"github.com/creasty/defaults"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 )
 
 /*
@@ -79,6 +78,7 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		myRoute.Methods,
 		myRoute.Timeout,
 		myRoute.IdleTimeout,
+		myRoute.CookieTTL,
 		myRoute.HealthCheck,
 	)
 
@@ -160,6 +160,7 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		myRoute.Methods,
 		myRoute.Timeout,
 		myRoute.IdleTimeout,
+		myRoute.CookieTTL,
 		myRoute.HealthCheck,
 	)
 

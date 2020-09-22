@@ -6,7 +6,14 @@ import (
 	"strings"
 
 	radix "github.com/armon/go-radix"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
+)
+
+var (
+	logger = logrus.New()
+	log    = logger.WithFields(logrus.Fields{
+		"component": "router",
+	})
 )
 
 func defaultErrorHandler(w http.ResponseWriter, r *http.Request, e error) {

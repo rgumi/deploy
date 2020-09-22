@@ -13,16 +13,20 @@ import (
 	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
+	logrus "github.com/sirupsen/logrus"
 )
 
 var (
+	serverName          = "depoy/0.1.0"
 	healthCheckInterval = 5 * time.Second
-	cookieTTL           = 120 * time.Second
 	monitorTimeout      = 5 * time.Second
 	activeFor           = 10 * time.Second
 	maxIdleConns        = 100
 	tlsVerify           = false
+	logger              = logrus.New()
+	log                 = logger.WithFields(logrus.Fields{
+		"component": "route",
+	})
 )
 
 // UpstreamClient is an interface for the http.Client
@@ -37,7 +41,7 @@ type Route struct {
 	Methods         []string               `json:"methods" yaml:"methods" validate:"empty=false"`
 	Host            string                 `json:"host" yaml:"host" default:"*"`
 	Rewrite         string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
-	CookieTTL       time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"2m0s"`
+	CookieTTL       time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"5m0s"`
 	Strategy        *Strategy              `json:"strategy" yaml:"strategy"`
 	HealthCheck     bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
 	Timeout         time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
@@ -56,7 +60,7 @@ type Route struct {
 func New(
 	name, prefix, rewrite, host, proxy string,
 	methods []string,
-	timeout, idleTimeout time.Duration,
+	timeout, idleTimeout, cookieTTL time.Duration,
 	doHealthCheck bool,
 ) (*Route, error) {
 
@@ -375,7 +379,7 @@ func (r *Route) healthCheck(backend *Backend) bool {
 	resp, m, err := r.Client.Send(req)
 	if err != nil {
 
-		log.Infof("Healthcheck for %v failed due to %v", backend.ID, err)
+		log.Tracef("Healthcheck for %v failed due to %v", backend.ID, err)
 		if backend.Active {
 			backend.UpdateStatus(false)
 		}

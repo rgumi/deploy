@@ -17,10 +17,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var (
+	logger = logrus.New()
+	log    = logger.WithFields(logrus.Fields{
+		"component": "metrics",
+	})
+
 	// DefaultMetrics are the default metrics that are offered
 	DefaultMetrics = []string{
 		"ContentLength",

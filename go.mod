@@ -11,6 +11,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/common v0.13.0
+	github.com/rs/cors v1.7.0
 	github.com/sirupsen/logrus v1.6.0
 	gopkg.in/dealancer/validate.v2 v2.1.0
 	gopkg.in/yaml.v2 v2.3.0

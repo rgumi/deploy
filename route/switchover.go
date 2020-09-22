@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/rgumi/depoy/conditional"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var counter int

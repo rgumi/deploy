@@ -31,12 +31,3 @@ func SetRequestID(handler http.Handler) http.Handler {
 		handler.ServeHTTP(w, r)
 	})
 }
-
-func CorsHandler(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, Methods, Content-Type")
-		handler.ServeHTTP(w, r)
-	})
-}

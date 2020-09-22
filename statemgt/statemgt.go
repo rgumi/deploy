@@ -11,12 +11,20 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rgumi/depoy/gateway"
 	"github.com/rgumi/depoy/middleware"
+	"github.com/rs/cors"
+	"github.com/sirupsen/logrus"
 
 	"github.com/creasty/defaults"
 	"github.com/gobuffalo/packr/v2"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 	"gopkg.in/dealancer/validate.v2"
+)
+
+var (
+	logger = logrus.New()
+	log    = logger.WithFields(logrus.Fields{
+		"component": "statemgt",
+	})
 )
 
 // StateMgt is the struct that serves the vue web app
@@ -56,29 +64,29 @@ func (s *StateMgt) Start() {
 	router.Handle("POST", "/v1/config", s.SetCurrentConfig)
 
 	// gateway routes
-	router.Handle("GET", "/v1/routes/:name", SetupHeaders(s.GetRouteByName))
-	router.Handle("DELETE", "/v1/routes/:name", SetupHeaders(s.DeleteRouteByName))
-	router.Handle("GET", "/v1/routes/", SetupHeaders(s.GetAllRoutes))
-	router.Handle("POST", "/v1/routes/", SetupHeaders(s.CreateRoute))
-	router.Handle("PUT", "/v1/routes/:name", SetupHeaders(s.UpdateRouteByName))
+	router.Handle("GET", "/v1/routes/:name", s.GetRouteByName)
+	router.Handle("DELETE", "/v1/routes/:name", s.DeleteRouteByName)
+	router.Handle("GET", "/v1/routes/", s.GetAllRoutes)
+	router.Handle("POST", "/v1/routes/", s.CreateRoute)
+	router.Handle("PUT", "/v1/routes/:name", s.UpdateRouteByName)
 
 	// route backends
-	router.Handle("PATCH", "/v1/routes/:name", SetupHeaders(s.AddNewBackendToRoute))
-	router.Handle("DELETE", "/v1/routes/:name/backends/:id", SetupHeaders(s.RemoveBackendFromRoute))
+	router.Handle("PATCH", "/v1/routes/:name", s.AddNewBackendToRoute)
+	router.Handle("DELETE", "/v1/routes/:name/backends/:id", s.RemoveBackendFromRoute)
 
 	// route switchover
-	router.Handle("POST", "/v1/routes/:name/switchover", SetupHeaders(s.CreateSwitchover))
-	router.Handle("GET", "/v1/routes/:name/switchover", SetupHeaders(s.GetSwitchover))
-	router.Handle("DELETE", "/v1/routes/:name/switchover", SetupHeaders(s.DeleteSwitchover))
+	router.Handle("POST", "/v1/routes/:name/switchover", s.CreateSwitchover)
+	router.Handle("GET", "/v1/routes/:name/switchover", s.GetSwitchover)
+	router.Handle("DELETE", "/v1/routes/:name/switchover", s.DeleteSwitchover)
 
 	// monitoring
-	router.Handle("GET", "/v1/monitoring/routes/", SetupHeaders(s.GetMetricsOfAllRoutes))
-	router.Handle("GET", "/v1/monitoring/backends/", SetupHeaders(s.GetMetricsOfAllBackends))
-	router.Handle("GET", "/v1/monitoring/backends/:id", SetupHeaders(s.GetMetricsOfBackend))
-	router.Handle("GET", "/v1/monitoring/routes/:name", SetupHeaders(s.GetMetricsOfRoute))
-	router.Handle("GET", "/v1/monitoring", SetupHeaders(s.GetMetricsData))
-	router.Handle("GET", "/v1/monitoring/prometheus", SetupHeaders(s.GetPromMetrics))
-	router.Handle("GET", "/v1/monitoring/alerts", SetupHeaders(s.GetActiveAlerts))
+	router.Handle("GET", "/v1/monitoring/routes/", s.GetMetricsOfAllRoutes)
+	router.Handle("GET", "/v1/monitoring/backends/", s.GetMetricsOfAllBackends)
+	router.Handle("GET", "/v1/monitoring/backends/:id", s.GetMetricsOfBackend)
+	router.Handle("GET", "/v1/monitoring/routes/:name", s.GetMetricsOfRoute)
+	router.Handle("GET", "/v1/monitoring", s.GetMetricsData)
+	router.Handle("GET", "/v1/monitoring/prometheus", s.GetPromMetrics)
+	router.Handle("GET", "/v1/monitoring/alerts", s.GetActiveAlerts)
 
 	// etc
 	router.NotFound = http.FileServer(s.Box)
@@ -94,7 +102,7 @@ func (s *StateMgt) Start() {
 
 	s.server = http.Server{
 		Addr:              s.Addr,
-		Handler:           middleware.LogRequest(router),
+		Handler:           middleware.LogRequest(cors.Default().Handler(router)),
 		IdleTimeout:       30 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -128,8 +136,8 @@ func (s *StateMgt) Stop() {
 
 */
 func Metrics(h http.Handler) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		h.ServeHTTP(w, r)
+	return func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+		h.ServeHTTP(w, req)
 	}
 }
 
@@ -182,14 +190,4 @@ func readBodyAndUnmarshal(req *http.Request, out interface{}) error {
 	}
 
 	return nil
-}
-
-func SetupHeaders(h httprouter.Handle) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET")
-		w.Header().Set("Access-Control-Allow-Headers", "Origin, Methods, Content-Type")
-
-		h(w, r, ps)
-	}
 }
