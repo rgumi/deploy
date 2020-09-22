@@ -51,6 +51,7 @@ func (s *StateMgt) Start() {
 	router := httprouter.New()
 
 	router.Handle("GET", s.promPath, Metrics(promhttp.Handler()))
+	router.Handle("GET", "/healthz", s.HealthzHandler)
 
 	// single page app routes
 	router.Handle("GET", "/help", s.GetIndexPage)

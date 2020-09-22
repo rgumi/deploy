@@ -12,6 +12,15 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+func (s *StateMgt) HealthzHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+
+	// maybe check if gateway started!?
+
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write([]byte("{\"status\": \"ok\"}"))
+}
+
 func (s *StateMgt) GetStaticFiles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	log.Info("Returning static files")
 

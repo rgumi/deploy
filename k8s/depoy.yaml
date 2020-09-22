@@ -35,8 +35,6 @@ spec:
       labels:
         app: depoy
     spec:
-      securityContext:
-        runAsNonRoot: true
       containers:
         - name: depoy
           imagePullPolicy: Always
