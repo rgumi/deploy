@@ -17,14 +17,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	logger = logrus.New()
-	log    = logger.WithFields(logrus.Fields{
-		"component": "metrics",
-	})
 
 	// DefaultMetrics are the default metrics that are offered
 	DefaultMetrics = []string{
@@ -36,16 +32,6 @@ var (
 		"5xxRate",
 		"6xxRate",
 	}
-	// MetricsChannelPuffersize defines the maximal puffer size of the
-	// Metric Channel. This can be increased by there are too many concurrent
-	// requests and the Storage Job cannot keep up
-	MetricsChannelPuffersize = 100
-	// ScrapeMetricsChannelPuffersize defines the maximal puffer size of
-	// the Scrape Metric Channel. This should never be a problem
-	ScrapeMetricsChannelPuffersize = 50
-	// MonitoringGranularity defines the granularity of the metrics that are evaluated
-	// in the Monitoring-Job. The higher the value, the more historic data will be used
-	MonitoringGranularity = 10 * time.Second
 )
 
 type Storage interface {
@@ -92,40 +78,46 @@ type MonitoredBackend struct {
 	MetricThreshholds  []*conditional.Condition
 	AlertChannel       chan Alert
 	stopMonitoring     chan int // Channel to kill Monitor-Loop
+	stopScraping       chan int
 	activeAlerts       map[string]*Alert
 	ScrapeMetrics      []string
+	ScrapeInterval     time.Duration
 	ScrapeMetricPuffer map[string]float64
 }
 
 type Repository struct {
 	Storage              Storage                         `yaml:"-" json:"-"`
 	PromMetrics          *PromMetrics                    `yaml:"-" json:"-"`
-	ScrapeInterval       time.Duration                   `yaml:"scrape_interval" json:"scrapeInterval"`
 	InChannel            chan (Metrics)                  `yaml:"-" json:"-"`
 	Backends             map[uuid.UUID]*MonitoredBackend `yaml:"backends" json:"backends"`
+	Granularity          time.Duration
 	client               *http.Client
 	scrapeMetricsChannel chan (ScrapeMetrics)
-	stopScraping         chan int
 	shutdown             chan int
 }
 
 // NewMetricsRepository creates a new instance of NewMetricsRepository
 // return a channel for Metrics
-func NewMetricsRepository(st Storage, scrapeInterval time.Duration) (chan<- Metrics, *Repository) {
-	channel := make(chan Metrics, MetricsChannelPuffersize)
-	scrapeMetricsChannel := make(chan ScrapeMetrics, ScrapeMetricsChannelPuffersize)
+func NewMetricsRepository(
+	st Storage, granularity time.Duration,
+	metricChannelPuffersize, scrapeMetricChannelPuffersize int) (chan<- Metrics, *Repository) {
+
+	channel := make(chan Metrics, metricChannelPuffersize)
+	scrapeMetricsChannel := make(chan ScrapeMetrics, scrapeMetricChannelPuffersize)
 	log.Info("Created new metricsRepository")
-	return channel, &Repository{
+	repo := &Repository{
 		Storage:              st,
 		PromMetrics:          NewPromMetrics(),
-		ScrapeInterval:       scrapeInterval,
 		client:               http.DefaultClient,
+		Granularity:          granularity,
 		InChannel:            channel,
 		Backends:             make(map[uuid.UUID]*MonitoredBackend),
-		stopScraping:         make(chan int, 2), // CHannel to kill Scraping-Loop
-		shutdown:             make(chan int, 2), // Channel to kill Listen-Loop
+		shutdown:             make(chan int, 1), // Channel to kill Listen-Loop
 		scrapeMetricsChannel: scrapeMetricsChannel,
 	}
+	go repo.Listen()
+
+	return channel, repo
 }
 
 // RegisterBackend adds a new instance to the ScrapingJob
@@ -134,6 +126,7 @@ func (m *Repository) RegisterBackend(
 	backendID uuid.UUID,
 	scrapeURL string,
 	scrapeMetrics []string,
+	scrapeInterval time.Duration,
 	metricsTresholds []*conditional.Condition) (<-chan Alert, error) {
 
 	// check if backendID is already configured
@@ -154,11 +147,13 @@ func (m *Repository) RegisterBackend(
 		ScrapeMetricPuffer: make(map[string]float64),
 		AlertChannel:       make(chan Alert),
 		stopMonitoring:     make(chan int, 1),
+		stopScraping:       make(chan int, 1),
 		activeAlerts:       make(map[string]*Alert),
 	}
 
 	// add to PromMetrics
 	m.PromMetrics.RegisterRouteBackend(routeName, backendID)
+	go m.jobLoop(newBackend)
 
 	// append to the list
 	m.Backends[backendID] = newBackend
@@ -175,7 +170,7 @@ func (m *Repository) RemoveBackend(backendID uuid.UUID) error {
 		if key == backendID {
 			// stop monitoring job of backend
 			m.Backends[key].stopMonitoring <- 1
-
+			m.Backends[key].stopScraping <- 1
 			// Unregister backend
 			delete(m.Backends, key)
 
@@ -190,10 +185,10 @@ func (m *Repository) RemoveBackend(backendID uuid.UUID) error {
 func (m *Repository) Stop() {
 	log.Debug("Shutting down listening loop")
 	m.shutdown <- 1
-	m.stopScraping <- 1
 
 	for _, b := range m.Backends {
 		b.stopMonitoring <- 1
+		b.stopScraping <- 1
 	}
 	m.Storage.Stop()
 }
@@ -238,7 +233,7 @@ func (m *Repository) Monitor(
 				// read the collected metric from the storage
 				// may be an average over 1s, 10s, 1m? Configure that
 				now := time.Now()
-				collected, err := m.ReadRatesOfBackend(backendID, now.Add(-MonitoringGranularity), now)
+				collected, err := m.ReadRatesOfBackend(backendID, now.Add(-m.Granularity), now)
 
 				if err != nil {
 					log.Tracef("Unable to obtain rates of backend for the last 10 seconds (%v)", err)
@@ -335,9 +330,6 @@ func (m *Repository) Monitor(
 // Listen listens on all channels and adds Metrics to the storage
 // alarms when a treshhold is reached
 func (m *Repository) Listen() {
-
-	// start the scraping Loop
-	go m.jobLoop()
 
 	for {
 		select {
@@ -456,21 +448,17 @@ func (m *Repository) scrapeJob(instance *MonitoredBackend) {
 
 // jobLoop is a loop which executes all ScrapeInstances and waits ScrapeInterval
 // for each ScrapeInstance a goroutine scrapeJob is started
-func (m *Repository) jobLoop() {
+func (m *Repository) jobLoop(b *MonitoredBackend) {
 
 	// loop over all scrapeInstances, get metrics and then sleep
 	for {
 		select {
-		case _ = <-m.stopScraping:
+		case _ = <-b.stopScraping:
 			return
 
 		default:
-			for _, instance := range m.Backends {
-				if instance.ScrapeURL != "" {
-					go m.scrapeJob(instance)
-				}
-			}
-			time.Sleep(m.ScrapeInterval)
+			m.scrapeJob(b)
+			time.Sleep(b.ScrapeInterval)
 		}
 	}
 
@@ -557,7 +545,7 @@ func (m *Repository) ReadBackend(backendID uuid.UUID, start, end time.Time, gran
 	}
 
 	if granularity == 0 {
-		granularity = MonitoringGranularity
+		granularity = m.Granularity
 	}
 
 	timeframe := end.Sub(start)
@@ -602,7 +590,7 @@ func (m *Repository) ReadRoute(routeName string, start, end time.Time, granulari
 	var err error
 
 	if granularity == 0 {
-		granularity = MonitoringGranularity
+		granularity = m.Granularity
 	}
 
 	// if granularity is greater than the timeframe, return an error

@@ -7,6 +7,7 @@ import (
 
 	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/metrics"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/google/uuid"
 )

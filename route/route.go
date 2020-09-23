@@ -13,20 +13,16 @@ import (
 	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/google/uuid"
-	logrus "github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	serverName          = "depoy/0.1.0"
+	ServerName          = "depoy/0.1.0"
 	healthCheckInterval = 5 * time.Second
 	monitorTimeout      = 5 * time.Second
 	activeFor           = 10 * time.Second
 	maxIdleConns        = 100
 	tlsVerify           = false
-	logger              = logrus.New()
-	log                 = logger.WithFields(logrus.Fields{
-		"component": "route",
-	})
 )
 
 // UpstreamClient is an interface for the http.Client
@@ -45,7 +41,8 @@ type Route struct {
 	Strategy           *Strategy              `json:"strategy" yaml:"strategy"`
 	HealthCheck        bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
 	Timeout            time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
-	IdleTimeout        time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"5s"`
+	IdleTimeout        time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"30s"`
+	ScrapeInterval     time.Duration          `json:"scrape_interval" yaml:"scrapeInterval" default:"5s"`
 	Proxy              string                 `json:"proxy" yaml:"proxy" default:""`
 	Backends           map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
 	SwitchOver         *SwitchOver            `json:"switchover" yaml:"-"`
@@ -61,33 +58,33 @@ type Route struct {
 func New(
 	name, prefix, rewrite, host, proxy string,
 	methods []string,
-	timeout, idleTimeout, cookieTTL time.Duration,
+	timeout, idleTimeout, scrapeInterval, cookieTTL time.Duration,
 	doHealthCheck bool,
 ) (*Route, error) {
 
-	route := new(Route)
-
 	client := upstreamclient.NewClient(maxIdleConns, timeout, idleTimeout, proxy, tlsVerify)
-	route.Client = client
 
 	// fix prefix if prefix does not end with /
 	if prefix[len(prefix)-1] != '/' {
 		prefix += "/"
 	}
-	route.Name = name
-	route.Prefix = prefix
-	route.Rewrite = rewrite
-	route.Methods = methods
-	route.Host = host
-	route.Proxy = proxy
-	route.Timeout = timeout
-	route.IdleTimeout = idleTimeout
-	route.HealthCheck = doHealthCheck
-	route.Strategy = nil
-	route.Backends = make(map[uuid.UUID]*Backend)
-	route.killHealthCheck = make(chan int, 1)
-
-	route.CookieTTL = cookieTTL
+	route := &Route{
+		Name:            name,
+		Prefix:          prefix,
+		Rewrite:         rewrite,
+		Methods:         methods,
+		Host:            host,
+		Proxy:           proxy,
+		Timeout:         timeout,
+		IdleTimeout:     idleTimeout,
+		ScrapeInterval:  scrapeInterval,
+		HealthCheck:     doHealthCheck,
+		Strategy:        nil,
+		Backends:        make(map[uuid.UUID]*Backend),
+		killHealthCheck: make(chan int, 1),
+		CookieTTL:       cookieTTL,
+		Client:          client,
+	}
 
 	if route.HealthCheck {
 		go route.RunHealthCheckOnBackends()
@@ -188,7 +185,9 @@ func (r *Route) Reload() {
 
 			log.Warnf("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
 			backend.AlertChan, err = r.MetricsRepo.RegisterBackend(
-				r.Name, backend.ID, backend.Scrapeurl, backend.Scrapemetrics, backend.Metricthresholds)
+				r.Name, backend.ID, backend.Scrapeurl, backend.Scrapemetrics,
+				r.ScrapeInterval, backend.Metricthresholds,
+			)
 
 			if err != nil {
 				panic(err)

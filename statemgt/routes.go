@@ -9,6 +9,7 @@ import (
 	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/config"
 	"github.com/rgumi/depoy/route"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/creasty/defaults"
 	"github.com/google/uuid"
@@ -56,7 +57,6 @@ func (s *StateMgt) GetAllRoutes(w http.ResponseWriter, req *http.Request, _ http
 func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 
 	myRoute := new(config.InputRoute)
-
 	if err := readBodyAndUnmarshal(req, myRoute); err != nil {
 		returnError(w, req, 400, err, nil)
 		return
@@ -71,6 +71,7 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		myRoute.Methods,
 		myRoute.Timeout,
 		myRoute.IdleTimeout,
+		myRoute.ScrapeInterval,
 		myRoute.CookieTTL,
 		myRoute.HealthCheck,
 	)
@@ -153,6 +154,7 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		myRoute.Methods,
 		myRoute.Timeout,
 		myRoute.IdleTimeout,
+		myRoute.ScrapeInterval,
 		myRoute.CookieTTL,
 		myRoute.HealthCheck,
 	)

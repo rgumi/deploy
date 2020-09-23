@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 type Strategy struct {
@@ -175,7 +176,7 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 		currentTarget, err := r.getNextBackend()
 		if err != nil {
-			logger.Debugf("Could not get next backend: %v", err)
+			log.Debugf("Could not get next backend: %v", err)
 			http.Error(w, "No Upstream Host Available", 503)
 			return
 		}

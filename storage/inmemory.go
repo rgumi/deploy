@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 type LocalStorage struct {
@@ -24,15 +25,15 @@ type LocalStorage struct {
 	overview map[string]map[uuid.UUID]Metric
 }
 
-func NewLocalStorage() *LocalStorage {
+func NewLocalStorage(retentionPeriod, granularity time.Duration) *LocalStorage {
 	st := new(LocalStorage)
 	st.data = make(map[string]map[uuid.UUID]map[time.Time]Metric)
 	st.puffer = make(map[string]map[uuid.UUID][]Metric)
 	st.overview = make(map[string]map[uuid.UUID]Metric)
 	st.killChan = make(chan int, 1)
 
-	st.RetentionPeriod = 10 * time.Minute
-	st.Granularity = 5 * time.Second
+	st.RetentionPeriod = retentionPeriod
+	st.Granularity = granularity
 
 	// time for averiging and saving to data
 	go st.Job()

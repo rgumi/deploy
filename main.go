@@ -6,15 +6,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/rgumi/depoy/config"
 	"github.com/rgumi/depoy/gateway"
+	"github.com/rgumi/depoy/metrics"
 	"github.com/rgumi/depoy/statemgt"
+	"github.com/rgumi/depoy/storage"
+	log "github.com/sirupsen/logrus"
 
 	packr "github.com/gobuffalo/packr/v2"
-
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -24,10 +24,6 @@ const (
 )
 
 var (
-	logger = logrus.New()
-	log    = logger.WithFields(logrus.Fields{
-		"component": "main",
-	})
 	g *gateway.Gateway
 )
 
@@ -35,7 +31,7 @@ func main() {
 	// set global config
 	flag.Parse()
 	// log.SetFormatter(&log.JSONFormatter{})
-	logrus.SetLevel(logrus.Level(config.LogLevel))
+	log.SetLevel(log.Level(config.LogLevel))
 
 	// read config from file if configured
 	if config.ConfigFile != "" {
@@ -50,8 +46,14 @@ func main() {
 
 	} else {
 		// if no config file is configured, a new instance will be started
+		_, newMetricsRepo := metrics.NewMetricsRepository(
+			storage.NewLocalStorage(config.RetentionPeriod, config.Granulartiy),
+			config.Granulartiy, config.MetricsChannelPuffersize, config.ScrapeMetricsChannelPuffersize,
+		)
 
-		g = gateway.NewGateway(":8080", 5*time.Second, 5*time.Second, 5*time.Second)
+		g = gateway.NewGateway(":8080", newMetricsRepo,
+			config.ReadTimeout, config.WriteTimeout, config.HTTPTimeout, config.IdleTimeout,
+		)
 	}
 
 	/*
@@ -60,7 +62,7 @@ func main() {
 	*/
 	go g.Run()
 
-	st := statemgt.NewStateMgt(":8081", config.PromPath, g)
+	st := statemgt.NewStateMgt(":8081", g)
 
 	// package static files into binary
 	box := packr.New("files", distFilepath)

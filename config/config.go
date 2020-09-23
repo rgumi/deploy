@@ -1,7 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"io/ioutil"
+
+	"github.com/rgumi/depoy/storage"
+
+	"github.com/rgumi/depoy/metrics"
 
 	"gopkg.in/yaml.v3"
 
@@ -19,8 +24,11 @@ type UnmarshalFunc func(data []byte, v interface{}) error
 // ParseFromBinary uses the provided unmarshalFunc to create a new gateway object from b
 func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error) {
 	var err error
-	myGateway := &InputGateway{}
-	defaults.Set(myGateway)
+	myGateway := new(InputGateway)
+
+	if err := defaults.Set(myGateway); err != nil {
+		panic(err)
+	}
 
 	err = unmarshal(b, myGateway)
 	err = validate.Validate(myGateway)
@@ -28,15 +36,26 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		return nil, err
 	}
 
+	_, newMetricsRepo := metrics.NewMetricsRepository(
+		storage.NewLocalStorage(RetentionPeriod, Granulartiy),
+		Granulartiy, MetricsChannelPuffersize, ScrapeMetricsChannelPuffersize,
+	)
+
 	newGateway := gateway.NewGateway(
 		myGateway.Addr,
+		newMetricsRepo,
 		myGateway.ReadTimeout,
 		myGateway.WriteTimeout,
-		myGateway.ScrapeInterval,
+		myGateway.HTTPTimeout,
+		myGateway.IdleTimeout,
 	)
 
 	for _, existingRoute := range myGateway.Routes {
+		defaults.Set(existingRoute)
+
 		log.Debugf("Adding existing route %v to  new Gateway", existingRoute.Name)
+
+		fmt.Printf("%v\n", existingRoute)
 
 		newRoute, err := route.New(
 			existingRoute.Name,
@@ -47,6 +66,7 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 			existingRoute.Methods,
 			existingRoute.Timeout,
 			existingRoute.IdleTimeout,
+			existingRoute.ScrapeInterval,
 			existingRoute.CookieTTL,
 			existingRoute.HealthCheck,
 		)
@@ -113,7 +133,8 @@ func WriteToFile(g *gateway.Gateway, file string) error {
 	out.Addr = g.Addr
 	out.ReadTimeout = g.ReadTimeout
 	out.WriteTimeout = g.WriteTimeout
-	out.ScrapeInterval = g.ScrapeInterval
+	out.HTTPTimeout = g.HTTPTimeout
+	out.IdleTimeout = g.IdleTimeout
 	out.Routes = []*InputRoute{}
 
 	for _, r := range g.Routes {
@@ -130,6 +151,7 @@ func WriteToFile(g *gateway.Gateway, file string) error {
 		outRoute.Rewrite = r.Rewrite
 		outRoute.Strategy = r.Strategy
 		outRoute.Timeout = r.Timeout
+		outRoute.ScrapeInterval = r.ScrapeInterval
 
 		for _, backend := range r.Backends {
 

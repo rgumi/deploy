@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rgumi/depoy/config"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/julienschmidt/httprouter"
 )

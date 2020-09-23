@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -52,7 +54,7 @@ func sendResponse(resp *http.Response, w http.ResponseWriter) int {
 
 	copyHeaders(resp.Header, w.Header())
 
-	w.Header().Add("Server", serverName)
+	w.Header().Add("Server", ServerName)
 	w.WriteHeader(resp.StatusCode)
 	w.Write(b)
 	log.Debug("Successfully send response to downstream client")

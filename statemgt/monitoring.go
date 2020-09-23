@@ -9,10 +9,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	defaultTimeframe = 10 * time.Second
+	// DefaultTimeframe is the timeframe that will be set when the query-param is empty
+	DefaultTimeframe = 10 * time.Second
 )
 
 type ErrorMessage struct {
@@ -42,7 +44,7 @@ func getTimeDurationFromURLQuery(paramName string, req *http.Request, defaultVal
 
 func (s *StateMgt) GetMetricsOfAllRoutes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
 	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
 	if err != nil {
 		// failure in atoi
@@ -66,7 +68,7 @@ func (s *StateMgt) GetMetricsOfAllRoutes(w http.ResponseWriter, req *http.Reques
 
 func (s *StateMgt) GetMetricsOfAllBackends(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
 	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
 	if err != nil {
 		// failure in atoi
@@ -106,7 +108,7 @@ func (s *StateMgt) GetMetricsOfBackend(w http.ResponseWriter, req *http.Request,
 
 	id := ps.ByName("id")
 
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
 	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
 	if err != nil {
 		// failure in atoi
@@ -141,7 +143,7 @@ func (s *StateMgt) GetMetricsOfBackend(w http.ResponseWriter, req *http.Request,
 func (s *StateMgt) GetMetricsOfRoute(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
 	routeName := ps.ByName("name")
 
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, defaultTimeframe)
+	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
 	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
 	if err != nil {
 		// failure in atoi

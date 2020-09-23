@@ -10,48 +10,40 @@ import (
 	"github.com/rgumi/depoy/metrics"
 	"github.com/rgumi/depoy/route"
 	"github.com/rgumi/depoy/router"
-	"github.com/rgumi/depoy/storage"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	yaml "gopkg.in/yaml.v3"
 )
 
+// defaults
 var (
-	logger = logrus.New()
-	log    = logger.WithFields(logrus.Fields{
-		"component": "gateway",
-	})
-
-	httpTimeout           = 10 * time.Second
-	idleTimeout           = 30 * time.Second
-	readHeaderTimeout     = 2 * time.Second
-	scrapeIntervalTimeout = 5 * time.Second
+	ReadHeaderTimeout = 2 * time.Second
 )
 
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
-	Addr           string                    `yaml:"addr" json:"addr" validate:"empty=false"`
-	ReadTimeout    time.Duration             `yaml:"read_timeout" json:"read_timeout" default:"5s"`
-	WriteTimeout   time.Duration             `yaml:"write_timeout" json:"write_timeout" default:"5s"`
-	ScrapeInterval time.Duration             `yaml:"scrape_interval" json:"scrape_interval" default:"5s"`
-	Routes         map[string]*route.Route   `yaml:"routes" json:"routes"`
-	Router         map[string]*router.Router `yaml:"-" json:"-"`
-	MetricsRepo    *metrics.Repository       `yaml:"-" json:"-"`
-	server         http.Server
-	mux            sync.Mutex
+	Addr         string                    `yaml:"addr" json:"addr" validate:"empty=false"`
+	ReadTimeout  time.Duration             `yaml:"read_timeout" json:"read_timeout" default:"5s"`
+	WriteTimeout time.Duration             `yaml:"write_timeout" json:"write_timeout" default:"5s"`
+	HTTPTimeout  time.Duration             `yaml:"http_timeout" json:"http_timeout" default:"10s"`
+	IdleTimeout  time.Duration             `yaml:"idle_timeout" json:"idle_timeout" default:"30s"`
+	Routes       map[string]*route.Route   `yaml:"routes" json:"routes"`
+	Router       map[string]*router.Router `yaml:"-" json:"-"`
+	MetricsRepo  *metrics.Repository       `yaml:"-" json:"-"`
+	server       http.Server
+	mux          sync.Mutex
 }
 
 //NewGateway returns a new instance of Gateway
-func NewGateway(addr string, readTimeout, writeTimeout, scrapeInterval time.Duration) *Gateway {
+func NewGateway(
+	addr string, metricsRepo *metrics.Repository,
+	readTimeout, writeTimeout, httpTimeout, idleTimeout time.Duration) *Gateway {
+
 	g := new(Gateway)
 
 	// initialize a new MetricsRepo for metric collection and evaluation
-	_, g.MetricsRepo = metrics.NewMetricsRepository(storage.NewLocalStorage(), scrapeInterval)
+	g.MetricsRepo = metricsRepo
 
-	// start the listening-loop of the MetricsRepo
-	go g.MetricsRepo.Listen()
-
-	g.ScrapeInterval = scrapeInterval
 	g.Addr = addr
 	// initialize the map for storing the routes
 	g.Routes = make(map[string]*route.Route)
@@ -65,8 +57,8 @@ func NewGateway(addr string, readTimeout, writeTimeout, scrapeInterval time.Dura
 	// set timeouts
 	g.ReadTimeout = readTimeout
 	g.WriteTimeout = writeTimeout
-
-	// other timeouts are defaults for now
+	g.HTTPTimeout = httpTimeout
+	g.IdleTimeout = idleTimeout
 
 	return g
 }
@@ -106,11 +98,11 @@ func (g *Gateway) Reload() {
 func (g *Gateway) Run() {
 	g.server = http.Server{
 		Addr:              g.Addr,
-		Handler:           http.TimeoutHandler(g, httpTimeout, "HTTP Handling Timeout"),
-		WriteTimeout:      time.Duration(g.WriteTimeout) * time.Millisecond,
-		ReadTimeout:       time.Duration(g.ReadTimeout) * time.Millisecond,
-		ReadHeaderTimeout: readHeaderTimeout,
-		IdleTimeout:       idleTimeout,
+		Handler:           http.TimeoutHandler(g, g.HTTPTimeout, "HTTP Handling Timeout"),
+		WriteTimeout:      g.WriteTimeout,
+		ReadTimeout:       g.ReadTimeout,
+		ReadHeaderTimeout: ReadHeaderTimeout,
+		IdleTimeout:       g.IdleTimeout,
 	}
 
 	go func() {

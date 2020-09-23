@@ -3,6 +3,7 @@ package statemgt
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -12,7 +13,7 @@ import (
 	"github.com/rgumi/depoy/gateway"
 	"github.com/rgumi/depoy/middleware"
 	"github.com/rs/cors"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/creasty/defaults"
 	"github.com/gobuffalo/packr/v2"
@@ -21,28 +22,27 @@ import (
 )
 
 var (
-	logger = logrus.New()
-	log    = logger.WithFields(logrus.Fields{
-		"component": "statemgt",
-	})
+	IdleTimeout       = time.Duration(*flag.Int("statemgt.idleTimeout", 30, "idle timeout of connections in seconds")) * time.Second
+	ReadTimeout       = time.Duration(*flag.Int("statemgt.readTimeout", 5, "read timeout of connections in seconds")) * time.Second
+	WriteTimeout      = time.Duration(*flag.Int("statemgt.writeTimeout", 5, "write timeout of connections in seconds")) * time.Second
+	ReadHeaderTimeout = time.Duration(*flag.Int("statemgt.readHeaderTimeout", 2, "read header timeout of connections in seconds")) * time.Second
+	PromPath          = flag.String("statemgt.prompath", "/metrics", "path on which Prometheus metrics are served")
 )
 
 // StateMgt is the struct that serves the vue web app
 // and holds the configurations of the Gateway including Routes, Backends etc.
 type StateMgt struct {
-	Gateway  *gateway.Gateway
-	Addr     string
-	server   http.Server
-	promPath string
-	Box      *packr.Box
+	Gateway *gateway.Gateway
+	Addr    string
+	server  http.Server
+	Box     *packr.Box
 }
 
 // NewStateMgt returns a new instance of StateMgt with given parameters
-func NewStateMgt(addr, promPath string, g *gateway.Gateway) *StateMgt {
+func NewStateMgt(addr string, g *gateway.Gateway) *StateMgt {
 	return &StateMgt{
-		Gateway:  g,
-		Addr:     addr,
-		promPath: promPath,
+		Gateway: g,
+		Addr:    addr,
 	}
 }
 
@@ -50,7 +50,7 @@ func NewStateMgt(addr, promPath string, g *gateway.Gateway) *StateMgt {
 func (s *StateMgt) Start() {
 	router := httprouter.New()
 
-	router.Handle("GET", s.promPath, Metrics(promhttp.Handler()))
+	router.Handle("GET", *PromPath, Metrics(promhttp.Handler()))
 	router.Handle("GET", "/healthz", s.HealthzHandler)
 
 	// single page app routes
@@ -104,10 +104,10 @@ func (s *StateMgt) Start() {
 	s.server = http.Server{
 		Addr:              s.Addr,
 		Handler:           middleware.LogRequest(cors.Default().Handler(router)),
-		IdleTimeout:       30 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second,
+		IdleTimeout:       IdleTimeout,
+		ReadTimeout:       ReadTimeout,
+		WriteTimeout:      WriteTimeout,
+		ReadHeaderTimeout: ReadHeaderTimeout,
 	}
 
 	log.Info("Starting statemgt server")

@@ -1,13 +1,6 @@
 package storage
 
-import "github.com/sirupsen/logrus"
-
-var (
-	logger = logrus.New()
-	log    = logger.WithFields(logrus.Fields{
-		"component": "storage",
-	})
-)
+var ()
 
 type Metric struct {
 	TotalResponses    int
