@@ -3,6 +3,17 @@
 - [x] == solved
 - [ ] == not solved
 
+## Possible Future Features
+
+- [ ] add a tracing ID per request (and logging)
+- [ ] integrate downstream request content length as metric (currently only upstream response)
+- [ ] integrate Kubernetes service discovery
+- [ ] integrate active loadbalancing
+- [ ] add role based access + home dashboard
+- [ ] horizontal scaling
+- [ ] long term storage with time series DB
+- [ ] anomaly detection using AI
+
 ## Tasks
 
 - [x] finish switchover

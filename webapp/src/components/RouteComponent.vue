@@ -2,14 +2,48 @@
   <div class="routeWrapper elevation-3">
     <!-- Info row -->
     <v-row fluid no-gutters dense>
-      <h1>{{ route.name }}</h1>
+      <div style="min-width: 15%; text-align:left">
+        <h1 @click="show = !show" :disabled="currentlyLoading">{{ route.name }}</h1>
+      </div>
+      <v-icon
+        title="Go to switchover"
+        @click="$router.push(switchoverLink)"
+        :disabled="currentlyLoading"
+        :color="switchoverStatusColor"
+        style="margin-left: 2px"
+        v-if="route.switchover !== null"
+      >mdi-swap-horizontal</v-icon>
+
+      <v-icon
+        title="Currently active alarms"
+        :disabled="currentlyLoading"
+        style="margin-left: 2px"
+      >mdi-alarm-light</v-icon>
+
       <v-spacer></v-spacer>
-      <v-icon class="routeButton">mdi-pencil</v-icon>
-      <v-icon class="routeButton">mdi-delete</v-icon>
+      <v-icon
+        title="Edit route configuration"
+        @click="editRoute()"
+        :disabled="currentlyLoading"
+        class="routeButton editButton"
+      >mdi-pencil</v-icon>
+      <v-icon
+        title="Remove route"
+        @click="deleteRoute()"
+        :disabled="currentlyLoading"
+        class="routeButton delButton"
+      >mdi-delete</v-icon>
+      <v-icon
+        title="Toggle visibility of routes"
+        @click="show = !show"
+        class="routeButton"
+        v-bind:class="{ rotate: !show }"
+        :disabled="currentlyLoading"
+      >mdi-arrow-down-bold-circle</v-icon>
     </v-row>
     <v-divider></v-divider>
 
-    <v-row fluid no-gutters dense>
+    <v-row fluid no-gutters dense v-if="show">
       <v-col>
         <v-row fluid class="text text-left">
           <span>
@@ -30,15 +64,6 @@
         </v-row>
         <v-row fluid class="text"></v-row>
       </v-col>
-      <!-- v-on:click="$router.push(dashboadLink)"
-      <v-col>
-        <v-icon
-          size="60"
-          class="statusIcon"
-          :color="this.getIcon(route.Status).color"
-        >{{ this.getIcon(route.Status).icon }}</v-icon>
-      </v-col>
-      -->
     </v-row>
     <v-divider></v-divider>
     <!-- Links-->
@@ -50,27 +75,53 @@
 </template>
 
 <script>
+import store from "@/store/index";
 export default {
   name: "routeComponent",
   props: {
-    route: Object
+    route: Object,
+    showAll: Boolean
   },
-  created() {
-    console.log("Created RouteComponent ", this.route);
+  data() {
+    return {
+      show: false
+    };
+  },
+  watch: {
+    showAll() {
+      this.show = this.showAll;
+    }
   },
   computed: {
     routeLink: function() {
-      return "/routes/" + this.route.name;
+      return `/routes/${this.route.name}`;
     },
     dashboadLink: function() {
-      return "/dashboard/" + this.route.name;
+      return `/dashboard?route=${this.route.name}`;
+    },
+    switchoverLink: function() {
+      return `/routes/${this.route.name}#switchover`;
+    },
+    currentlyLoading: function() {
+      return store.state.loading;
+    },
+    switchoverStatusColor: function() {
+      return "success";
     }
   },
   methods: {
-    getIcon(status) {
+    getIcon: function(status) {
       status = "running";
       let icon = this.$store.getters.getIcon(status);
       return icon;
+    },
+    editRoute: function() {
+      alert(`Edit ${this.route.name}`);
+      this.$emit("edit", this.routeName);
+    },
+    deleteRoute: function() {
+      alert(`Delete ${this.route.name}`);
+      this.$emit("delete", this.routeName);
     }
   }
 };
@@ -112,5 +163,15 @@ h1 {
 
 .routeButton {
   margin: 5px;
+}
+
+.rotate {
+  transform: rotate(180deg);
+}
+.delButton:hover {
+  color: red;
+}
+.editButton:hover {
+  color: green;
 }
 </style>

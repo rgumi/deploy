@@ -66,7 +66,7 @@ export default {
             backgroundColor: "rgba(96,96,96,0.1)",
             fill: true,
             borderWidth: 1,
-            data: this.data.map(d => d["ResponseStatus00"])
+            data: this.data.map(d => d["ResponseStatus500"])
           },
           {
             label: "6xx",

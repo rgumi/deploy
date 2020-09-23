@@ -10,7 +10,6 @@
         <v-menu offset-y @mouseleave="on = false">
           <template v-slot:activator="{ on, attrs }">
             <v-btn
-              href="#Routes"
               v-bind="attrs"
               v-on="on"
               style="min-width: 150px; margin-left: 10px;"
@@ -92,9 +91,7 @@ export default {
   },
   data() {
     return {
-      // currentlyLoading: false,
-      selectedRoute: "Route",
-      responseStatusChartTitle: "Response Status of Route",
+      responseStatusChartTitle: `Response Status of Route`,
       responseStatusData: {},
       targetDistributionData: {},
       responseTimeData: {},
@@ -151,6 +148,20 @@ export default {
     };
   },
   computed: {
+    selectedRoute: {
+      get() {
+        if (this.$route.query !== null) {
+          var route = this.$route.query.route;
+          if (route !== undefined) {
+            return route;
+          }
+        }
+        return this.configuredRoutes.length > 0
+          ? this.configuredRoutes[0]
+          : "Route";
+      },
+      set() {}
+    },
     configuredRoutes: function() {
       var keys = new Array();
       Object.keys(store.state.routes).forEach(key => {
@@ -160,37 +171,45 @@ export default {
       return keys;
     },
     routeMetrics: function() {
-      return store.state.routeMetrics;
+      return this.$store.getters.getMetricsForRoute;
     },
     backendMetrics: function() {
-      return store.state.backendMetrics;
+      return this.$store.getters.getMetricsForBackend;
     },
     currentlyLoading: function() {
-      return store.state.loading;
+      return this.$store.getters.getLoading;
     },
     responseData: function() {
-      if (this.selectedRoute == "Route" || this.selectedRoute === undefined) {
+      if (
+        this.selectedRoute == "Route" ||
+        this.selectedRoute === undefined ||
+        this.routeMetrics.size == 0
+      ) {
         return [];
       }
 
-      return Array.from(
-        store.state.routeMetrics.get(this.selectedRoute).values()
-      );
+      return Array.from(this.routeMetrics.get(this.selectedRoute).values());
     },
     timestamps: function() {
-      if (this.selectedRoute == "Route" || this.selectedRoute === undefined) {
+      if (
+        this.selectedRoute == "Route" ||
+        this.selectedRoute === undefined ||
+        this.routeMetrics.size == 0
+      ) {
         return [];
       }
 
-      return Array.from(
-        store.state.routeMetrics.get(this.selectedRoute).keys()
-      );
+      return Array.from(this.routeMetrics.get(this.selectedRoute).keys());
     },
     targetDistribution() {
-      if (this.selectedRoute == "Route" || this.selectedRoute === undefined) {
+      if (
+        this.selectedRoute == "Route" ||
+        this.selectedRoute === undefined ||
+        this.backendMetrics.size == 0
+      ) {
         return [];
       }
-      var backendValues = store.state.backendMetrics.get(this.selectedRoute);
+      var backendValues = this.backendMetrics.get(this.selectedRoute);
       var values = new Array();
 
       backendValues.forEach(val => {
@@ -203,32 +222,36 @@ export default {
       return values;
     },
     targetsName() {
-      if (this.selectedRoute == "Route" || this.selectedRoute === undefined) {
+      if (
+        this.selectedRoute == "Route" ||
+        this.selectedRoute === undefined ||
+        this.backendMetrics.size == 0
+      ) {
         return [];
       }
 
-      return Array.from(
-        store.state.backendMetrics.get(this.selectedRoute).keys()
-      );
+      return Array.from(this.backendMetrics.get(this.selectedRoute).keys());
     },
     responseTimes() {
-      if (this.selectedRoute == "Route" || this.selectedRoute === undefined) {
+      if (
+        this.selectedRoute == "Route" ||
+        this.selectedRoute === undefined ||
+        this.routeMetrics.size == 0
+      ) {
         return [];
       }
 
-      return Array.from(
-        store.state.routeMetrics.get(this.selectedRoute).values()
-      ).map(d => d["ResponseTime"]);
+      return Array.from(this.routeMetrics.get(this.selectedRoute).values()).map(
+        d => d["ResponseTime"]
+      );
     }
   },
 
   watch: {
+    selectedRoute: function() {
+      this.fillData();
+    },
     routeMetrics: function() {
-      if (this.selectedRoute == "Route" || this.selectedRoute === undefined) {
-        if (this.configuredRoutes.length > 0) {
-          this.selectRoute(this.configuredRoutes[0]);
-        }
-      }
       this.fillData();
     },
     backendMetrics: function() {
@@ -237,16 +260,24 @@ export default {
   },
   methods: {
     selectRoute(routeName) {
+      if (this.selectedRoute == routeName) {
+        return;
+      }
       this.selectedRoute = routeName;
-      this.fillData();
+      this.$router.push({ query: { route: routeName } });
     },
     refreshDashboard() {
       store.dispatch("refresh");
     },
     fillData() {
-      if (this.selectedRoute == "Route" || this.selectedRoute === undefined) {
+      if (
+        this.selectedRoute == "Route" ||
+        this.selectedRoute === undefined ||
+        this.routeMetrics.size == 0
+      ) {
         return;
       }
+      // console.log("Reloading chart data");
 
       this.responseTimeData = {
         labels: this.timestamps,

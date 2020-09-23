@@ -4,6 +4,67 @@ write_timeout: 5s
 http_timeout: 10s
 idle_timeout: 30s
 routes:
+    - name: RouteShadow
+      prefix: /shadow/
+      methods:
+        - GET
+        - POST
+      host: '*'
+      rewrite: /
+      cookieTTL: 2m0s
+      strategy:
+        type: shadow
+        shadow_backend: Test2
+      healthcheck: true
+      timeout: 10s
+      idle_timeout: 30s
+      scrape_interval: 5s
+      proxy: ""
+      backends:
+        - id: c33ebc59-ce6f-45bb-b7f2-ea554db60b1e
+          name: Test2
+          addr: http://localhost:9090
+          weight: 0
+          active: false
+          scrape_url: http://localhost:9091/metrics
+          scrape_metrics:
+            - go_goroutines
+          metric_thresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              active_for: 10ns
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              active_for: 10ns
+          healthcheck_url: http://localhost:9090/
+        - id: e5af2490-b21f-4914-9627-aceb4a2df228
+          name: Test1
+          addr: http://localhost:7070
+          weight: 100
+          active: false
+          scrape_url: http://localhost:7071/metrics
+          scrape_metrics:
+            - go_goroutines
+          metric_thresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              active_for: 10ns
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              active_for: 10ns
+            - metric: 5xxRate
+              operator: '>'
+              threshold: 0.3
+              active_for: 10ns
+            - metric: 4xxRate
+              operator: '>'
+              threshold: 0.6
+              active_for: 10ns
+          healthcheck_url: http://localhost:7070/
     - name: RouteHeader
       prefix: /header/
       methods:
@@ -84,24 +145,6 @@ routes:
       scrape_interval: 5s
       proxy: ""
       backends:
-        - id: a3b93778-69ef-4754-8671-358050af93e7
-          name: Test2
-          addr: http://localhost:9090
-          weight: 100
-          active: false
-          scrape_url: http://localhost:9091/metrics
-          scrape_metrics:
-            - go_goroutines
-          metric_thresholds:
-            - metric: ResponseTime
-              operator: '>'
-              threshold: 1000
-              active_for: 10ns
-            - metric: 6xxRate
-              operator: '>'
-              threshold: 0.1
-              active_for: 10ns
-          healthcheck_url: http://localhost:9090/
         - id: 1aa5a24d-d0dd-4605-8bb6-8c60c07de49f
           name: Test1
           addr: http://localhost:7070
@@ -128,6 +171,24 @@ routes:
               threshold: 0.6
               active_for: 10ns
           healthcheck_url: http://localhost:7070/
+        - id: a3b93778-69ef-4754-8671-358050af93e7
+          name: Test2
+          addr: http://localhost:9090
+          weight: 100
+          active: false
+          scrape_url: http://localhost:9091/metrics
+          scrape_metrics:
+            - go_goroutines
+          metric_thresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              active_for: 10ns
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              active_for: 10ns
+          healthcheck_url: http://localhost:9090/
     - name: RouteSticky
       prefix: /sticky/
       methods:
@@ -173,41 +234,6 @@ routes:
         - id: 88303d60-1812-4bdb-89a9-2672946916eb
           name: Test2
           addr: http://localhost:9090
-          weight: 100
-          active: false
-          scrape_url: http://localhost:9091/metrics
-          scrape_metrics:
-            - go_goroutines
-          metric_thresholds:
-            - metric: ResponseTime
-              operator: '>'
-              threshold: 1000
-              active_for: 10ns
-            - metric: 6xxRate
-              operator: '>'
-              threshold: 0.1
-              active_for: 10ns
-          healthcheck_url: http://localhost:9090/
-    - name: RouteShadow
-      prefix: /shadow/
-      methods:
-        - GET
-        - POST
-      host: '*'
-      rewrite: /
-      cookieTTL: 2m0s
-      strategy:
-        type: shadow
-        shadow_backend: Test2
-      healthcheck: true
-      timeout: 10s
-      idle_timeout: 30s
-      scrape_interval: 5s
-      proxy: ""
-      backends:
-        - id: c33ebc59-ce6f-45bb-b7f2-ea554db60b1e
-          name: Test2
-          addr: http://localhost:9090
           weight: 0
           active: false
           scrape_url: http://localhost:9091/metrics
@@ -223,29 +249,3 @@ routes:
               threshold: 0.1
               active_for: 10ns
           healthcheck_url: http://localhost:9090/
-        - id: e5af2490-b21f-4914-9627-aceb4a2df228
-          name: Test1
-          addr: http://localhost:7070
-          weight: 100
-          active: false
-          scrape_url: http://localhost:7071/metrics
-          scrape_metrics:
-            - go_goroutines
-          metric_thresholds:
-            - metric: ResponseTime
-              operator: '>'
-              threshold: 1000
-              active_for: 10ns
-            - metric: 6xxRate
-              operator: '>'
-              threshold: 0.1
-              active_for: 10ns
-            - metric: 5xxRate
-              operator: '>'
-              threshold: 0.3
-              active_for: 10ns
-            - metric: 4xxRate
-              operator: '>'
-              threshold: 0.6
-              active_for: 10ns
-          healthcheck_url: http://localhost:7070/

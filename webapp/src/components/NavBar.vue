@@ -13,7 +13,7 @@
     <v-toolbar>
       <v-app-bar-nav-icon class="hidden-sm-and-up" @click="sidebar = !sidebar"></v-app-bar-nav-icon>
       <v-toolbar-title>
-        <router-link to="/" tag="span" style="cursor: pointer">{{ appTitle }}</router-link>
+        <router-link to="/dashboard" tag="span" style="cursor: pointer">{{ appTitle }}</router-link>
       </v-toolbar-title>
       <v-spacer></v-spacer>
       <v-toolbar-items class="hidden-xs-only">
@@ -21,10 +21,11 @@
           <v-icon left>{{ item.icon }}</v-icon>
           {{ item.title }}
         </v-btn>
-
+        <!--
         <v-btn text @click="say('clicked')">
           <v-icon left dark>mdi-more</v-icon>Newsfeed
         </v-btn>
+        -->
       </v-toolbar-items>
     </v-toolbar>
   </div>
@@ -38,7 +39,6 @@ export default {
       appTitle: "Depoy",
       sidebar: false,
       menuItems: [
-        { title: "Home", path: "/", icon: "mdi-home" },
         { title: "Dashboard", path: "/dashboard", icon: "mdi-view-dashboard" },
         { title: "Routes", path: "/routes", icon: "mdi-routes" }
       ]

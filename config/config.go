@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"io/ioutil"
 
 	"github.com/rgumi/depoy/storage"
@@ -54,8 +53,6 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		defaults.Set(existingRoute)
 
 		log.Debugf("Adding existing route %v to  new Gateway", existingRoute.Name)
-
-		fmt.Printf("%v\n", existingRoute)
 
 		newRoute, err := route.New(
 			existingRoute.Name,

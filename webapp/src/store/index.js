@@ -10,23 +10,27 @@ export default new Vuex.Store({
     this.startPulling();
   },
   state: {
-    baseUrl: location.origin, //"http://192.168.0.62:8081",
+    baseUrl: location.origin, // "http://192.168.0.62:8081",
     iconList: {
       running: {
         color: "success",
-        icon: "mdi-run",
+        icon: "mdi-check-circle",
       },
       idle: {
         color: "grey",
-        icon: "mdi-run",
+        icon: "mdi-check-circle",
+      },
+      broken: {
+        color: "red",
+        icon: "mdi-check-circle",
       },
     },
     loading: true,
-    routes: new Map(),
+    routes: new Map(), // new Map()
     timeframe: 120,
     granularity: 10,
-    routeMetrics: {},
-    backendMetrics: {},
+    routeMetrics: new Map(),
+    backendMetrics: new Map(),
   },
   actions: {
     async startPulling() {
@@ -35,9 +39,10 @@ export default new Vuex.Store({
       this.commit("pullMetricForRoute");
 
       window.setInterval(() => {
+        this.commit("pullRoute");
         this.commit("pullMetricForBackend");
         this.commit("pullMetricForRoute");
-      }, this.state.granularity * 1000); // in seconds
+      }, this.state.granularity * 1000); // in ms
     },
     async refresh() {
       this.commit("pullRoute");
@@ -192,7 +197,27 @@ export default new Vuex.Store({
   modules: {},
   getters: {
     getIcon: (state) => (status) => state.iconList[status],
-    getRoutes: (state) => state.routes,
+    getRoutes: (state) => {
+      var routes = state.routes;
+      if (routes.size == 0) {
+        return new Map();
+      }
+      return routes;
+    },
     getLoading: (state) => state.loading,
+    getMetricsForBackend: (state) => {
+      var metrics = state.backendMetrics;
+      if (metrics.size == 0) {
+        return new Map();
+      }
+      return metrics;
+    },
+    getMetricsForRoute: (state) => {
+      var metrics = state.routeMetrics;
+      if (metrics.size == 0) {
+        return new Map();
+      }
+      return metrics;
+    },
   },
 });
