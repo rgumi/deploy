@@ -382,12 +382,11 @@ func (r *Route) healthCheck(backend *Backend) bool {
 		if backend.Active {
 			backend.UpdateStatus(false)
 		}
-		err := NewGatewayError(err)
 
 		m.Route = r.Name
 		m.RequestMethod = req.Method
 		m.DownstreamAddr = req.RemoteAddr
-		m.ResponseStatus = err.Code()
+		m.ResponseStatus = 600
 		m.ContentLength = 0
 		m.BackendID = backend.ID
 		r.MetricsRepo.InChannel <- m

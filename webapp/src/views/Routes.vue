@@ -12,7 +12,8 @@
         style="margin: 5px;"
         @click="getRoutes"
         :disabled="currentlyLoading"
-      >mdi-refresh</v-icon>
+        >mdi-refresh</v-icon
+      >
 
       <!-- Open a pop up with configs for route-->
       <v-icon size="32" style="margin: 5px;" @click="sayHello">mdi-plus</v-icon>
@@ -21,9 +22,10 @@
         size="32"
         style="margin: 5px;"
         v-bind:class="{ rotate: !showAll }"
-        @click="showAll= !showAll"
+        @click="showAll = !showAll"
         :disabled="currentlyLoading"
-      >mdi-arrow-down-bold-circle</v-icon>
+        >mdi-arrow-down-bold-circle</v-icon
+      >
 
       <!-- loading icon -->
       <v-progress-circular
@@ -39,8 +41,13 @@
       <v-col xs12 class="text-center" mt-3>
         <p v-if="Object.keys(configuredRoutes).length == 0">No routes found.</p>
         <div>
-          <v-row v-for="(item) in configuredRoutes" :key="item.name">
-            <RouteComponent :showAll="showAll" :route="item"></RouteComponent>
+          <v-row v-for="item in configuredRoutes" :key="item.name">
+            <RouteComponent
+              :showBackends="true"
+              :showButtons="true"
+              :showAll="showAll"
+              :route="item"
+            ></RouteComponent>
           </v-row>
         </div>
       </v-col>
@@ -54,11 +61,11 @@ import store from "@/store/index";
 export default {
   name: "Routes",
   components: {
-    RouteComponent
+    RouteComponent,
   },
   data: () => {
     return {
-      showAll: false
+      showAll: false,
     };
   },
   created() {
@@ -72,7 +79,7 @@ export default {
     },
     getRoutes() {
       this.$store.commit("pullRoute");
-    }
+    },
   },
   computed: {
     configuredRoutes: function() {
@@ -80,8 +87,8 @@ export default {
     },
     currentlyLoading: function() {
       return store.state.loading;
-    }
-  }
+    },
+  },
 };
 </script>
 <style scoped>

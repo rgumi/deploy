@@ -24,7 +24,7 @@ const routes = [
     component: Routes,
   },
   {
-    path: "/routes/:id",
+    path: "/routes/:name",
     name: "SpecificRoute",
     component: Route,
   },

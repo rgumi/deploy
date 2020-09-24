@@ -26,11 +26,11 @@ export default new Vuex.Store({
       },
     },
     loading: true,
-    routes: new Map(), // new Map()
-    timeframe: 120,
-    granularity: 10,
+    routes: new Map(),
     routeMetrics: new Map(),
     backendMetrics: new Map(),
+    timeframe: 120,
+    granularity: 10,
   },
   actions: {
     async startPulling() {
@@ -120,8 +120,6 @@ export default new Vuex.Store({
             });
           });
           state.routeMetrics = myMap;
-
-          //console.log("RouteMetrics: ", state.routeMetrics);
           state.loading = false;
         })
         .catch((error) => {
@@ -178,8 +176,6 @@ export default new Vuex.Store({
             });
           });
           state.backendMetrics = myMap;
-          //console.log("BackendMetrics: ", state.backendMetrics);
-
           state.loading = false;
         })
         .catch((error) => {
@@ -197,12 +193,45 @@ export default new Vuex.Store({
   modules: {},
   getters: {
     getIcon: (state) => (status) => state.iconList[status],
+    getActiveAlerts: (state) => (routeName) => {
+      console.log(`Requested ${routeName}`);
+
+      var routes = state.routes;
+      if (routes.size == 0) {
+        return [];
+      }
+      var route = routes.find((element) => element.name === routeName);
+      if (route === undefined) {
+        return [];
+      }
+      var activeAlerts = Array.from(
+        Object.entries(route.backends)
+          .map((d) => d[1])
+          .map((d) => d.active_alerts)
+          .filter((d) => Object.keys(d).length !== 0)
+      ).map((d) => Object.values(d)[0]);
+
+      return activeAlerts;
+    },
     getRoutes: (state) => {
       var routes = state.routes;
       if (routes.size == 0) {
         return new Map();
       }
       return routes;
+    },
+    getRoute: (state) => (routeName) => {
+      console.log(`Requested ${routeName}`);
+
+      var routes = state.routes;
+      if (routes.size == 0) {
+        return null;
+      }
+      var route = routes.find((element) => element.name === routeName);
+      if (route === undefined) {
+        return null;
+      }
+      return route;
     },
     getLoading: (state) => state.loading,
     getMetricsForBackend: (state) => {

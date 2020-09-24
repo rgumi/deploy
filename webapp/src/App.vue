@@ -31,7 +31,7 @@ export default {
   components: {
     NavBar,
     EventBar,
-    ButtonText
+    ButtonText,
   },
   data: () => ({
     //
@@ -53,14 +53,14 @@ export default {
         icon: "mdi-alert",
         icon_color: "error",
         title: "Error 404",
-        message: "Could not find the requested resource"
+        message: "Could not find the requested resource",
       });
     },
     preventNav(event) {
       event.preventDefault();
       event.returnValue = "";
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -71,5 +71,8 @@ export default {
   -webkit-user-select: none;
   -ms-user-select: none;
   user-select: none;
+}
+#app {
+  background: rgba(0, 0, 0, 0.2);
 }
 </style>
