@@ -24,29 +24,11 @@ routes:
       scrape_interval: 5s
       proxy: ""
       backends:
-        - id: a8ca0322-10da-4947-b93e-c3c9129aaf2f
-          name: Test2
-          addr: http://localhost:9090
-          weight: 100
-          active: false
-          scrape_url: http://localhost:9091/metrics
-          scrape_metrics:
-            - go_goroutines
-          metric_thresholds:
-            - metric: ResponseTime
-              operator: '>'
-              threshold: 1000
-              active_for: 10ns
-            - metric: 6xxRate
-              operator: '>'
-              threshold: 0.1
-              active_for: 10ns
-          healthcheck_url: http://localhost:9090/
-        - id: 9ecb5630-06b4-471f-b683-ab9b7f83a124
+        - id: 2726a619-6c2e-40bc-9222-2269c3d25f03
           name: Test1
           addr: http://localhost:7070
           weight: 100
-          active: false
+          active: true
           scrape_url: http://localhost:7071/metrics
           scrape_metrics:
             - go_goroutines
@@ -68,23 +50,7 @@ routes:
               threshold: 0.6
               active_for: 10ns
           healthcheck_url: http://localhost:7070/
-    - name: RouteSlippery
-      prefix: /slippery/
-      methods:
-        - GET
-        - POST
-      host: '*'
-      rewrite: /
-      cookieTTL: 2m0s
-      strategy:
-        type: slippery
-      healthcheck: true
-      timeout: 10s
-      idle_timeout: 1m0s
-      scrape_interval: 5s
-      proxy: ""
-      backends:
-        - id: 618bfc2a-f072-439e-a6d1-da6d7934691a
+        - id: b90733ec-43c5-40d3-80b0-f5220f8995db
           name: Test2
           addr: http://localhost:9090
           weight: 100
@@ -102,11 +68,45 @@ routes:
               threshold: 0.1
               active_for: 10ns
           healthcheck_url: http://localhost:9090/
-        - id: 80f599af-0114-4d36-83b0-b04bfa470edf
+    - name: RouteSlippery
+      prefix: /slippery/
+      methods:
+        - GET
+        - POST
+      host: '*'
+      rewrite: /
+      cookieTTL: 2m0s
+      strategy:
+        type: slippery
+      healthcheck: true
+      timeout: 10s
+      idle_timeout: 1m0s
+      scrape_interval: 5s
+      proxy: ""
+      backends:
+        - id: a3b93778-69ef-4754-8671-358050af93e7
+          name: Test2
+          addr: http://localhost:9090
+          weight: 100
+          active: false
+          scrape_url: http://localhost:9091/metrics
+          scrape_metrics:
+            - go_goroutines
+          metric_thresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              active_for: 10ns
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              active_for: 10ns
+          healthcheck_url: http://localhost:9090/
+        - id: 1aa5a24d-d0dd-4605-8bb6-8c60c07de49f
           name: Test1
           addr: http://localhost:7070
           weight: 100
-          active: false
+          active: true
           scrape_url: http://localhost:7071/metrics
           scrape_metrics:
             - go_goroutines
@@ -144,11 +144,11 @@ routes:
       scrape_interval: 5s
       proxy: ""
       backends:
-        - id: ea40df07-cc36-4cc3-91d5-0333a402834a
+        - id: 6bdaf5d1-3675-4790-a6b4-812f1deb3483
           name: Test1
           addr: http://localhost:7070
           weight: 100
-          active: false
+          active: true
           scrape_url: http://localhost:7071/metrics
           scrape_metrics:
             - go_goroutines
@@ -170,7 +170,7 @@ routes:
               threshold: 0.6
               active_for: 10ns
           healthcheck_url: http://localhost:7070/
-        - id: 8d5366c3-f076-417b-93ba-9f391925fa21
+        - id: 88303d60-1812-4bdb-89a9-2672946916eb
           name: Test2
           addr: http://localhost:9090
           weight: 0
@@ -205,7 +205,7 @@ routes:
       scrape_interval: 5s
       proxy: ""
       backends:
-        - id: bc94b6ae-2741-4d81-b75e-4fe07083f10d
+        - id: c33ebc59-ce6f-45bb-b7f2-ea554db60b1e
           name: Test2
           addr: http://localhost:9090
           weight: 0
@@ -223,11 +223,11 @@ routes:
               threshold: 0.1
               active_for: 10ns
           healthcheck_url: http://localhost:9090/
-        - id: c1a92d67-ce71-46a2-b3e4-4edd808a721e
+        - id: e5af2490-b21f-4914-9627-aceb4a2df228
           name: Test1
           addr: http://localhost:7070
           weight: 100
-          active: false
+          active: true
           scrape_url: http://localhost:7071/metrics
           scrape_metrics:
             - go_goroutines

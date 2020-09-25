@@ -10,6 +10,7 @@ pkg
 coverage*
 test-report.out
 nuxt
+countSites.py
 
 # executables
 depoy

@@ -3,6 +3,7 @@ package config
 import (
 	"io/ioutil"
 
+	"github.com/google/uuid"
 	"github.com/rgumi/depoy/storage"
 
 	"github.com/rgumi/depoy/metrics"
@@ -82,6 +83,11 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		}
 
 		for _, backend := range existingRoute.Backends {
+
+			if backend.ID == uuid.Nil {
+				log.Warnf("Setting new uuid\n")
+				backend.ID = uuid.New()
+			}
 
 			log.Debugf("Adding existing backend %v to Route %v", backend.ID, existingRoute.Name)
 

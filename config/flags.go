@@ -30,11 +30,10 @@ var (
 	// ScrapeMetricsChannelPuffersize defines the maximal puffer size of
 	// the Scrape Metric Channel. This should never be a problem
 	ScrapeMetricsChannelPuffersize int
-	// MonitoringGranularity defines the granularity of the metrics that are evaluated
+	// Granulartiy defines the granularity of the metrics that are evaluated
 	// in the Monitoring-Job. The higher the value, the more historic data will be used
-	MonitoringGranularity time.Duration
-	RetentionPeriod       time.Duration
-	Granulartiy           time.Duration
+	Granulartiy     time.Duration
+	RetentionPeriod time.Duration
 )
 
 func init() {
@@ -52,7 +51,6 @@ func init() {
 	// metrics defaults
 	flag.IntVar(&MetricsChannelPuffersize, "metrics.metricsPuffersize", 100, "Size of the puffer for the metric channel")
 	flag.IntVar(&ScrapeMetricsChannelPuffersize, "metrics.scrapePuffersize", 50, "Size of the puffer for the scrapeMetric channel")
-	MonitoringGranularity = time.Duration(*flag.Int("metrics.granularity", 10, "number of second that define the storage granularity")) * time.Second
 	RetentionPeriod = time.Duration(*flag.Int("metrics.retentionPeriod", 10, "number of minutes after a collected metric is deleted")) * time.Minute
 	Granulartiy = time.Duration(*flag.Int("metrics.granulartiy", 5, "number of second that define the granularity of stored metrics")) * time.Second
 }

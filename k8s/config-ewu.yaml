@@ -27,9 +27,89 @@ data:
         idleTimeout: 5s
         proxy: ""
         backends:
-          - id: e9cfa68e-78ab-4d90-8648-8cdc5bec0f48
-            name: grafana1
+          - name: grafana
             addr: http://grafana-web.monitoring:3000
+            weight: 100
+            metric_thresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+      - name: Prometheus
+        prefix: /prom/
+        methods:
+          - GET
+          - POST
+        host: "*"
+        rewrite: /prom/
+        cookieTTL: 2m0s
+        strategy:
+          type: sticky
+        healthcheck: true
+        timeout: 5s
+        idleTimeout: 5s
+        proxy: ""
+        backends:
+          - name: prometheus
+            addr: http://prometheus-web.monitoring:8080
+            weight: 100
+            metric_thresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+      - name: Kubernetes Dashboard
+        prefix: /
+        methods:
+          - GET
+          - POST
+        host: "*"
+        rewrite: /
+        cookieTTL: 2m0s
+        strategy:
+          type: sticky
+        healthcheck: true
+        timeout: 5s
+        idleTimeout: 5s
+        proxy: ""
+        backends:
+          - name: k8s-dashboard
+            addr: https://kubernetes-dashboard.kubernetes-dashboard:443
+            weight: 100
+            metric_thresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+      - name: Whatsapp Dummy
+        prefix: /watest/
+        methods:
+          - GET
+          - POST
+        host: "*"
+        rewrite: /watest/
+        cookieTTL: 2m0s
+        strategy:
+          type: sticky
+        healthcheck: true
+        timeout: 5s
+        idleTimeout: 5s
+        proxy: ""
+        backends:
+          - name: dashboard
+            addr: http://wabizdummy-svc.whatsapp:8080
             weight: 100
             metric_thresholds:          
               - metric: ResponseTime
