@@ -101,11 +101,11 @@ func (b *Backend) UpdateStatus(status bool) {
 func (b *Backend) Monitor() {
 
 	if b.AlertChan == nil {
-		log.Warnf("Backend %v has no AlertChan set", b.ID)
+		log.Errorf("Backend %v has no AlertChan set", b.ID)
 		return
 	}
 
-	log.Debugf("Listening for alert on %v", b)
+	log.Debugf("Listening for alert on Backend %v", b.ID)
 	for {
 		select {
 		case _ = <-b.killChan:

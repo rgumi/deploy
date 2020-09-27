@@ -19,9 +19,7 @@
     <div class="hidden-sm-and-up" @click="remove">
       <v-row @mouseleave="show = false">
         <v-icon size="42" :color="input.icon_color" @mouseover="show = true">
-          {{
-          input.icon
-          }}
+          {{ input.icon }}
         </v-icon>
         <v-col v-if="show">
           <h1>{{ input.title }}</h1>

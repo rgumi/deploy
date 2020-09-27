@@ -12,38 +12,40 @@ var allowedOperators = []string{">", "==", "<"}
 // of a backend and take action according to
 // the values defined here
 type Condition struct {
-	Status      bool                                     `json:"status" yaml:"-"`              // Status if the condition active for long enough and is therefore true
-	Metric      string                                   `json:"metric" yaml:"metric"`         // Name of the metric
-	Operator    string                                   `json:"operator" yaml:"operator"`     // < > ==
-	Threshold   float64                                  `json:"threshold" yaml:"threshold"`   // Threshhold that is checked
-	ActiveFor   time.Duration                            `json:"active_for" yaml:"active_for"` // Duration for which the condition has to be met
-	TriggerTime time.Time                                `json:"trigger_time" yaml:"-"`        // time the condition was first true
-	IsTrue      func(m map[string]float64) (bool, error) `json:"-" yaml:"-"`                   // Condtional function to evaluate condition
+	Status      bool                            `json:"status" yaml:"-"`              // Status if the condition active for long enough and is therefore true
+	Metric      string                          `json:"metric" yaml:"metric"`         // Name of the metric
+	Operator    string                          `json:"operator" yaml:"operator"`     // < > ==
+	Threshold   float64                         `json:"threshold" yaml:"threshold"`   // Threshhold that is checked
+	ActiveFor   time.Duration                   `json:"active_for" yaml:"active_for"` // Duration for which the condition has to be met
+	TriggerTime time.Time                       `json:"-" yaml:"-"`                   // time the condition was first true
+	IsTrue      func(m map[string]float64) bool `json:"-" yaml:"-"`                   // Condtional function to evaluate condition
 }
 
-func (c *Condition) Compile() func(m map[string]float64) (bool, error) {
+func (c *Condition) Compile() func(m map[string]float64) {
 
 	switch c.Operator {
 	case "<":
-		return func(m map[string]float64) (bool, error) {
+		c.IsTrue = func(m map[string]float64) bool {
 			if value, found := m[c.Metric]; found && value < c.Threshold {
-				return true, nil
+				return true
 			}
-			return false, nil
+			return false
 		}
+
 	case "==":
-		return func(m map[string]float64) (bool, error) {
+		c.IsTrue = func(m map[string]float64) bool {
 			if value, found := m[c.Metric]; found && value == c.Threshold {
-				return true, nil
+				return true
 			}
-			return false, nil
+			return false
 		}
+
 	case ">":
-		return func(m map[string]float64) (bool, error) {
+		c.IsTrue = func(m map[string]float64) bool {
 			if value, found := m[c.Metric]; found && value > c.Threshold {
-				return true, nil
+				return true
 			}
-			return false, nil
+			return false
 		}
 	}
 	return nil
@@ -63,7 +65,7 @@ func NewCondition(metric, operator string, threshhold float64, activeFor time.Du
 		}
 	}
 	// not allowed
-	panic(("Operator not allowed. Only <, >, == allowed"))
+	panic(fmt.Errorf("Operator not allowed. Only <, >, == allowed"))
 
 allowed:
 
@@ -72,11 +74,11 @@ allowed:
 	cond.Operator = operator
 	cond.ActiveFor = activeFor
 	cond.Threshold = threshhold
-	cond.IsTrue = cond.Compile()
+	cond.Compile()
 
 	return cond
 }
 
 func (c *Condition) GetActiveFor() time.Duration {
-	return time.Duration(c.ActiveFor) * time.Second
+	return c.ActiveFor
 }

@@ -1,9 +1,9 @@
 <template>
-  <div class="routeWrapper elevation-3">
+  <div class="wrapper elevation-3">
     <!-- Info row -->
     <v-row fluid no-gutters dense>
       <div style="min-width: 15%; text-align:left">
-        <h1 @click="show = !show" :disabled="currentlyLoading">
+        <h1 @dblclick="show = !show" :disabled="currentlyLoading">
           {{ route.name }}
         </h1>
       </div>
@@ -31,24 +31,11 @@
       </span>
 
       <v-spacer></v-spacer>
-      <v-icon
-        title="Edit route configuration"
-        @click="editRoute()"
-        :disabled="currentlyLoading"
-        class="routeButton editButton"
-        >mdi-pencil</v-icon
-      >
-      <v-icon
-        title="Remove route"
-        @click="deleteRoute()"
-        :disabled="currentlyLoading"
-        class="routeButton delButton"
-        >mdi-delete</v-icon
-      >
+
       <v-icon
         title="Toggle visibility of routes"
         @click="show = !show"
-        class="routeButton"
+        class="buttonIcon"
         v-bind:class="{ rotate: !show }"
         :disabled="currentlyLoading"
         >mdi-arrow-down-bold-circle</v-icon
@@ -61,7 +48,7 @@
         <!-- Properties -->
         <v-row fluid no-gutters class="text text-left">
           <v-col>
-            <table class="route-props" style="width:100%">
+            <table class="props" style="width:100%">
               <tr>
                 <th>Prefix</th>
                 <td>{{ route.prefix }}</td>
@@ -99,34 +86,56 @@
             </table>
           </v-col>
           <v-col v-if="showAllProps">
-            <table class="route-props" style="width:100%">
+            <table class="props" style="width:100%">
               <tr>
-                <th>CookieTTL</th>
-                <td>{{ route.cookie_ttl / 1000000000 }} seconds</td>
+                <th>CookieTTL (in min)</th>
+                <td
+                  :contenteditable="editable"
+                  @blur="onEdit"
+                  title="cookie_ttl"
+                >
+                  {{ route.cookie_ttl / 1000000000 }}
+                </td>
               </tr>
               <tr>
                 <th>Timeout</th>
-                <td>{{ route.timeout / 1000000000 }} seconds</td>
+                <td :contenteditable="editable" @blur="onEdit" title="timeout">
+                  {{ route.timeout / 1000000000 }}
+                </td>
               </tr>
               <tr>
                 <th>Idle Timeout</th>
-                <td>{{ route.idle_timeout / 1000000000 }} seconds</td>
+                <td
+                  :contenteditable="editable"
+                  @blur="onEdit"
+                  title="idle_timeout"
+                >
+                  {{ route.idle_timeout / 1000000000 }}
+                </td>
               </tr>
               <tr>
                 <th>Scrape Interval</th>
-                <td>{{ route.scrape_interval / 1000000000 }} seconds</td>
+                <td
+                  :contenteditable="editable"
+                  @blur="onEdit"
+                  title="scrape_interval"
+                >
+                  {{ route.scrape_interval / 1000000000 }}
+                </td>
               </tr>
 
               <tr>
                 <th>Proxy</th>
-                <td>{{ route.proxy == "" ? "not defined" : route.proxy }}</td>
+                <td :contenteditable="editable" @blur="onEdit" title="proxy">
+                  {{ route.proxy == "" ? "not defined" : route.proxy }}
+                </td>
               </tr>
             </table>
           </v-col>
           <v-col v-else class="d-none d-lg-flex"> </v-col>
         </v-row>
 
-        <v-divider></v-divider>
+        <v-divider v-if="showBackends"></v-divider>
         <!-- Backends -->
         <div v-if="showBackends">
           <v-row fluid no-gutters class="text" style="padding-bottom: 0;">
@@ -173,7 +182,7 @@
           </v-row>
         </div>
 
-        <v-divider></v-divider>
+        <v-divider v-if="showAlerts"></v-divider>
         <div v-if="showAlerts">
           <v-row fluid no-gutters class="text" style="padding-bottom: 0;">
             <h1>Alerts</h1>
@@ -184,7 +193,7 @@
         </div>
       </v-col>
     </v-row>
-    <v-divider></v-divider>
+    <v-divider v-if="showButtons"></v-divider>
     <!-- Buttons -->
     <v-row fluid no-gutters dense v-if="showButtons">
       <v-btn class="ref-left" :to="routeLink">Configuration</v-btn>
@@ -200,7 +209,7 @@ export default {
   name: "routeComponent",
   components: {
     NotificationBell,
-    AlertList,
+    AlertList
   },
   props: {
     route: Object,
@@ -209,6 +218,7 @@ export default {
     showBackends: Boolean,
     showAlerts: Boolean,
     showAllProps: Boolean,
+    editable: Boolean
   },
   created() {
     this.show = this.showAll;
@@ -221,36 +231,36 @@ export default {
         {
           text: "Status",
           sortable: true,
-          value: "status",
+          value: "status"
         },
         {
           text: "Name",
           sortable: true,
-          value: "name",
+          value: "name"
         },
         {
           text: "Weight",
           sortable: true,
-          value: "weight",
+          value: "weight"
         },
         {
           text: "Address",
           sortable: false,
-          value: "addr",
+          value: "addr"
         },
         {
           text: "ID",
           sortable: false,
-          value: "id",
-        },
+          value: "id"
+        }
       ],
-      backends: this.backendsAsList,
+      backends: this.backendsAsList
     };
   },
   watch: {
     showAll() {
       this.show = this.showAll;
-    },
+    }
   },
   computed: {
     activeAlerts: function() {
@@ -275,10 +285,8 @@ export default {
       if (this.route.backends === undefined) {
         return [];
       }
-      var list = Array.from(
-        Object.entries(this.route.backends).map((d) => d[1])
-      );
-      list.forEach((b) => {
+      var list = Array.from(Object.entries(this.route.backends).map(d => d[1]));
+      list.forEach(b => {
         if (b.active) {
           b.status = "{{<v-icon>mdi-bookmark-check</v-icon> }}";
         } else {
@@ -289,26 +297,23 @@ export default {
     },
     activeAlertsCount: function() {
       return this.$store.getters.getActiveAlerts(this.route.name).length;
-    },
+    }
   },
   methods: {
-    editRoute: function() {
-      alert(`Edit ${this.route.name}`);
-      this.$emit("edit", this.routeName);
-    },
-    deleteRoute: function() {
-      alert(`Delete ${this.route.name}`);
-      this.$emit("delete", this.routeName);
-    },
     gotoBackend: function() {
       alert(`Goto Backend`);
     },
-  },
+    onEdit: function(e) {
+      console.log(e);
+      console.log(e.target.title);
+      console.log(this.route.cookie_ttl);
+    }
+  }
 };
 </script>
 
 <style scoped>
-.routeWrapper {
+.wrapper {
   background: white;
   min-width: 100%;
   height: auto;
@@ -325,84 +330,5 @@ export default {
 h1 {
   font-size: 2vh;
   padding: 1vh;
-}
-.text {
-  padding: 15px;
-  margin: 5px;
-  font-weight: 500;
-  font-size: 2vh;
-}
-
-.ref-right {
-  width: 50%;
-  border-radius: 0 0 5px 0;
-}
-.ref-left {
-  width: 50%;
-  border-radius: 0 0 0 5px;
-}
-
-.routeButton {
-  margin: 5px;
-}
-
-.rotate {
-  transform: rotate(180deg);
-}
-.delButton:hover {
-  color: red;
-}
-.editButton:hover {
-  color: green;
-}
-.v-data-table-header th {
-  text-align: center;
-}
-
-.notification-text {
-  background: rgba(223, 35, 35, 0.8);
-  border-radius: 15%;
-  height: 30px;
-  width: 50px;
-}
-.left {
-  text-align: left;
-}
-table tr:last-child th {
-  border-bottom: none;
-}
-
-table tr:last-child td {
-  border-bottom: none;
-}
-
-.route-props tr td {
-  font-size: 0.875rem;
-  height: 48px;
-  border-bottom: thin solid rgba(0, 0, 0, 0.12);
-  padding: 12px;
-}
-.route-props tr th {
-  width: 150px;
-  font-size: 0.875rem;
-  height: 48px;
-  border-bottom: thin solid rgba(0, 0, 0, 0.12);
-  border-right: thin solid rgba(0, 0, 0, 0.12);
-  padding: 12px;
-}
-.route-props tr {
-  border-spacing: 0;
-  border-collapse: separate;
-  display: table-row;
-  vertical-align: inherit;
-  border-color: inherit;
-}
-
-.method-wrapper {
-  background: rgba(0, 0, 0, 0.2);
-  margin-bottom: 5px;
-  padding: 5px;
-  border-radius: 15%;
-  margin-right: 5px;
 }
 </style>

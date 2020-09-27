@@ -1,12 +1,12 @@
 <template>
   <div class="right bar">
-    <v-list style="padding: 0;">
+    <v-list style="background-color: transparent;">
       <v-list-item v-for="(event, index) in events" :key="index">
         <EventTile
+          style="padding: 0; margin-bottom: 5px;"
           :input="event"
           :index="index"
           @removeEvent="removeMe(index)"
-          style="margin-bottom: 5px;"
         ></EventTile>
       </v-list-item>
     </v-list>
@@ -56,6 +56,7 @@ export default {
 }
 
 .bar {
+  background-color: transparent;
   display: fixed;
   margin-top: 8vh;
   height: 100%;

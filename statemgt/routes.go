@@ -55,13 +55,11 @@ func (s *StateMgt) GetAllRoutes(w http.ResponseWriter, req *http.Request, _ http
 
 // CreateRoute creates a new Route. If route already exist, error
 func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-
 	myRoute := new(config.InputRoute)
 	if err := readBodyAndUnmarshal(req, myRoute); err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
-
 	newRoute, err := route.New(
 		myRoute.Name,
 		myRoute.Prefix,
@@ -72,43 +70,36 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		myRoute.Timeout,
 		myRoute.IdleTimeout,
 		myRoute.ScrapeInterval,
+		myRoute.HealthCheckInterval,
 		myRoute.CookieTTL,
-		myRoute.HealthCheck,
+		*myRoute.HealthCheck,
 	)
-
 	if err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
-
 	if err = myRoute.Strategy.Validate(newRoute); err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
-
-	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
-		returnError(w, req, 400, err, nil)
-		return
-	}
-
 	for _, myBackend := range myRoute.Backends {
-
 		for _, cond := range myBackend.Metricthresholds {
-			cond.IsTrue = cond.Compile()
+			cond.Compile()
 		}
 
 		newRoute.AddBackend(
 			myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
 			myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
 		)
-
 	}
-
 	err = myRoute.Strategy.Reset(newRoute)
 	if err != nil {
-		// rollback
-		s.Gateway.RemoveRoute(newRoute.Name)
 		returnError(w, req, 400, err, nil)
+		return
+	}
+
+	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
+		returnError(w, req, 500, err, nil)
 		return
 	}
 
@@ -155,8 +146,9 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		myRoute.Timeout,
 		myRoute.IdleTimeout,
 		myRoute.ScrapeInterval,
+		myRoute.HealthCheckInterval,
 		myRoute.CookieTTL,
-		myRoute.HealthCheck,
+		*myRoute.HealthCheck,
 	)
 
 	if err != nil {
@@ -169,20 +161,11 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		return
 	}
 
-	// remove first
-	s.Gateway.RemoveRoute(newRoute.Name)
-
-	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
-		returnError(w, req, 400, err, nil)
-		return
-	}
-
 	for _, myBackend := range myRoute.Backends {
 
 		for _, cond := range myBackend.Metricthresholds {
-			cond.IsTrue = cond.Compile()
+			cond.Compile()
 		}
-
 		_, err := newRoute.AddBackend(
 			myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
 			myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
@@ -196,9 +179,14 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 
 	err = myRoute.Strategy.Reset(newRoute)
 	if err != nil {
-		// rollback
-		s.Gateway.RemoveRoute(newRoute.Name)
 		returnError(w, req, 400, err, nil)
+		return
+	}
+
+	// remove first
+	s.Gateway.RemoveRoute(newRoute.Name)
+	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
+		returnError(w, req, 500, err, nil)
 		return
 	}
 
@@ -230,7 +218,7 @@ func (s *StateMgt) AddNewBackendToRoute(w http.ResponseWriter, req *http.Request
 	}
 
 	for _, cond := range myBackend.Metricthresholds {
-		cond.IsTrue = cond.Compile()
+		cond.Compile()
 	}
 
 	_, err := route.AddBackend(

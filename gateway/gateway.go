@@ -68,28 +68,22 @@ func NewGateway(
 // defined Routes in the Gateway. Then the old Router is replaced by
 // a pointer to the new Router
 func (g *Gateway) Reload() {
-
 	log.Info("Reloading backend")
-
 	newRouter := make(map[string]*router.Router)
 	// any host router
 	newRouter["*"] = router.NewRouter()
-
 	for _, routeItem := range g.Routes {
-
 		// Each host has its own router
 		if _, found := newRouter[routeItem.Host]; !found {
 			// host does not exist, create its router
 			newRouter[routeItem.Host] = router.NewRouter()
 		}
-
 		// add all routes to the router
 		for _, method := range routeItem.Methods {
 			// for each http-method add a handler to the router
 			newRouter[routeItem.Host].AddHandler(method, routeItem.Prefix, routeItem.GetHandler())
 		}
 	}
-
 	// overwrite existing tree with new
 	g.Router = newRouter
 }
@@ -147,30 +141,25 @@ func (g *Gateway) GetRoute(routeName string) *route.Route {
 // if Route is valid, the route is added to the Gateway
 // and the Gateway is reloaded
 func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
-	var err error
-	log.Debugf("Trying to register new route %s", newRoute.Name)
-
 	g.mux.Lock()
 	defer g.mux.Unlock()
+
+	var err error
+	log.Debugf("Trying to register new route %s", newRoute.Name)
 
 	if newRoute.Name == "" {
 		return fmt.Errorf("Route.Name cannot be empty")
 	}
-
-	// create id of route
 	if err = g.checkIfExists(newRoute); err != nil {
 		return err
 	}
-
 	if g.MetricsRepo == nil {
 		panic(fmt.Errorf("Gateway MetricsRepo is nil"))
 	}
-
 	log.Debugf("Setting up MetricsRepo for %s", newRoute.Name)
 	newRoute.MetricsRepo = g.MetricsRepo
 
 	g.Routes[newRoute.Name] = newRoute
-
 	return nil
 }
 
@@ -189,6 +178,7 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 
 		delete(g.Routes, name)
 
+		log.Debugf("Deleted Route %s from Gateway", route.Name)
 		g.Reload()
 
 		return route

@@ -15,9 +15,7 @@ type Strategy struct {
 	Type        string                                         `json:"type" yaml:"type" validate:"empty=false"`
 	HeaderName  string                                         `json:"header_name,omitempty" yaml:"header_name,omitempty"`
 	HeaderValue string                                         `json:"header_value,omitempty" yaml:"header_value,omitempty"`
-	Old         string                                         `json:"old_backend,omitempty" yaml:"old_backend,omitempty"`
-	New         string                                         `json:"new_backend,omitempty" yaml:"new_backend,omitempty"`
-	Shadow      string                                         `json:"shadow_backend,omitempty" yaml:"shadow_backend,omitempty"`
+	Target      string                                         `json:"target_backend,omitempty" yaml:"target_backend,omitempty"`
 	Handler     func(w http.ResponseWriter, req *http.Request) `json:"-" yaml:"-"`
 }
 
@@ -36,12 +34,12 @@ func (s *Strategy) Validate(newRoute *Route) (err error) {
 		}
 
 	case "shadow":
-		if newRoute == nil || s.Shadow == "" {
+		if newRoute == nil || s.Target == "" {
 			return fmt.Errorf("Required parameter are missing")
 		}
 
 	case "header":
-		if newRoute == nil || s.HeaderName == "" || s.HeaderValue == "" || s.Old == "" || s.New == "" {
+		if newRoute == nil || s.HeaderName == "" || s.HeaderValue == "" || s.Target == "" {
 			return fmt.Errorf("Required parameter are missing")
 		}
 
@@ -68,14 +66,14 @@ func (s *Strategy) Reset(newRoute *Route) error {
 		}
 		newRoute.SetStrategy(strat)
 	case "shadow":
-		strat, err := NewShadowStrategy(newRoute, s.Shadow)
+		strat, err := NewShadowStrategy(newRoute, s.Target)
 		if err != nil {
 			return err
 		}
 		newRoute.SetStrategy(strat)
 	case "header":
 		strat, err := NewHeaderStrategy(
-			newRoute, s.HeaderName, s.HeaderValue, s.Old, s.New)
+			newRoute, s.HeaderName, s.HeaderValue, s.Target)
 
 		if err != nil {
 			return err
@@ -109,22 +107,20 @@ func NewStickyStrategy(r *Route) (*Strategy, error) {
 	}, nil
 }
 
-func NewHeaderStrategy(r *Route, headerName, headerValue, oldBackend, newBackend string) (*Strategy, error) {
-	var old, new *Backend
+func NewHeaderStrategy(r *Route, headerName, headerValue, targetBackend string) (*Strategy, error) {
+	var target *Backend
 
-	if r == nil || headerName == "" || headerValue == "" || oldBackend == "" || newBackend == "" {
+	if r == nil || headerName == "" || headerValue == "" || targetBackend == "" {
 		return nil, fmt.Errorf("Required parameter are missing")
 	}
 
 	for _, backend := range r.Backends {
-		if backend.Name == oldBackend {
-			old = backend
-		} else if backend.Name == newBackend {
-			new = backend
+		if backend.Name == targetBackend {
+			target = backend
 		}
 	}
 
-	if old == nil || new == nil {
+	if target == nil {
 		return nil, fmt.Errorf("Unable to find the provided backends")
 	}
 
@@ -132,9 +128,8 @@ func NewHeaderStrategy(r *Route, headerName, headerValue, oldBackend, newBackend
 		Type:        "header",
 		HeaderName:  headerName,
 		HeaderValue: headerValue,
-		Old:         oldBackend,
-		New:         newBackend,
-		Handler:     HeaderHandler(r, headerName, headerValue, old, new),
+		Target:      targetBackend,
+		Handler:     HeaderHandler(r, headerName, headerValue, target),
 	}, nil
 }
 
@@ -157,7 +152,7 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 
 	return &Strategy{
 		Type:    "shadow",
-		Shadow:  shadowBackend,
+		Target:  shadowBackend,
 		Handler: ShadowHandler(r, shadow),
 	}, nil
 }
@@ -187,6 +182,7 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
+			r.MetricsRepo.InChannel <- m
 			return
 		}
 		defer resp.Body.Close()
@@ -243,6 +239,7 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
+			r.MetricsRepo.InChannel <- m
 			return
 		}
 		defer resp.Body.Close()
@@ -254,7 +251,7 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 // HeaderHandler is used to check the header of an downstream request
 // if a routing header is found, the request is routed to the specified backend
-func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) func(w http.ResponseWriter, req *http.Request) {
+func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
 		var b []byte
@@ -265,10 +262,11 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 			// headerValue is ignored
 			b, _ = ioutil.ReadAll(req.Body)
 
-			resp, m, gErr := r.sendRequestToUpstream(new, req, b)
+			resp, m, gErr := r.sendRequestToUpstream(target, req, b)
 			if gErr != nil {
-				log.Warnf("%s %v %s. Error: %v", r.Name, new.ID, new.Name, gErr)
+				log.Warnf("%s %v %s. Error: %v", r.Name, target.ID, target.Name, gErr)
 				http.Error(w, gErr.Error(), gErr.Code())
+				r.MetricsRepo.InChannel <- m
 				return
 			}
 			m.ContentLength = int64(sendResponse(resp, w))
@@ -277,12 +275,21 @@ func HeaderHandler(r *Route, headerName, headerValue string, old, new *Backend) 
 		}
 
 		// header is not set therefore old backend is used
+
 		b, _ = ioutil.ReadAll(req.Body)
 
-		resp, m, gErr := r.sendRequestToUpstream(old, req, b)
+		target, err := r.getNextBackend()
+		if err != nil {
+			log.Debugf("Could not get next backend: %v", err)
+			http.Error(w, "No Upstream Host Available", 503)
+			return
+		}
+
+		resp, m, gErr := r.sendRequestToUpstream(target, req, b)
 		if gErr != nil {
-			log.Warnf("%s %v %s. Error: %v", r.Name, old.ID, old.Name, gErr)
+			log.Warnf("%s %v %s. Error: %v", r.Name, target.ID, target.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
+			r.MetricsRepo.InChannel <- m
 			return
 		}
 		defer resp.Body.Close()
@@ -315,6 +322,7 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
+			r.MetricsRepo.InChannel <- m
 			return
 		}
 		defer resp.Body.Close()
@@ -331,6 +339,7 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 			if gErr != nil {
 				log.Warnf("%s %v %s. Error: %v", r.Name, shadow.ID, shadow.Name, gErr)
 				http.Error(w, gErr.Error(), gErr.Code())
+				r.MetricsRepo.InChannel <- m
 				return
 			}
 			b, _ = ioutil.ReadAll(respShadow.Body)

@@ -16,7 +16,11 @@ var (
 	ConfigFile          string
 	LogLevel            int
 
+	// statemgt
+	StateMgtAddr string
+
 	// gateway
+	GatewayAddr  string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	HTTPTimeout  time.Duration
@@ -42,7 +46,11 @@ func init() {
 	flag.StringVar(&ConfigFile, "global.configfile", "", "configfile to get and store config of gateway")
 	flag.IntVar(&LogLevel, "global.loglevel", 3, "loglevel of the application (default=warn)")
 
+	// statemgt
+	flag.StringVar(&StateMgtAddr, "statemgt.addr", ":8081", "The address that the statemgt listens on")
+
 	// gateway defaults (overwritten by configfile)
+	flag.StringVar(&GatewayAddr, "gateway.addr", ":8080", "The address that the gateway listens on (overwritten by configfile)")
 	ReadTimeout = time.Duration(*flag.Int("gateway.readtimeout", 5, "read timeout of in seconds (overwritten by configfile)")) * time.Second
 	WriteTimeout = time.Duration(*flag.Int("gateway.writeTimeout", 5, "write timeout in seconds (overwritten by configfile)")) * time.Second
 	HTTPTimeout = time.Duration(*flag.Int("gateway.httpTimeout", 10, "read timeout of in seconds (overwritten by configfile)")) * time.Second

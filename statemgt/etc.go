@@ -14,19 +14,9 @@ import (
 )
 
 func (s *StateMgt) HealthzHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-
-	// maybe check if gateway started!?
-
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(200)
 	w.Write([]byte("{\"status\": \"ok\"}"))
-}
-
-func (s *StateMgt) GetStaticFiles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	log.Info("Returning static files")
-
-	fileServer := http.FileServer(s.Box)
-	fileServer.ServeHTTP(w, r)
 }
 
 func (s *StateMgt) GetIndexPage(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -38,25 +28,6 @@ func (s *StateMgt) GetIndexPage(w http.ResponseWriter, r *http.Request, _ httpro
 	}
 	w.WriteHeader(200)
 	w.Write(html)
-}
-
-func (s *StateMgt) GetRootFiles(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	log.Info("Returning root files")
-
-	fileServer := http.FileServer(s.Box)
-	fileServer.ServeHTTP(w, r)
-}
-
-func (s *StateMgt) NotFound(w http.ResponseWriter, r *http.Request) {
-
-	// check if call was directly to the api
-	if r.URL.Path[:3] != "/v1" {
-		//if no direct request to the api then return singlepage app
-		s.GetIndexPage(w, r, nil)
-		return
-	}
-	// if reqeusts is a direct call to the api return 404
-	w.WriteHeader(404)
 }
 
 func (s *StateMgt) GetCurrentConfig(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {

@@ -14,7 +14,7 @@ import (
 	"github.com/rgumi/depoy/route"
 
 	"github.com/creasty/defaults"
-	"github.com/prometheus/common/log"
+	log "github.com/sirupsen/logrus"
 	"gopkg.in/dealancer/validate.v2"
 )
 
@@ -25,13 +25,13 @@ type UnmarshalFunc func(data []byte, v interface{}) error
 func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error) {
 	var err error
 	myGateway := new(InputGateway)
-
 	if err := defaults.Set(myGateway); err != nil {
 		panic(err)
 	}
 
 	err = unmarshal(b, myGateway)
 	err = validate.Validate(myGateway)
+
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +55,7 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 
 		log.Debugf("Adding existing route %v to  new Gateway", existingRoute.Name)
 
+		log.Warn(existingRoute.HealthCheck)
 		newRoute, err := route.New(
 			existingRoute.Name,
 			existingRoute.Prefix,
@@ -65,8 +66,9 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 			existingRoute.Timeout,
 			existingRoute.IdleTimeout,
 			existingRoute.ScrapeInterval,
+			existingRoute.HealthCheckInterval,
 			existingRoute.CookieTTL,
-			existingRoute.HealthCheck,
+			*existingRoute.HealthCheck,
 		)
 
 		if err != nil {
@@ -77,33 +79,27 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 			return nil, err
 		}
 
+		for _, backend := range existingRoute.Backends {
+			if backend.ID == uuid.Nil {
+				log.Debugf("Setting new uuid for %s", existingRoute.Name)
+				backend.ID = uuid.New()
+			}
+			for _, cond := range backend.Metricthresholds {
+				cond.Compile()
+			}
+			log.Debugf("Adding existing backend %v to Route %v", backend.ID, existingRoute.Name)
+			_, err = newRoute.AddExistingBackend(backend)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = existingRoute.Strategy.Reset(newRoute)
+
 		err = newGateway.RegisterRoute(newRoute)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, backend := range existingRoute.Backends {
-
-			if backend.ID == uuid.Nil {
-				log.Warnf("Setting new uuid\n")
-				backend.ID = uuid.New()
-			}
-
-			log.Debugf("Adding existing backend %v to Route %v", backend.ID, existingRoute.Name)
-
-			for _, cond := range backend.Metricthresholds {
-				cond.IsTrue = cond.Compile()
-			}
-
-			_, err := newGateway.Routes[existingRoute.Name].AddExistingBackend(backend)
-
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		err = existingRoute.Strategy.Reset(newRoute)
-		// should never return an err
 		if err != nil {
 			// rollback
 			newGateway.RemoveRoute(existingRoute.Name)
@@ -132,30 +128,31 @@ func LoadFromFile(file string) *gateway.Gateway {
 }
 
 func WriteToFile(g *gateway.Gateway, file string) error {
-	out := new(InputGateway)
-	out.Addr = g.Addr
-	out.ReadTimeout = g.ReadTimeout
-	out.WriteTimeout = g.WriteTimeout
-	out.HTTPTimeout = g.HTTPTimeout
-	out.IdleTimeout = g.IdleTimeout
-	out.Routes = []*InputRoute{}
+	out := &InputGateway{
+		Addr:         g.Addr,
+		ReadTimeout:  g.ReadTimeout,
+		WriteTimeout: g.WriteTimeout,
+		HTTPTimeout:  g.HTTPTimeout,
+		IdleTimeout:  g.IdleTimeout,
+		Routes:       []*InputRoute{},
+	}
 
 	for _, r := range g.Routes {
-		outRoute := new(InputRoute)
-		outRoute.Backends = []*route.Backend{}
-		outRoute.CookieTTL = r.CookieTTL
-		outRoute.HealthCheck = r.HealthCheck
-		outRoute.Host = r.Host
-		outRoute.IdleTimeout = r.IdleTimeout
-		outRoute.Methods = r.Methods
-		outRoute.Name = r.Name
-		outRoute.Prefix = r.Prefix
-		outRoute.Proxy = r.Proxy
-		outRoute.Rewrite = r.Rewrite
-		outRoute.Strategy = r.Strategy
-		outRoute.Timeout = r.Timeout
-		outRoute.ScrapeInterval = r.ScrapeInterval
-
+		outRoute := &InputRoute{
+			Name:           r.Name,
+			Prefix:         r.Prefix,
+			Rewrite:        r.Rewrite,
+			Strategy:       r.Strategy,
+			Proxy:          r.Proxy,
+			Timeout:        r.Timeout,
+			ScrapeInterval: r.ScrapeInterval,
+			Backends:       []*route.Backend{},
+			CookieTTL:      r.CookieTTL,
+			HealthCheck:    &r.HealthCheck,
+			Host:           r.Host,
+			IdleTimeout:    r.IdleTimeout,
+			Methods:        r.Methods,
+		}
 		for _, backend := range r.Backends {
 
 			outRoute.Backends = append(outRoute.Backends, backend)

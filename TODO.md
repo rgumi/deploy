@@ -8,6 +8,7 @@
 - [ ] add a tracing ID per request (and logging)
 - [ ] integrate downstream request content length as metric (currently only upstream response)
 - [ ] integrate Kubernetes service discovery
+- [ ] integrate Kubernetes ingress api object
 - [ ] integrate active loadbalancing
 - [ ] add role based access + home dashboard
 - [ ] horizontal scaling

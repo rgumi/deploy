@@ -3,7 +3,6 @@ package router
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	radix "github.com/armon/go-radix"
 	log "github.com/sirupsen/logrus"
@@ -35,7 +34,14 @@ func NewRouter() *Router {
 func (r *Router) CheckIfHandleExists(method, prefix string) (bool, error) {
 	var err error
 
-	method, prefix, err = checkMethodAndPrefix(method, prefix)
+	// method cannot be empty
+	if method == "" {
+		err = fmt.Errorf("Method cannot be empty")
+	}
+	// Prefix needs to be not empty and start with a /
+	if prefix == "" || string(prefix[0]) != "/" {
+		err = fmt.Errorf("Prefix cannot be empty and must start with a \"/\"")
+	}
 	if err != nil {
 		return false, err
 	}
@@ -56,52 +62,23 @@ func (r *Router) CheckIfHandleExists(method, prefix string) (bool, error) {
 	return false, nil
 }
 
-func checkMethodAndPrefix(m, p string) (method, prefix string, err error) {
-	method = strings.ToUpper(m)
-	prefix = strings.ToLower(p)
-	err = nil
-
-	// method cannot be empty
-	if method == "" {
-		err = fmt.Errorf("Method cannot be empty")
-	}
-
-	// Prefix needs to be not empty and start with a /
-	if prefix == "" || string(prefix[0]) != "/" {
-		err = fmt.Errorf("Prefix cannot be empty and must start with a \"/\"")
-	}
-	return
-}
-
 func (r *Router) AddHandler(method, prefix string, handler http.HandlerFunc) error {
 	var err error
-
-	method, prefix, err = checkMethodAndPrefix(method, prefix)
-	if err != nil {
-		return err
-	}
 
 	// check if the prefix & method combination already exists
 	_, err = r.CheckIfHandleExists(method, prefix)
 	if err != nil {
 		return err
 	}
-
-	log.Debugf("Adding new Handle {Method:%s Prefix: %s} to Router %v", method, prefix, r)
+	log.Debugf("Adding new Handle {Method:%s Prefix: %s} to Router", method, prefix)
 	if _, updated := r.tree[method].Insert(prefix, handler); updated {
 		return fmt.Errorf("Updated an entry")
 	}
-
 	return nil
 }
 
 func (r *Router) RemoveHandle(method, prefix string) error {
 	var err error
-
-	method, prefix, err = checkMethodAndPrefix(method, prefix)
-	if err != nil {
-		return err
-	}
 
 	// check if the prefix & method combination already exists
 	_, err = r.CheckIfHandleExists(method, prefix)

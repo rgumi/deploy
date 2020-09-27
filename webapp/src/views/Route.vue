@@ -2,7 +2,9 @@
   <v-container fluid>
     <v-row>
       <v-col xs12 class="text-center" mt-5>
-        <h1 class="avoid-clicks">Routes</h1>
+        <h1 class="avoid-clicks">
+          {{ selectedRoute === null ? "Route" : selectedRoute.name }}
+        </h1>
       </v-col>
     </v-row>
     <v-row justify="start">
@@ -36,19 +38,72 @@
         indeterminate
         style="margin: 8px;"
       ></v-progress-circular>
+
+      <v-spacer />
+      <v-icon
+        size="32"
+        v-if="editable"
+        title="Save changes"
+        @click="saveChanges"
+        :disabled="currentlyLoading"
+        class="buttonIcon saveButton"
+        >mdi-content-save</v-icon
+      >
+      <v-icon
+        size="32"
+        v-if="editable"
+        @click="forfeitChanges"
+        title="Forfeit changes"
+        :disabled="currentlyLoading"
+        class="buttonIcon forfeitButton"
+        >mdi-close</v-icon
+      >
+      <v-icon
+        size="32"
+        v-if="!editable"
+        title="Edit configuration"
+        @click="editRoute()"
+        :disabled="currentlyLoading"
+        class="buttonIcon editButton"
+        >mdi-pencil</v-icon
+      >
+      <v-icon
+        v-if="!editable"
+        size="32"
+        title="Remove route"
+        @click="deleteRoute()"
+        :disabled="currentlyLoading"
+        class="buttonIcon delButton"
+        >mdi-delete</v-icon
+      >
     </v-row>
     <v-row>
       <v-col xs12 class="text-center" mt-3>
         <p v-if="selectedRoute === null">No routes found.</p>
         <div v-else>
           <RouteComponent
-            :showAlerts="true"
+            :editable="editable"
+            :showAlerts="false"
             :showAllProps="true"
-            :showBackends="true"
+            :showBackends="false"
             :showButtons="false"
             :showAll="showAll"
             :route="selectedRoute"
           ></RouteComponent>
+        </div>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col xs12 class="text-center" mt-3>
+        <p v-if="backends === []">No backend found.</p>
+        <div v-else>
+          <BackendComponent
+            v-for="backend in backends"
+            :key="backend.id"
+            :showAll="showAll"
+            :backend="backend"
+            :editable="editable"
+          ></BackendComponent>
         </div>
       </v-col>
     </v-row>
@@ -57,15 +112,18 @@
 
 <script>
 import RouteComponent from "@/components/RouteComponent.vue";
+import BackendComponent from "@/components/BackendComponent.vue";
 import store from "@/store/index";
 export default {
   name: "Route",
   components: {
     RouteComponent,
+    BackendComponent
   },
   data: () => {
     return {
       showAll: true,
+      editable: false
     };
   },
   created() {
@@ -80,6 +138,24 @@ export default {
     getRoutes() {
       this.$store.commit("pullRoute");
     },
+    editRoute: function() {
+      console.log(`Edit ${this.selectedRoute.name}`);
+      this.editable = !this.editable;
+      this.$emit("edit", this.selectedRoute.name);
+    },
+    deleteRoute: function() {
+      console.log(`Delete ${this.selectedRoute.name}`);
+      this.$store.commit("deleteRoute", this.selectedRoute.name);
+      this.$router.push("/routes");
+    },
+    forfeitChanges: function() {
+      this.editable = !this.editable;
+      this.$store.commit("pullRoute");
+    },
+    saveChanges: function() {
+      this.editable = !this.editable;
+      console.log(`Saving Changes on ${this.selectedRoute.name}`);
+    }
   },
   computed: {
     configuredRoutes: function() {
@@ -96,11 +172,26 @@ export default {
       }
       return null;
     },
-  },
+    backends: function() {
+      if (this.selectedRoute === null) {
+        return [];
+      }
+      return this.selectedRoute.backends;
+    }
+  }
 };
 </script>
 <style scoped>
 .rotate {
   transform: rotate(180deg);
+}
+.isEditing {
+  color: green;
+}
+.saveButton {
+  color: blue;
+}
+.forfeitButton {
+  color: red;
 }
 </style>

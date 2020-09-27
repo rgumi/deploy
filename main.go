@@ -32,37 +32,26 @@ func main() {
 	flag.Parse()
 	// log.SetFormatter(&log.JSONFormatter{})
 	log.SetLevel(log.Level(config.LogLevel))
-
 	// read config from file if configured
 	if config.ConfigFile != "" {
 		newGateway := config.LoadFromFile(config.ConfigFile)
 		if newGateway != nil {
 			g = newGateway
-
 		} else {
 			panic(fmt.Errorf("Unable to recreate the Gateway specified in file"))
-
 		}
-
 	} else {
 		// if no config file is configured, a new instance will be started
 		_, newMetricsRepo := metrics.NewMetricsRepository(
 			storage.NewLocalStorage(config.RetentionPeriod, config.Granulartiy),
 			config.Granulartiy, config.MetricsChannelPuffersize, config.ScrapeMetricsChannelPuffersize,
 		)
-
-		g = gateway.NewGateway(":8080", newMetricsRepo,
+		g = gateway.NewGateway(config.GatewayAddr, newMetricsRepo,
 			config.ReadTimeout, config.WriteTimeout, config.HTTPTimeout, config.IdleTimeout,
 		)
 	}
-
-	/*
-		Start app
-
-	*/
 	go g.Run()
-
-	st := statemgt.NewStateMgt(":8081", g)
+	st := statemgt.NewStateMgt(config.StateMgtAddr, g)
 
 	// package static files into binary
 	box := packr.New("files", distFilepath)
@@ -70,7 +59,7 @@ func main() {
 
 	go st.Start()
 
-	// sys singal
+	// sys signal
 	signalChannel := make(chan os.Signal, 1)
 	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 	sig := <-signalChannel

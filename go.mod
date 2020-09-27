@@ -6,6 +6,7 @@ require (
 	github.com/armon/go-radix v1.0.0
 	github.com/creasty/defaults v1.5.1
 	github.com/go-pg/pg/v10 v10.0.7
+	github.com/go-playground/validator/v10 v10.3.0
 	github.com/gobuffalo/packr/v2 v2.8.0
 	github.com/google/uuid v1.1.2
 	github.com/julienschmidt/httprouter v1.3.0

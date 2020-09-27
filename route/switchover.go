@@ -49,7 +49,7 @@ func NewSwitchOver(
 	}
 
 	for _, cond := range conditions {
-		cond.IsTrue = cond.Compile()
+		cond.Compile()
 	}
 
 	counter++
@@ -108,11 +108,7 @@ outer:
 			}
 
 			for _, condition := range s.Conditions {
-				status, err := condition.IsTrue(metrics)
-				if err != nil {
-					// should never happen
-					panic(err)
-				}
+				status := condition.IsTrue(metrics)
 
 				if status && s.To.Active {
 

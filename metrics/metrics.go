@@ -143,6 +143,7 @@ func (m *Repository) RegisterBackend(
 		Errors:             0,
 		nextTimeout:        0,
 		MetricThreshholds:  metricsTresholds,
+		ScrapeInterval:     scrapeInterval,
 		ScrapeMetrics:      scrapeMetrics,
 		ScrapeMetricPuffer: make(map[string]float64),
 		AlertChannel:       make(chan Alert),
@@ -202,25 +203,21 @@ func (m *Repository) RegisterAlert(backendID uuid.UUID, alertType, metric string
 		Threshhold: threshold,
 		Value:      value,
 		StartTime:  time.Now(),
+		SendTime:   time.Time{},
+		EndTime:    time.Time{},
 	}
-
-	m.Backends[backendID].activeAlerts[metric] = alert
-	m.Backends[backendID].AlertChannel <- *alert
+	if backend, found := m.Backends[backendID]; found {
+		backend.activeAlerts[metric] = alert
+		backend.AlertChannel <- *alert
+	}
 }
 
 // Monitor stats the monitor loop which checks every $timeout interval
 // if an alert needs to be sent
 // $activeFor defines for how long a threshhold needs to be reached to
 // send an alert
-func (m *Repository) Monitor(
-	backendID uuid.UUID, timeout time.Duration, activeFor time.Duration) error {
-	/*
-		defer func() {
-			if err := recover(); err != nil {
-				log.Warnf("Closing Monitor for Backend %v with Error: %v", backendID, err)
-			}
-		}()
-	*/
+func (m *Repository) Monitor(backendID uuid.UUID) error {
+
 	if backend, ok := m.Backends[backendID]; ok {
 		log.Debugf("Starting monitoring of backend %v", backend.ID)
 
@@ -233,14 +230,7 @@ func (m *Repository) Monitor(
 				// read the collected metric from the storage
 				// may be an average over 1s, 10s, 1m? Configure that
 				now := time.Now()
-				collected, err := m.ReadRatesOfBackend(backendID, now.Add(-m.Granularity), now)
-
-				if err != nil {
-					log.Tracef("Unable to obtain rates of backend for the last 10 seconds (%v)", err)
-					time.Sleep(timeout)
-					continue
-				}
-
+				collected, _ := m.ReadRatesOfBackend(backendID, now.Add(-m.Granularity), now)
 				log.Debugf("Rates of Backend %v: %v", backendID, collected)
 
 				// loop over every metric that was collected
@@ -248,14 +238,8 @@ func (m *Repository) Monitor(
 
 					// get the treshhold for this metric
 					// this has to exist otherwise it would not have been collected
-					isReached, err := condition.IsTrue(collected)
+					isReached := condition.IsTrue(collected)
 					currentValue := collected[condition.Metric]
-
-					if err != nil {
-						log.Errorf("Used condition is not valid (%v)", err)
-						time.Sleep(timeout)
-						continue
-					}
 
 					// check if an alert already exists for this metric
 					if alert, ok := backend.activeAlerts[condition.Metric]; ok {
@@ -264,11 +248,8 @@ func (m *Repository) Monitor(
 						if isReached {
 							log.Debugf("Threshhold still reached for Alert %v", alert)
 							// threshhold is still reached and alert remains up
-							// goto next metric
-
 							// update value to current value
 							alert.Value = currentValue
-
 							// check if alert existed for long enough to send an alert
 							now := time.Now()
 							if now.After(alert.StartTime.Add(condition.GetActiveFor())) && alert.SendTime.IsZero() {
@@ -320,7 +301,7 @@ func (m *Repository) Monitor(
 					}
 				}
 			}
-			time.Sleep(timeout)
+			time.Sleep(m.Granularity)
 		}
 	}
 	return fmt.Errorf("Could not find backend with id %v", backendID)
@@ -471,26 +452,24 @@ func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time)
 
 	current, err := m.Storage.ReadBackend(backend, start, end)
 
-	if err != nil {
-		return nil, err
-	}
 	// there were no responses yet
+	// avoid divison by 0
 	if current.TotalResponses == 0 {
 		current.TotalResponses = 1
 	}
 
-	metricRates["2xxRate"] = float64(current.ResponseStatus200 / current.TotalResponses)
-	metricRates["3xxRate"] = float64(current.ResponseStatus300 / current.TotalResponses)
-	metricRates["4xxRate"] = float64(current.ResponseStatus400 / current.TotalResponses)
-	metricRates["5xxRate"] = float64(current.ResponseStatus500 / current.TotalResponses)
-	metricRates["6xxRate"] = float64(current.ResponseStatus600 / current.TotalResponses)
+	metricRates["2xxRate"] = float64(current.ResponseStatus200) / float64(current.TotalResponses)
+	metricRates["3xxRate"] = float64(current.ResponseStatus300) / float64(current.TotalResponses)
+	metricRates["4xxRate"] = float64(current.ResponseStatus400) / float64(current.TotalResponses)
+	metricRates["5xxRate"] = float64(current.ResponseStatus500) / float64(current.TotalResponses)
+	metricRates["6xxRate"] = float64(current.ResponseStatus600) / float64(current.TotalResponses)
 	metricRates["ResponseTime"] = current.ResponseTime
 	metricRates["ContentLength"] = float64(current.ContentLength)
 
 	for customScrapeMetricName, customScrapeMetricValue := range current.CustomMetrics {
 		metricRates[customScrapeMetricName] = customScrapeMetricValue
 	}
-	return metricRates, nil
+	return metricRates, err
 }
 
 func (m *Repository) GetActiveAlerts() map[uuid.UUID]map[string]*Alert {
@@ -558,13 +537,7 @@ func (m *Repository) ReadBackend(backendID uuid.UUID, start, end time.Time, gran
 	if timeframe == granularity {
 		data := make(map[time.Time]storage.Metric, 1)
 		data[time.Now()], err = m.Storage.ReadBackend(backendID, start, end)
-
-		if err != nil {
-
-			return nil, err
-		}
 		return data, err
-
 	}
 
 	steps := int(timeframe / granularity)

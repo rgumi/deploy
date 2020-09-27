@@ -17,12 +17,9 @@ import (
 )
 
 var (
-	ServerName          = "depoy/0.1.0"
-	healthCheckInterval = 5 * time.Second
-	monitorTimeout      = 5 * time.Second
-	activeFor           = 10 * time.Second
-	maxIdleConns        = 100
-	tlsVerify           = false
+	ServerName   = "depoy/0.1.0"
+	maxIdleConns = 100
+	tlsVerify    = false
 )
 
 // UpstreamClient is an interface for the http.Client
@@ -32,33 +29,34 @@ type UpstreamClient interface {
 }
 
 type Route struct {
-	Name               string                 `json:"name" yaml:"name" validate:"empty=false"`
-	Prefix             string                 `json:"prefix" yaml:"prefix" validate:"empty=false"`
-	Methods            []string               `json:"methods" yaml:"methods" validate:"empty=false"`
-	Host               string                 `json:"host" yaml:"host" default:"*"`
-	Rewrite            string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
-	CookieTTL          time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"5m0s"`
-	Strategy           *Strategy              `json:"strategy" yaml:"strategy"`
-	HealthCheck        bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
-	Timeout            time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
-	IdleTimeout        time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"30s"`
-	ScrapeInterval     time.Duration          `json:"scrape_interval" yaml:"scrapeInterval" default:"5s"`
-	Proxy              string                 `json:"proxy" yaml:"proxy" default:""`
-	Backends           map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
-	SwitchOver         *SwitchOver            `json:"switchover" yaml:"-"`
-	Client             UpstreamClient         `json:"-" yaml:"-"`
-	MetricsRepo        *metrics.Repository    `json:"-" yaml:"-"`
-	NextTargetDistr    []*Backend             `json:"-" yaml:"-"`
-	lenNextTargetDistr int
-	killHealthCheck    chan int
-	mux                sync.RWMutex
+	Name                string                 `json:"name" yaml:"name" validate:"empty=false"`
+	Prefix              string                 `json:"prefix" yaml:"prefix" validate:"empty=false"`
+	Methods             []string               `json:"methods" yaml:"methods" validate:"empty=false"`
+	Host                string                 `json:"host" yaml:"host" default:"*"`
+	Rewrite             string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
+	CookieTTL           time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"5m0s"`
+	Strategy            *Strategy              `json:"strategy" yaml:"strategy"`
+	HealthCheck         bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
+	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheck_interval" default:"5s"`
+	Timeout             time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
+	IdleTimeout         time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"30s"`
+	ScrapeInterval      time.Duration          `json:"scrape_interval" yaml:"scrapeInterval" default:"5s"`
+	Proxy               string                 `json:"proxy" yaml:"proxy" default:""`
+	Backends            map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
+	SwitchOver          *SwitchOver            `json:"switchover" yaml:"-"`
+	Client              UpstreamClient         `json:"-" yaml:"-"`
+	MetricsRepo         *metrics.Repository    `json:"-" yaml:"-"`
+	NextTargetDistr     []*Backend             `json:"-" yaml:"-"`
+	lenNextTargetDistr  int
+	killHealthCheck     chan int
+	mux                 sync.RWMutex
 }
 
 // New creates a new route-object with the provided config
 func New(
 	name, prefix, rewrite, host, proxy string,
 	methods []string,
-	timeout, idleTimeout, scrapeInterval, cookieTTL time.Duration,
+	timeout, idleTimeout, scrapeInterval, healthcheckInterval, cookieTTL time.Duration,
 	doHealthCheck bool,
 ) (*Route, error) {
 
@@ -69,21 +67,22 @@ func New(
 		prefix += "/"
 	}
 	route := &Route{
-		Name:            name,
-		Prefix:          prefix,
-		Rewrite:         rewrite,
-		Methods:         methods,
-		Host:            host,
-		Proxy:           proxy,
-		Timeout:         timeout,
-		IdleTimeout:     idleTimeout,
-		ScrapeInterval:  scrapeInterval,
-		HealthCheck:     doHealthCheck,
-		Strategy:        nil,
-		Backends:        make(map[uuid.UUID]*Backend),
-		killHealthCheck: make(chan int, 1),
-		CookieTTL:       cookieTTL,
-		Client:          client,
+		Name:                name,
+		Prefix:              prefix,
+		Rewrite:             rewrite,
+		Methods:             methods,
+		Host:                host,
+		Proxy:               proxy,
+		Timeout:             timeout,
+		IdleTimeout:         idleTimeout,
+		ScrapeInterval:      scrapeInterval,
+		HealthCheckInterval: healthcheckInterval,
+		HealthCheck:         doHealthCheck,
+		Strategy:            nil,
+		Backends:            make(map[uuid.UUID]*Backend),
+		killHealthCheck:     make(chan int, 1),
+		CookieTTL:           cookieTTL,
+		Client:              client,
 	}
 
 	if route.HealthCheck {
@@ -169,48 +168,38 @@ func (r *Route) getNextBackend() (*Backend, error) {
 // when a new backend is registerd reload handles the initial tasks
 // like monitoring and healthcheck
 func (r *Route) Reload() {
-	var err error
-
-	log.Warnf("Reloading %v", r.Name)
-
+	log.Infof("Reloading %v", r.Name)
+	if !r.HealthCheck {
+		log.Warnf("Healthcheck of %s is not active", r.Name)
+	}
 	if r.MetricsRepo == nil {
 		panic(fmt.Errorf("MetricsRepo of %s cannot be nil", r.Name))
 	}
-
 	for _, backend := range r.Backends {
+		if backend.AlertChan == nil {
+			if r.HealthCheck {
+				mustHaveCondition := conditional.NewCondition("6xxRate", ">", 0.1, 5*time.Second)
+				mustHaveCondition.Compile()
+				backend.Metricthresholds = append(backend.Metricthresholds, mustHaveCondition)
+			}
 
-		// Check if backend is eligible for monitoring: (1) has metrics defined, (2) is not yet registered
-		if (backend.Metricthresholds != nil ||
-			(backend.Scrapemetrics != nil && backend.Scrapeurl != "")) && backend.AlertChan == nil {
-
-			log.Warnf("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
-			backend.AlertChan, err = r.MetricsRepo.RegisterBackend(
+			log.Infof("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
+			backend.AlertChan, _ = r.MetricsRepo.RegisterBackend(
 				r.Name, backend.ID, backend.Scrapeurl, backend.Scrapemetrics,
 				r.ScrapeInterval, backend.Metricthresholds,
 			)
-
-			if err != nil {
-				panic(err)
-			}
-
 			// start monitoring the registered backend
-			go r.MetricsRepo.Monitor(backend.ID, monitorTimeout, activeFor)
-
+			go r.MetricsRepo.Monitor(backend.ID)
 			// starts listening on alertChan
 			go backend.Monitor()
 		}
 
-		// if this fails an alert will be registered
-		// when the backend is ready again, the alarm
-		// will eventually be resolved and the backend
-		// is set to active
 		if r.HealthCheck {
 			go r.validateStatus(backend)
 		} else {
 			r.updateWeights()
 		}
 	}
-
 }
 
 func (r *Route) validateStatus(backend *Backend) {
@@ -226,7 +215,10 @@ func (r *Route) validateStatus(backend *Backend) {
 	// the status does not get updated when the upstream application is healthy again as an
 	// alarm has not been registered in the MetricsRepo due to an activeFor which can then be
 	// resolved
-	r.MetricsRepo.RegisterAlert(backend.ID, "Pending", "6xxRate", 0, 1)
+	if r.MetricsRepo != nil {
+		r.MetricsRepo.RegisterAlert(backend.ID, "Pending", "6xxRate", 0, 1)
+	}
+
 }
 func (r *Route) sendRequestToUpstream(
 	target *Backend,
@@ -288,6 +280,8 @@ func (r *Route) AddBackend(
 
 	if r.HealthCheck {
 		backend.Active = false
+	} else {
+		backend.Active = true
 	}
 
 	for _, backend := range r.Backends {
@@ -318,6 +312,8 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 	// status will be set by first healthcheck
 	if r.HealthCheck {
 		backend.Active = false
+	} else {
+		backend.Active = true
 	}
 
 	backend.updateWeigth = r.updateWeights
@@ -326,7 +322,7 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 
 	// compile conditions to prevent nil-pointers
 	for _, cond := range backend.Metricthresholds {
-		cond.IsTrue = cond.Compile()
+		cond.Compile()
 	}
 
 	if backend.Healthcheckurl == "" {
@@ -339,6 +335,15 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 	return backend.ID, nil
 }
 
+func (r *Route) StopAll() {
+	r.killHealthCheck <- 1
+	r.RemoveSwitchOver()
+
+	for backendID := range r.Backends {
+		r.RemoveBackend(backendID)
+	}
+
+}
 func (r *Route) RemoveBackend(backendID uuid.UUID) {
 	log.Warnf("Removing %s from %s", backendID, r.Name)
 
@@ -357,16 +362,6 @@ func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth uint8) error {
 		return nil
 	}
 	return fmt.Errorf("Backend with ID %v does not exist", id)
-}
-
-func (r *Route) StopAll() {
-	r.killHealthCheck <- 1
-	r.RemoveSwitchOver()
-
-	for backendID := range r.Backends {
-		r.RemoveBackend(backendID)
-	}
-
 }
 
 func (r *Route) healthCheck(backend *Backend) bool {
@@ -418,7 +413,7 @@ func (r *Route) RunHealthCheckOnBackends() {
 				go r.healthCheck(backend)
 			}
 		}
-		time.Sleep(healthCheckInterval)
+		time.Sleep(r.HealthCheckInterval)
 	}
 
 }
@@ -492,7 +487,6 @@ func (r *Route) StartSwitchOver(
 // RemoveSwitchOver stops the switchover process and leaves the weights as they are last
 func (r *Route) RemoveSwitchOver() {
 	if r.SwitchOver != nil {
-
 		log.Warnf("Stopping Switchover of %s", r.Name)
 		r.SwitchOver.Stop()
 		r.SwitchOver = nil

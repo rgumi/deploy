@@ -10,7 +10,7 @@ export default new Vuex.Store({
     this.startPulling();
   },
   state: {
-    baseUrl: location.origin, // "http://192.168.0.62:8081",
+    baseUrl: "http://192.168.0.62:8081", // location.origin, // ,
     iconList: {
       running: {
         color: "success",
@@ -31,6 +31,7 @@ export default new Vuex.Store({
     backendMetrics: new Map(),
     timeframe: 120,
     granularity: 10,
+    editing: false,
   },
   actions: {
     async startPulling() {
@@ -39,7 +40,6 @@ export default new Vuex.Store({
       this.commit("pullMetricForRoute");
 
       window.setInterval(() => {
-        this.commit("pullRoute");
         this.commit("pullMetricForBackend");
         this.commit("pullMetricForRoute");
       }, this.state.granularity * 1000); // in ms
@@ -53,6 +53,9 @@ export default new Vuex.Store({
   methods: {},
   mutations: {
     pullRoute: async function(state, route) {
+      if (state.editing) {
+        return;
+      }
       state.loading = true;
 
       if (route === undefined) {
@@ -189,6 +192,35 @@ export default new Vuex.Store({
           });
         });
     },
+    deleteRoute: async function(state, routeName) {
+      if (state.editing) {
+        return;
+      }
+      state.loading = true;
+      console.log(routeName);
+      axios
+        .delete(this.state.baseUrl + "/v1/routes/" + routeName)
+        .then((response) => {
+          if (response.status == 200) {
+            // route successfully deleted
+            this.commit("pullRoute");
+          }
+          state.loading = false;
+        })
+        .catch((error) => {
+          state.loading = false;
+          console.error(error);
+          eventBus.$emit("showEvent", {
+            icon: "mdi-alert",
+            icon_color: "error",
+            title: "Error",
+            message: error.message,
+          });
+        });
+    },
+    setEditing: async function(state, status) {
+      state.editing = status;
+    },
   },
   modules: {},
   getters: {
@@ -221,7 +253,7 @@ export default new Vuex.Store({
       return routes;
     },
     getRoute: (state) => (routeName) => {
-      console.log(`Requested ${routeName}`);
+      // console.log(`Requested ${routeName}`);
 
       var routes = state.routes;
       if (routes.size == 0) {
@@ -234,6 +266,7 @@ export default new Vuex.Store({
       return route;
     },
     getLoading: (state) => state.loading,
+    getEditing: (state) => state.editing,
     getMetricsForBackend: (state) => {
       var metrics = state.backendMetrics;
       if (metrics.size == 0) {
