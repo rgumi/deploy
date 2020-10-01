@@ -12,15 +12,36 @@ routes:
           - metric: ResponseTime
             operator: ">"
             threshold: 1000
+            resolveIn: 5s
           - metric: "5xxRate"
             operator: ">"
             threshold: 0.2
+            activeFor: 2s
+            resolveIn: 0s
           - metric: "4xxRate"
             operator: ">"
             threshold: 0.3
+            resolveIn: 5000
       - name: backend2
         addr: http://localhost:9090
-        weight: 0
+        weight: 100
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+            resolveIn: 5000
+          - metric: "5xxRate"
+            operator: ">"
+            threshold: 0.2
+            activeFor: 2s
+            resolveIn: 0s
+          - metric: "4xxRate"
+            operator: ">"
+            threshold: 0.3
+            resolveIn: 5000
+      - name: b3
+        addr: http://localhost:9090
+        weight: 100
         metricThresholds:
           - metric: ResponseTime
             operator: ">"
@@ -28,16 +49,8 @@ routes:
           - metric: "5xxRate"
             operator: ">"
             threshold: 0.2
-          - metric: "4xxRate"
-            operator: ">"
-            threshold: 0.3
-      - name: b3
-        addr: http://localhost:9090
-        weight: 0
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
+            activeFor: 2s
+            resolveIn: 0s
   - name: Route2
     prefix: /route2/
     rewrite: /

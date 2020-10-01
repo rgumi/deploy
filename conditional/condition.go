@@ -23,7 +23,7 @@ type Condition struct {
 	// Duration for which the condition has to be met
 	ActiveFor time.Duration `json:"active_for" yaml:"activeFor" default:"5s"`
 	// Duration for which an active alert needs to be inactive to be resolved
-	ResolveIn time.Duration `json:"resolve_in,omitempty" yaml:"resolveIn,omitempty" default:"10s"`
+	ResolveIn time.Duration `json:"resolve_in,omitempty" yaml:"resolveIn,omitempty"`
 	// time the condition was first true
 	TriggerTime time.Time `json:"-" yaml:"-"`
 	// Condtional function to evaluate condition
@@ -66,9 +66,6 @@ func NewCondition(metric, operator string, threshhold float64, activeFor, resolv
 
 	if metric == "" || operator == "" || activeFor == 0 {
 		panic(fmt.Errorf("Parameters cannot be empty"))
-	}
-	if resolveIn == 0 {
-		resolveIn = activeFor
 	}
 	for _, op := range allowedOperators {
 		if op == operator {

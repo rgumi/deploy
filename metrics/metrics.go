@@ -239,6 +239,7 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 						// check if it is still active
 						if isReached {
 							log.Debugf("Threshhold still reached for Alert %v", alert)
+							alert.EndTime = time.Time{}
 							// threshhold is still reached and alert remains up
 							alert.Value = currentValue
 							// Update the Prometheus-Gauge with the current number
@@ -262,6 +263,11 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 						// treshhold is no longer reached
 						if alert.EndTime.IsZero() {
 							alert.EndTime = time.Now()
+						}
+						// 0 is interpreted as indefinitely and therefore once an alarm is active,
+						// the Backend will never be resolved again
+						if condition.ResolveIn == 0 {
+							continue
 						}
 						if time.Now().After(alert.EndTime.Add(condition.ResolveIn)) {
 							alert.Type = "Resolved"

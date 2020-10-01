@@ -18,6 +18,7 @@ var (
 	addr               = flag.String("addr", ":7070", "defines the addr of the server")
 	promAddr           = flag.String("prom", ":7071", "defines the addr of the prom server")
 	timeout            = flag.Int("timeout", 0, "defines the timeout of the handle before sending a response")
+	statusCode         = flag.Int("statusCode", 500, "defines the status code that is returned on testing handle")
 )
 
 func hello(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -31,6 +32,12 @@ func hello(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Write(b)
 
 	fmt.Printf("%d/%d\n", counter1, counter2)
+}
+
+func returnStatusCode(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	defer r.Body.Close()
+	w.WriteHeader(*statusCode)
+
 }
 
 func world(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -65,6 +72,7 @@ func main() {
 	router1.GET("/", world)
 	router1.GET("/hello/", hello)
 	router1.GET("/world/", world)
+	router1.GET("/status/", returnStatusCode)
 
 	server1 := http.Server{
 		Addr:         *addr,
