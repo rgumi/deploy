@@ -2,6 +2,7 @@ package route
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -35,9 +36,10 @@ type Route struct {
 	Host                string                 `json:"host" yaml:"host" default:"*"`
 	Rewrite             string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
 	CookieTTL           time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"5m0s"`
-	Strategy            *Strategy              `json:"strategy" yaml:"strategy"`
-	HealthCheck         bool                   `json:"healthcheck" yaml:"healthcheck" default:"true"`
-	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheck_interval" default:"5s"`
+	Strategy            *Strategy              `json:"strategy" yaml:"strategy" validate:"nil=false"`
+	HealthCheck         bool                   `json:"healthcheck_bool" yaml:"healthcheckBool" default:"true"`
+	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheckInterval" default:"5s"`
+	MonitoringInterval  time.Duration          `json:"monitoring_interval" yaml:"monitoringInterval" default:"5s"`
 	Timeout             time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
 	IdleTimeout         time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"30s"`
 	ScrapeInterval      time.Duration          `json:"scrape_interval" yaml:"scrapeInterval" default:"5s"`
@@ -56,7 +58,8 @@ type Route struct {
 func New(
 	name, prefix, rewrite, host, proxy string,
 	methods []string,
-	timeout, idleTimeout, scrapeInterval, healthcheckInterval, cookieTTL time.Duration,
+	timeout, idleTimeout, scrapeInterval, healthcheckInterval,
+	monitoringInterval, cookieTTL time.Duration,
 	doHealthCheck bool,
 ) (*Route, error) {
 
@@ -76,8 +79,9 @@ func New(
 		Timeout:             timeout,
 		IdleTimeout:         idleTimeout,
 		ScrapeInterval:      scrapeInterval,
-		HealthCheckInterval: healthcheckInterval,
 		HealthCheck:         doHealthCheck,
+		HealthCheckInterval: healthcheckInterval,
+		MonitoringInterval:  monitoringInterval,
 		Strategy:            nil,
 		Backends:            make(map[uuid.UUID]*Backend),
 		killHealthCheck:     make(chan int, 1),
@@ -105,15 +109,11 @@ func (r *Route) GetHandler() http.HandlerFunc {
 }
 
 func (r *Route) updateWeights() {
-
-	var sum uint8
-	k := 0
-	i := 0
-
-	// avoid any race conditions when multiple backends are used
 	r.mux.Lock()
 	defer r.mux.Unlock()
 
+	var sum uint8
+	k, i := 0, 0
 	listWeights := make([]uint8, len(r.Backends))
 	activeBackends := []*Backend{}
 
@@ -124,7 +124,6 @@ func (r *Route) updateWeights() {
 			i++
 		}
 	}
-
 	// find ggt to reduce list length
 	ggt := GGT(listWeights) // if 0, return 0
 	log.Debugf("Current GGT of Weights is %d", ggt)
@@ -142,16 +141,12 @@ func (r *Route) updateWeights() {
 			}
 		}
 		log.Debugf("Current TargetDistribution of %s: %v", r.Name, distr)
-
 		r.NextTargetDistr = distr
-
 	} else {
 		// no active backend
 		r.NextTargetDistr = make([]*Backend, 0)
 	}
-
 	r.lenNextTargetDistr = len(r.NextTargetDistr)
-
 }
 
 func (r *Route) getNextBackend() (*Backend, error) {
@@ -178,7 +173,8 @@ func (r *Route) Reload() {
 	for _, backend := range r.Backends {
 		if backend.AlertChan == nil {
 			if r.HealthCheck {
-				mustHaveCondition := conditional.NewCondition("6xxRate", ">", 0.1, 5*time.Second)
+				mustHaveCondition := conditional.NewCondition(
+					"6xxRate", ">", 0.1, 5*time.Second, 10*time.Second)
 				mustHaveCondition.Compile()
 				backend.Metricthresholds = append(backend.Metricthresholds, mustHaveCondition)
 			}
@@ -189,7 +185,7 @@ func (r *Route) Reload() {
 				r.ScrapeInterval, backend.Metricthresholds,
 			)
 			// start monitoring the registered backend
-			go r.MetricsRepo.Monitor(backend.ID)
+			go r.MetricsRepo.Monitor(backend.ID, r.MonitoringInterval)
 			// starts listening on alertChan
 			go backend.Monitor()
 		}
@@ -220,10 +216,11 @@ func (r *Route) validateStatus(backend *Backend) {
 	}
 
 }
+
 func (r *Route) sendRequestToUpstream(
 	target *Backend,
 	req *http.Request,
-	body []byte) (*http.Response, metrics.Metrics, GatewayError) {
+	readCloser io.ReadCloser) (*http.Response, metrics.Metrics, GatewayError) {
 
 	url := req.URL.String()
 
@@ -234,33 +231,28 @@ func (r *Route) sendRequestToUpstream(
 	// Copies the downstream request into the upstream request
 	// and formats it accordingly
 	log.Debug(target.Addr + url)
-	newReq, _ := formateRequest(req, target.Addr+url, body)
+	newReq, _ := formateRequest(req, target.Addr+url, readCloser)
 
 	// Send Request to the upstream host
 	// reuses TCP-Connection
 	resp, m, err := r.Client.Send(newReq)
 	if err != nil {
 		gErr := NewGatewayError(err)
-
 		//target.UpdateStatus(false)
-
 		m.Route = r.Name
 		m.RequestMethod = req.Method
 		m.DownstreamAddr = req.RemoteAddr
 		m.ResponseStatus = gErr.Code()
 		m.ContentLength = -1
 		m.BackendID = target.ID
-
 		return nil, m, gErr
 	}
-
 	m.Route = r.Name
 	m.RequestMethod = req.Method
 	m.DownstreamAddr = req.RemoteAddr
 	m.ResponseStatus = resp.StatusCode
 	m.ContentLength = resp.ContentLength
 	m.BackendID = target.ID
-
 	return resp, m, nil
 }
 
@@ -457,8 +449,8 @@ func (r *Route) StartSwitchOver(
 		r.SetStrategy(strategy)
 
 		// set weights
-		fromBackend.Weigth = 100
-		toBackend.Weigth = 0
+		fromBackend.Weigth = 100 - weightChange
+		toBackend.Weigth = weightChange
 
 		r.updateWeights()
 

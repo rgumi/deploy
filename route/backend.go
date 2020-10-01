@@ -18,10 +18,10 @@ type Backend struct {
 	Addr             string                   `json:"addr" yaml:"addr" validate:"empty=true | format=url"`
 	Weigth           uint8                    `json:"weight" yaml:"weight"`
 	Active           bool                     `json:"active" yaml:"active"`
-	Scrapeurl        string                   `json:"scrape_url" yaml:"scrape_url" validate:"empty=true | format=url"`
-	Scrapemetrics    []string                 `json:"scrape_metrics" yaml:"scrape_metrics"`
-	Metricthresholds []*conditional.Condition `json:"metric_thresholds" yaml:"metric_thresholds"`
-	Healthcheckurl   string                   `json:"healthcheck_url" yaml:"healthcheck_url" validate:"empty=true | format=url"`
+	Scrapeurl        string                   `json:"scrape_url" yaml:"scrapeUrl" validate:"empty=true | format=url"`
+	Scrapemetrics    []string                 `json:"scrape_metrics" yaml:"scrapeMetrics"`
+	Metricthresholds []*conditional.Condition `json:"metric_thresholds" yaml:"metricThresholds"`
+	Healthcheckurl   string                   `json:"healthcheck_url" yaml:"healthcheckUrl" validate:"empty=true | format=url"`
 	ActiveAlerts     map[string]metrics.Alert `json:"active_alerts" yaml:"-"`
 	AlertChan        <-chan metrics.Alert     `json:"-" yaml:"-"`
 	updateWeigth     func()
@@ -86,47 +86,36 @@ func (b *Backend) UpdateStatus(status bool) {
 	if b.Active == status {
 		return
 	}
-
 	b.Active = status
 	b.updateWeigth()
-
 	if status {
 		log.Infof("Enabling backend %v: %v", b.ID, b.Active)
 	} else {
 		log.Infof("Disabling backend %v: %v", b.ID, b.Active)
 	}
-
 }
 
 func (b *Backend) Monitor() {
-
 	if b.AlertChan == nil {
-		log.Errorf("Backend %v has no AlertChan set", b.ID)
-		return
+		panic(fmt.Errorf("Backend %v has no AlertChan set", b.ID))
 	}
-
 	log.Debugf("Listening for alert on Backend %v", b.ID)
 	for {
 		select {
 		case _ = <-b.killChan:
 			return
-
 		case alert := <-b.AlertChan:
 			log.Debugf("Backend %v received %v", b.ID, alert.Type)
-
 			if alert.Type == "Alarming" {
 				// Alarm condition was active for long enought => alarming
 				b.ActiveAlerts[alert.Metric] = alert
 				b.UpdateStatus(false)
-
 			} else if alert.Type == "Pending" {
 				// Alarm condition was reached initially
 				b.ActiveAlerts[alert.Metric] = alert
-
 			} else {
 				// alert.Type == "Resolved"
 				delete(b.ActiveAlerts, alert.Metric)
-
 				// if no alert is currently active, set active to true
 				if len(b.ActiveAlerts) == 0 {
 					b.UpdateStatus(true)

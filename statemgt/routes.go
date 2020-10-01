@@ -71,8 +71,9 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		myRoute.IdleTimeout,
 		myRoute.ScrapeInterval,
 		myRoute.HealthCheckInterval,
+		myRoute.MonitoringInterval,
 		myRoute.CookieTTL,
-		*myRoute.HealthCheck,
+		myRoute.HealthCheck,
 	)
 	if err != nil {
 		returnError(w, req, 400, err, nil)
@@ -147,8 +148,9 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		myRoute.IdleTimeout,
 		myRoute.ScrapeInterval,
 		myRoute.HealthCheckInterval,
+		myRoute.MonitoringInterval,
 		myRoute.CookieTTL,
-		*myRoute.HealthCheck,
+		myRoute.HealthCheck,
 	)
 
 	if err != nil {

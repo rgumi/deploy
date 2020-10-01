@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -14,7 +15,9 @@ import (
 
 var (
 	counter1, counter2 int
-	timeout            *int
+	addr               = flag.String("addr", ":7070", "defines the addr of the server")
+	promAddr           = flag.String("prom", ":7071", "defines the addr of the prom server")
+	timeout            = flag.Int("timeout", 0, "defines the timeout of the handle before sending a response")
 )
 
 func hello(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -35,7 +38,11 @@ func world(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	time.Sleep(time.Duration(*timeout) * time.Millisecond)
 	counter2++
 
+	b, _ := ioutil.ReadAll(r.Body)
+	fmt.Println(string(b))
+
 	w.Header().Add("Content-Type", "application/json")
+	w.Header().Add("Backend", *addr)
 	w.WriteHeader(200)
 	w.Write([]byte("{\"test\":\"World\"}"))
 
@@ -43,9 +50,7 @@ func world(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func main() {
-	addr := flag.String("addr", ":7070", "defines the addr of the server")
-	promAddr := flag.String("prom", ":7071", "defines the addr of the prom server")
-	timeout = flag.Int("timeout", 0, "defines the timeout of the handle before sending a response")
+
 	flag.Parse()
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -57,7 +62,7 @@ func main() {
 
 	fmt.Printf("Addr: %v. Timeout %v. PromAddr: %v\n", *addr, *timeout, *promAddr)
 	router1 := httprouter.New()
-	router1.GET("/", hello)
+	router1.GET("/", world)
 	router1.GET("/hello/", hello)
 	router1.GET("/world/", world)
 

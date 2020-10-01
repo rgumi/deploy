@@ -12,13 +12,22 @@ var allowedOperators = []string{">", "==", "<"}
 // of a backend and take action according to
 // the values defined here
 type Condition struct {
-	Status      bool                            `json:"status" yaml:"-"`              // Status if the condition active for long enough and is therefore true
-	Metric      string                          `json:"metric" yaml:"metric"`         // Name of the metric
-	Operator    string                          `json:"operator" yaml:"operator"`     // < > ==
-	Threshold   float64                         `json:"threshold" yaml:"threshold"`   // Threshhold that is checked
-	ActiveFor   time.Duration                   `json:"active_for" yaml:"active_for"` // Duration for which the condition has to be met
-	TriggerTime time.Time                       `json:"-" yaml:"-"`                   // time the condition was first true
-	IsTrue      func(m map[string]float64) bool `json:"-" yaml:"-"`                   // Condtional function to evaluate condition
+	// Status if the condition active for long enough and is therefore true
+	Status bool `json:"status" yaml:"-"`
+	// Name of the metric
+	Metric string `json:"metric" yaml:"metric"`
+	// allowed operators: < > ==
+	Operator string `json:"operator" yaml:"operator"`
+	// Threshhold that is checked
+	Threshold float64 `json:"threshold" yaml:"threshold"`
+	// Duration for which the condition has to be met
+	ActiveFor time.Duration `json:"active_for" yaml:"activeFor" default:"5s"`
+	// Duration for which an active alert needs to be inactive to be resolved
+	ResolveIn time.Duration `json:"resolve_in,omitempty" yaml:"resolveIn,omitempty" default:"10s"`
+	// time the condition was first true
+	TriggerTime time.Time `json:"-" yaml:"-"`
+	// Condtional function to evaluate condition
+	IsTrue func(m map[string]float64) bool `json:"-" yaml:"-"`
 }
 
 func (c *Condition) Compile() func(m map[string]float64) {
@@ -53,12 +62,14 @@ func (c *Condition) Compile() func(m map[string]float64) {
 
 // NewCondition returns a new condition for the given parameters
 // Initializes correctly by setting up IsTrue to a conditional function
-func NewCondition(metric, operator string, threshhold float64, activeFor time.Duration) *Condition {
+func NewCondition(metric, operator string, threshhold float64, activeFor, resolveIn time.Duration) *Condition {
 
 	if metric == "" || operator == "" || activeFor == 0 {
 		panic(fmt.Errorf("Parameters cannot be empty"))
 	}
-
+	if resolveIn == 0 {
+		resolveIn = activeFor
+	}
 	for _, op := range allowedOperators {
 		if op == operator {
 			goto allowed
@@ -73,6 +84,7 @@ allowed:
 	cond.Metric = metric
 	cond.Operator = operator
 	cond.ActiveFor = activeFor
+	cond.ResolveIn = resolveIn
 	cond.Threshold = threshhold
 	cond.Compile()
 

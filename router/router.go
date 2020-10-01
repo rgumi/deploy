@@ -95,17 +95,13 @@ func (r *Router) RemoveHandle(method, prefix string) error {
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-
-	// recovers if any goroutine results in an unhandeled error (internal server error)
-	// and returns 500 and the error message to the downstream client
-	// therefore no connections can hangup and server crashes are very unlikely
 	defer func() {
 		if err := recover(); err != nil {
-			log.Infof("Recovered in Router: %v", err)
+			log.Errorf("Recovered in Router: %v", err)
 			r.ErrorHandler(w, req, err.(error))
+			return
 		}
 	}()
-
 	if _, found := r.tree[req.Method]; found {
 		if _, h, found := r.tree[req.Method].LongestPrefix(req.URL.String()); found {
 			h.(http.HandlerFunc)(w, req)

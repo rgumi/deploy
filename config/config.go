@@ -51,11 +51,11 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 	)
 
 	for _, existingRoute := range myGateway.Routes {
-		defaults.Set(existingRoute)
+		if err := defaults.Set(existingRoute); err != nil {
+			panic(err)
+		}
 
 		log.Debugf("Adding existing route %v to  new Gateway", existingRoute.Name)
-
-		log.Warn(existingRoute.HealthCheck)
 		newRoute, err := route.New(
 			existingRoute.Name,
 			existingRoute.Prefix,
@@ -67,8 +67,9 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 			existingRoute.IdleTimeout,
 			existingRoute.ScrapeInterval,
 			existingRoute.HealthCheckInterval,
+			existingRoute.MonitoringInterval,
 			existingRoute.CookieTTL,
-			*existingRoute.HealthCheck,
+			existingRoute.HealthCheck,
 		)
 
 		if err != nil {
@@ -139,19 +140,21 @@ func WriteToFile(g *gateway.Gateway, file string) error {
 
 	for _, r := range g.Routes {
 		outRoute := &InputRoute{
-			Name:           r.Name,
-			Prefix:         r.Prefix,
-			Rewrite:        r.Rewrite,
-			Strategy:       r.Strategy,
-			Proxy:          r.Proxy,
-			Timeout:        r.Timeout,
-			ScrapeInterval: r.ScrapeInterval,
-			Backends:       []*route.Backend{},
-			CookieTTL:      r.CookieTTL,
-			HealthCheck:    &r.HealthCheck,
-			Host:           r.Host,
-			IdleTimeout:    r.IdleTimeout,
-			Methods:        r.Methods,
+			Name:                r.Name,
+			Prefix:              r.Prefix,
+			Rewrite:             r.Rewrite,
+			Strategy:            r.Strategy,
+			Proxy:               r.Proxy,
+			Timeout:             r.Timeout,
+			ScrapeInterval:      r.ScrapeInterval,
+			Backends:            []*route.Backend{},
+			CookieTTL:           r.CookieTTL,
+			HealthCheck:         r.HealthCheck,
+			HealthCheckInterval: r.HealthCheckInterval,
+			MonitoringInterval:  r.MonitoringInterval,
+			Host:                r.Host,
+			IdleTimeout:         r.IdleTimeout,
+			Methods:             r.Methods,
 		}
 		for _, backend := range r.Backends {
 

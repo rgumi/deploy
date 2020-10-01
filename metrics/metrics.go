@@ -38,7 +38,7 @@ type Storage interface {
 	Write(string, uuid.UUID, map[string]float64, int64, int64, int)
 	ReadData() map[string]map[uuid.UUID]map[time.Time]storage.Metric
 	ReadBackend(backend uuid.UUID, start, end time.Time) (storage.Metric, error)
-	ReadRoute(route string, start, end time.Time) storage.Metric
+	ReadRoute(route string, start, end time.Time) (storage.Metric, error)
 	Stop()
 }
 
@@ -212,65 +212,58 @@ func (m *Repository) RegisterAlert(backendID uuid.UUID, alertType, metric string
 	}
 }
 
-// Monitor stats the monitor loop which checks every $timeout interval
+// Monitor starts the monitoring-loop of a Backend which checks every interval
 // if an alert needs to be sent
-// $activeFor defines for how long a threshhold needs to be reached to
+// activeFor defines for how long a threshhold needs to be reached to
 // send an alert
-func (m *Repository) Monitor(backendID uuid.UUID) error {
-
+// resolveFor defines for how long a alert has to be inactive before resolving it
+func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error {
 	if backend, ok := m.Backends[backendID]; ok {
 		log.Debugf("Starting monitoring of backend %v", backend.ID)
-
 		for {
 			select {
 			case _ = <-backend.stopMonitoring:
 				return nil
-
 			default:
-				// read the collected metric from the storage
-				// may be an average over 1s, 10s, 1m? Configure that
 				now := time.Now()
-				collected, _ := m.ReadRatesOfBackend(backendID, now.Add(-m.Granularity), now)
+				collected, _ := m.ReadRatesOfBackend(backendID, now.Add(-2*interval), now)
 				log.Debugf("Rates of Backend %v: %v", backendID, collected)
-
 				// loop over every metric that was collected
 				for _, condition := range backend.MetricThreshholds {
-
 					// get the treshhold for this metric
 					// this has to exist otherwise it would not have been collected
 					isReached := condition.IsTrue(collected)
 					currentValue := collected[condition.Metric]
-
 					// check if an alert already exists for this metric
 					if alert, ok := backend.activeAlerts[condition.Metric]; ok {
-						// alert exists already
 						// check if it is still active
 						if isReached {
 							log.Debugf("Threshhold still reached for Alert %v", alert)
 							// threshhold is still reached and alert remains up
-							// update value to current value
 							alert.Value = currentValue
+							// Update the Prometheus-Gauge with the current number
+							// of active alerts of the backend
+							ActiveAlerts.With(
+								prometheus.Labels{
+									"route":   backend.Route,
+									"backend": backend.ID.String(),
+								},
+							).Set(float64(len(backend.activeAlerts)))
 							// check if alert existed for long enough to send an alert
 							now := time.Now()
-							if now.After(alert.StartTime.Add(condition.GetActiveFor())) && alert.SendTime.IsZero() {
-								log.Debugf("Sending alarm for %v", alert)
+							if now.After(alert.StartTime.Add(condition.ActiveFor)) && alert.SendTime.IsZero() {
 								alert.Type = "Alarming"
 								alert.SendTime = now
 								backend.AlertChannel <- *alert
-								log.Debugf("Send alarm for %v", alert)
 							}
-
 							// goto next metric
 							continue
 						}
-
 						// treshhold is no longer reached
-
 						if alert.EndTime.IsZero() {
 							alert.EndTime = time.Now()
 						}
-
-						if time.Now().After(alert.EndTime.Add(condition.GetActiveFor())) {
+						if time.Now().After(alert.EndTime.Add(condition.ResolveIn)) {
 							alert.Type = "Resolved"
 							alert.Value = currentValue
 							backend.AlertChannel <- *alert
@@ -278,12 +271,10 @@ func (m *Repository) Monitor(backendID uuid.UUID) error {
 
 							log.Debugf("Resolved Alert for %v", alert)
 						}
-
+						// goto next metric
 						continue
 					}
-
 					// new alarm for metric aka not yet in backend.activeAlerts
-
 					if isReached {
 						alert := &Alert{
 							Type:       "Pending",
@@ -296,12 +287,11 @@ func (m *Repository) Monitor(backendID uuid.UUID) error {
 						backend.activeAlerts[condition.Metric] = alert
 						// sending pending alarming to backend
 						backend.AlertChannel <- *alert
-
 						log.Debugf("New alert registered: %v", alert)
 					}
 				}
 			}
-			time.Sleep(m.Granularity)
+			time.Sleep(interval)
 		}
 	}
 	return fmt.Errorf("Could not find backend with id %v", backendID)
@@ -338,13 +328,17 @@ func (m *Repository) Listen() {
 			AvgResponseTime.With(
 				prometheus.Labels{
 					"route":   metrics.Route,
-					"backend": metrics.BackendID.String()},
+					"backend": metrics.BackendID.String(),
+					"code":    strconv.Itoa(metrics.ResponseStatus),
+					"method":  metrics.RequestMethod},
 			).Set(m.PromMetrics.GetAvgResponseTime(metrics.Route, metrics.BackendID))
 
 			AvgContentLength.With(
 				prometheus.Labels{
 					"route":   metrics.Route,
-					"backend": metrics.BackendID.String()},
+					"backend": metrics.BackendID.String(),
+					"code":    strconv.Itoa(metrics.ResponseStatus),
+					"method":  metrics.RequestMethod},
 			).Set(m.PromMetrics.GetAvgContentLength(metrics.Route, metrics.BackendID))
 
 			// Get Scrape Metrics and persist to Storage
@@ -381,10 +375,8 @@ func (m *Repository) Listen() {
 // scrapeJob scraped the given instance, extracts the defined metrics
 // and pushes them into the scrapeMetricsChannel
 func (m *Repository) scrapeJob(instance *MonitoredBackend) {
-
 	// timeout if last scrape was an error
 	time.Sleep(instance.nextTimeout)
-
 	req, err := http.NewRequest("GET", instance.ScrapeURL, nil)
 	if err != nil {
 		// should never happen
@@ -397,23 +389,19 @@ func (m *Repository) scrapeJob(instance *MonitoredBackend) {
 		instance.nextTimeout = time.Duration(instance.Errors) * time.Second
 		return
 	}
-
 	// reset errors counter
 	instance.Errors = 0
 	instance.nextTimeout = 0
-
 	// got response therefore extract metricValues
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Error(err)
 	}
 	defer resp.Body.Close()
-
 	metrics := ScrapeMetrics{
 		BackendID: instance.ID,
 		Metrics:   map[string]float64{},
 	}
-
 	for _, name := range instance.ScrapeMetrics {
 		bodyReader := bytes.NewReader(body)
 		value, err := getRowFromBody(bodyReader, name)
@@ -422,7 +410,6 @@ func (m *Repository) scrapeJob(instance *MonitoredBackend) {
 		}
 		metrics.Metrics[name] = value
 	}
-
 	// finished extracting metric values from scrape
 	m.scrapeMetricsChannel <- metrics
 }
@@ -447,17 +434,13 @@ func (m *Repository) jobLoop(b *MonitoredBackend) {
 
 // ReadRatesOfBackend makes rates (average) of all metrics of the backend within the given timeframe
 func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time) (map[string]float64, error) {
-
 	metricRates := make(map[string]float64)
-
 	current, err := m.Storage.ReadBackend(backend, start, end)
 
-	// there were no responses yet
-	// avoid divison by 0
+	// there were no responses yet => avoid divison by 0
 	if current.TotalResponses == 0 {
 		current.TotalResponses = 1
 	}
-
 	metricRates["2xxRate"] = float64(current.ResponseStatus200) / float64(current.TotalResponses)
 	metricRates["3xxRate"] = float64(current.ResponseStatus300) / float64(current.TotalResponses)
 	metricRates["4xxRate"] = float64(current.ResponseStatus400) / float64(current.TotalResponses)
@@ -465,7 +448,6 @@ func (m *Repository) ReadRatesOfBackend(backend uuid.UUID, start, end time.Time)
 	metricRates["6xxRate"] = float64(current.ResponseStatus600) / float64(current.TotalResponses)
 	metricRates["ResponseTime"] = current.ResponseTime
 	metricRates["ContentLength"] = float64(current.ContentLength)
-
 	for customScrapeMetricName, customScrapeMetricValue := range current.CustomMetrics {
 		metricRates[customScrapeMetricName] = customScrapeMetricValue
 	}
@@ -516,37 +498,31 @@ func (m *Repository) ReadAllRoutes(start, end time.Time, granularity time.Durati
 }
 
 func (m *Repository) ReadBackend(backendID uuid.UUID, start, end time.Time, granularity time.Duration) (map[time.Time]storage.Metric, error) {
-
 	var err error
-
 	if _, found := m.Backends[backendID]; !found {
 		return nil, fmt.Errorf("Could not find backend with ID %v", backendID)
 	}
-
 	if granularity == 0 {
 		granularity = m.Granularity
 	}
-
 	timeframe := end.Sub(start)
-
+	// granualrity < MonitoringGranularity is ignored
 	if timeframe < granularity {
 		return nil, fmt.Errorf("Timeframe must be greater than granulartiy (%v > %v)", timeframe, granularity)
 	}
-
-	// only return avg over the timeframe
 	if timeframe == granularity {
+		// only return avg over the timeframe
 		data := make(map[time.Time]storage.Metric, 1)
 		data[time.Now()], err = m.Storage.ReadBackend(backendID, start, end)
 		return data, err
 	}
-
+	// number of timestamped entries
 	steps := int(timeframe / granularity)
 	data := make(map[time.Time]storage.Metric, steps)
+
 	maxTime := start
 	for i := 0; i < steps; i++ {
-
 		maxTime = maxTime.Add(granularity)
-
 		data[maxTime], err = m.Storage.ReadBackend(backendID, start, maxTime)
 		if err != nil {
 			// errors are ignored and just empty metrics are returned instead
@@ -554,55 +530,40 @@ func (m *Repository) ReadBackend(backendID uuid.UUID, start, end time.Time, gran
 		}
 		start = maxTime
 	}
-
 	return data, nil
 }
 
 func (m *Repository) ReadRoute(routeName string, start, end time.Time, granularity time.Duration) (map[time.Time]storage.Metric, error) {
-
 	var err error
-
 	if granularity == 0 {
 		granularity = m.Granularity
 	}
-
-	// if granularity is greater than the timeframe, return an error
-	// granualrity < MonitoringGranularity is ignored
 	timeframe := end.Sub(start)
+	// granualrity < MonitoringGranularity is ignored
 	if timeframe < granularity {
 		return nil, fmt.Errorf("Timeframe must be greater than granulartiy (%v must be larger than %v)", timeframe, granularity)
 	}
-
 	// only return avg over the timeframe
 	if timeframe == granularity {
 		data := make(map[time.Time]storage.Metric, 1)
-		data[end] = m.Storage.ReadRoute(routeName, start, end)
-
-		if err != nil {
-
-			return nil, err
-		}
-		return data, nil
-
+		data[end], err = m.Storage.ReadRoute(routeName, start, end)
+		return data, err
 	}
+	// number of timestamped entries
 	steps := int(timeframe / granularity)
 	data := make(map[time.Time]storage.Metric, steps)
+
 	maxTime := start
-
 	for i := 0; i < steps; i++ {
-
 		maxTime = maxTime.Add(granularity)
-
-		data[maxTime] = m.Storage.ReadRoute(routeName, start, maxTime)
+		data[maxTime], err = m.Storage.ReadRoute(routeName, start, maxTime)
 		if err != nil {
 			// errors are ignored and just empty metrics are returned instead
 			data[maxTime] = storage.Metric{}
 		}
-
 		start = maxTime
 	}
 	return data, nil
-
 }
 
 /*
@@ -651,10 +612,8 @@ func parseFloat(str string) (float64, error) {
 func getRowFromBody(body io.Reader, pattern string) (float64, error) {
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
-
 		// Prometheus scrape format is metricName space metricValue
 		substrings := strings.Split(scanner.Text(), " ")
-
 		// Comment rows start with #
 		if substrings[0] == "#" {
 			continue

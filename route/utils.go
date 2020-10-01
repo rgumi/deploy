@@ -1,7 +1,7 @@
 package route
 
 import (
-	"bytes"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -61,22 +61,15 @@ func sendResponse(resp *http.Response, w http.ResponseWriter) int {
 	return len(b)
 }
 
-func formateRequest(old *http.Request, addr string, body []byte) (*http.Request, error) {
-
-	reader := bytes.NewReader(body)
-
-	new, _ := http.NewRequest(old.Method, addr, reader)
-
+func formateRequest(old *http.Request, addr string, readCloser io.ReadCloser) (*http.Request, error) {
+	new, _ := http.NewRequest(old.Method, addr, readCloser)
 	// setup the X-Forwarded-For header
 	if clientIP, _, err := net.SplitHostPort(old.RemoteAddr); err == nil {
 		appendHostToXForwardHeader(new.Header, clientIP)
 	}
-
-	// Copy all headers from the downstream request to the new upstream request
 	copyHeaders(old.Header, new.Header)
-	// Remove all headers from the new upstream request that are bound to downstream connection
+	// Remove all hop-to-hop-headers (https://tools.ietf.org/html/rfc2616#section-13.5.1)
 	delHopHeaders(new.Header)
-
 	return new, nil
 }
 

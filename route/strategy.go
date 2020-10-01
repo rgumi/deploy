@@ -1,6 +1,7 @@
 package route
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -163,12 +164,9 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 	return func(w http.ResponseWriter, req *http.Request) {
-
 		defer req.Body.Close()
 
-		//var err error
-		var b []byte
-
+		var bBuffer bytes.Buffer
 		currentTarget, err := r.getNextBackend()
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
@@ -176,9 +174,12 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		b, _ = ioutil.ReadAll(req.Body)
+		bBuffer.ReadFrom(req.Body)
+		IncContentLength := bBuffer.Len()
+		log.Warnf("Inc Content Length: %d", IncContentLength)
+		readCloser := ioutil.NopCloser(&bBuffer)
 
-		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, b)
+		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, readCloser)
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
@@ -195,14 +196,12 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 // based on its weight. StickyHandler also sets a session cookie so that all
 // following requests are forwarded to the same backend
 func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
-
 	return func(w http.ResponseWriter, req *http.Request) {
-
 		defer req.Body.Close()
-
 		var err error
-		var b []byte
+		var bBuffer bytes.Buffer
 		var currentTarget *Backend
+
 		cookieName := strings.ToUpper(r.Name) + "_SESSIONCOOKIE"
 
 		if value, expires := checkCookie(req, cookieName); value != "" {
@@ -233,9 +232,9 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 
 	forward:
 
-		b, _ = ioutil.ReadAll(req.Body)
-
-		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, b)
+		bBuffer.ReadFrom(req.Body)
+		readCloser := ioutil.NopCloser(&bBuffer)
+		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, readCloser)
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
@@ -254,15 +253,19 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
-		var b []byte
+		var bBuffer bytes.Buffer
 
 		// check if header exist
 		if value := req.Header.Get(headerName); value != "" {
 			// header is set therefore new backend will be used
 			// headerValue is ignored
-			b, _ = ioutil.ReadAll(req.Body)
 
-			resp, m, gErr := r.sendRequestToUpstream(target, req, b)
+			bBuffer.ReadFrom(req.Body)
+			IncContentLength := bBuffer.Len()
+			log.Warnf("Inc Content Length: %d", IncContentLength)
+			readCloser := ioutil.NopCloser(&bBuffer)
+
+			resp, m, gErr := r.sendRequestToUpstream(target, req, readCloser)
 			if gErr != nil {
 				log.Warnf("%s %v %s. Error: %v", r.Name, target.ID, target.Name, gErr)
 				http.Error(w, gErr.Error(), gErr.Code())
@@ -276,7 +279,10 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 
 		// header is not set therefore old backend is used
 
-		b, _ = ioutil.ReadAll(req.Body)
+		bBuffer.ReadFrom(req.Body)
+		IncContentLength := bBuffer.Len()
+		log.Warnf("Inc Content Length: %d", IncContentLength)
+		readCloser := ioutil.NopCloser(&bBuffer)
 
 		target, err := r.getNextBackend()
 		if err != nil {
@@ -285,7 +291,7 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 			return
 		}
 
-		resp, m, gErr := r.sendRequestToUpstream(target, req, b)
+		resp, m, gErr := r.sendRequestToUpstream(target, req, readCloser)
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, target.ID, target.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
@@ -306,10 +312,13 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
-		var b []byte
+		var bBuffer bytes.Buffer
 
 		// send request to old backend
-		b, _ = ioutil.ReadAll(req.Body)
+		bBuffer.ReadFrom(req.Body)
+		IncContentLength := bBuffer.Len()
+		log.Warnf("Inc Content Length: %d", IncContentLength)
+		readCloser := ioutil.NopCloser(&bBuffer)
 
 		currentTarget, err := r.getNextBackend()
 		if err != nil {
@@ -318,7 +327,7 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 			return
 		}
 
-		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, b)
+		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, readCloser)
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
 			http.Error(w, gErr.Error(), gErr.Code())
@@ -332,17 +341,20 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 
 		// send request to shadowed backend
 		go func() {
-			b, _ = ioutil.ReadAll(req.Body)
+			bBuffer.ReadFrom(req.Body)
+			IncContentLength := bBuffer.Len()
+			log.Warnf("Inc Content Length: %d", IncContentLength)
+			readCloser := ioutil.NopCloser(&bBuffer)
 			defer req.Body.Close()
 
-			respShadow, m, gErr := r.sendRequestToUpstream(shadow, req, b)
+			respShadow, m, gErr := r.sendRequestToUpstream(shadow, req, readCloser)
 			if gErr != nil {
 				log.Warnf("%s %v %s. Error: %v", r.Name, shadow.ID, shadow.Name, gErr)
 				http.Error(w, gErr.Error(), gErr.Code())
 				r.MetricsRepo.InChannel <- m
 				return
 			}
-			b, _ = ioutil.ReadAll(respShadow.Body)
+			b, _ := ioutil.ReadAll(respShadow.Body)
 			defer respShadow.Body.Close()
 			m.ContentLength = int64(len(b))
 			r.MetricsRepo.InChannel <- m

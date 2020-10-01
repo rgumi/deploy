@@ -1,6 +1,100 @@
-addr: :8080
-read_timeout: 5s
-write_timeout: 5s
-http_timeout: 10s
-idle_timeout: 30s
-routes: []
+routes:
+  - name: Route1
+    prefix: /route1/
+    rewrite: /
+    strategy:
+      type: sticky
+    backends:
+      - name: backend1
+        addr: http://localhost:7070
+        weight: 100
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+          - metric: "5xxRate"
+            operator: ">"
+            threshold: 0.2
+          - metric: "4xxRate"
+            operator: ">"
+            threshold: 0.3
+      - name: backend2
+        addr: http://localhost:9090
+        weight: 0
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+          - metric: "5xxRate"
+            operator: ">"
+            threshold: 0.2
+          - metric: "4xxRate"
+            operator: ">"
+            threshold: 0.3
+      - name: b3
+        addr: http://localhost:9090
+        weight: 0
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+  - name: Route2
+    prefix: /route2/
+    rewrite: /
+    strategy:
+      type: sticky
+    backends:
+      - name: b1
+        addr: http://localhost:7070
+        weight: 100
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+          - metric: "5xxRate"
+            operator: ">"
+            threshold: 0.2
+          - metric: "4xxRate"
+            operator: ">"
+            threshold: 0.3
+      - name: b2
+        addr: http://localhost:9090
+        weight: 0
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+      - name: b3
+        addr: http://localhost:9090
+        weight: 0
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+  - name: Route3
+    prefix: /route3/
+    rewrite: /
+    strategy:
+      type: sticky
+    backends:
+      - name: b1
+        addr: http://localhost:7070
+        weight: 100
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+      - name: b2
+        addr: http://localhost:9090
+        weight: 0
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+      - name: b3
+        addr: http://localhost:9090
+        weight: 0
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000

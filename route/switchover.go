@@ -9,6 +9,7 @@ import (
 )
 
 var counter int
+var granularity = 10 * time.Second
 
 // SwitchOver is used to configure a switch-over from
 // one backend to another. This can be used to gradually
@@ -41,11 +42,8 @@ func NewSwitchOver(
 	if from.ID == to.ID {
 		return nil, fmt.Errorf("from and to cannot be the same entity")
 	}
-	if from.Weigth < 100 {
-		return nil, fmt.Errorf("Weight of Switchover.From cannot be less than 100")
-	}
-	if to.Weigth > 0 {
-		return nil, fmt.Errorf("Weight of Switchover.To must be 0")
+	if from.Weigth < to.Weigth {
+		return nil, fmt.Errorf("Weight of Switchover.From must be larger then Switchover.To")
 	}
 
 	for _, cond := range conditions {
@@ -100,45 +98,35 @@ outer:
 			time.Sleep(s.Timeout)
 
 			metrics, err := s.Route.MetricsRepo.ReadRatesOfBackend(
-				s.To.ID, time.Now().Add(-10*time.Second), time.Now())
+				s.To.ID, time.Now().Add(-s.Timeout), time.Now())
 
 			if err != nil {
-				log.Debugf("Warning in Switchover (%v)", err)
+				log.Debug(err)
 				continue
 			}
-
 			for _, condition := range s.Conditions {
 				status := condition.IsTrue(metrics)
-
 				if status && s.To.Active {
-
 					if condition.TriggerTime.IsZero() {
-
 						condition.TriggerTime = time.Now()
-
 					} else {
-
 						// check if condition was active for long enough
 						if condition.TriggerTime.Add(condition.GetActiveFor()).Before(time.Now()) {
 							log.Warnf("Updating status of condition %v %v %v to true", condition.Metric, condition.Operator, condition.Threshold)
 							condition.Status = true
 						}
 					}
-
 				} else {
 					// condition is not met, therefore reset triggerTime
 					condition.TriggerTime = time.Time{}
 					s.failureCounter++
-
 					if s.failureCounter == s.AllowedFailures {
 						// failed too often...
 						s.Status = "Failed"
 						s.Stop()
-
 					}
 				}
 			}
-
 			// check
 			for _, condition := range s.Conditions {
 				if !condition.Status {
@@ -147,23 +135,18 @@ outer:
 					continue outer
 				}
 			}
-
 			// if all conditions are true, increase the weight of the new route
 			s.From.UpdateWeight(s.From.Weigth - s.WeightChange)
 			s.To.UpdateWeight(s.To.Weigth + s.WeightChange)
-
 			// As both routes are part of the same route, both will be updated
 			s.To.updateWeigth()
-
 			// reset the conditions
 			for _, condition := range s.Conditions {
 				condition.TriggerTime = time.Time{}
 				condition.Status = false
 			}
-
-			if s.From.Weigth == 0 || s.To.Weigth == 100 {
+			if s.From.Weigth <= 0 || s.To.Weigth >= 100 {
 				// switchover was successful, all traffic is forwarded to new backend
-
 				log.Warnf("Switchover from %v to %v was successful", s.From.ID, s.To.ID)
 				s.Status = "Success"
 				s.Stop()

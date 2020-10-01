@@ -51,27 +51,22 @@ func (st *LocalStorage) Stop() {
 // the averages are then written to data with the current time
 // Also old entries in data are removed periodicly
 func (st *LocalStorage) Job() {
-
 	for {
 		select {
 		case _ = <-st.killChan:
 			// exit loop
 			return
-
 		default:
 			time.Sleep(st.Granularity)
 			go func() {
 				// Lock & Unlock data
 				st.mux.Lock()
+				st.pufferMux.Lock()
 				defer st.mux.Unlock()
 
-				// Lock & Unlock puffer
-				st.pufferMux.Lock()
-				defer st.pufferMux.Unlock()
-
-				// execute operations
-				st.deleteOldData()
 				st.readPuffer()
+				st.pufferMux.Unlock()
+				st.deleteOldData()
 			}()
 		}
 	}
@@ -127,7 +122,6 @@ func (st *LocalStorage) ReadData() map[string]map[uuid.UUID]map[time.Time]Metric
 
 // ReadBackend returns all metrics for the backend that are within the given timeframe
 func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Metric, error) {
-
 	st.mux.RLock()
 	defer st.mux.RUnlock()
 
@@ -145,17 +139,16 @@ func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Me
 				if len(relevantMetrics) == 0 {
 					return Metric{}, fmt.Errorf("Could not find relevant metrics for provided timeframe")
 				}
-
 				return makeAverageBackend(relevantMetrics), nil
 			}
 		}
 	}
+	// not found
 	return Metric{}, fmt.Errorf("Could not find provided backend %v", backend)
 }
 
 // ReadRoute returns all metrics for the route that are within the given timeframe
-func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
-
+func (st *LocalStorage) ReadRoute(route string, start, end time.Time) (Metric, error) {
 	st.mux.RLock()
 	defer st.mux.RUnlock()
 
@@ -163,13 +156,7 @@ func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 		// get the averages for this route
 		finalMetric := Metric{}
 		finalMetric.CustomMetrics = make(map[string]float64)
-
 		relevantMetrics := []Metric{}
-
-		// this is wrong!!!! TODO: Change this so its works
-		// die avg response time ist verfälscht, da das ein Backend, was kaputt ist
-		// eine ResponseTime von 0 hat und somit den avg der anderen beiden runterzieht
-		// Gewichtung beachten!!!
 
 		for _, backend := range routeData {
 			for time, metric := range backend {
@@ -178,13 +165,13 @@ func (st *LocalStorage) ReadRoute(route string, start, end time.Time) Metric {
 				}
 			}
 		}
-
-		return makeAverageBackend(relevantMetrics)
-
+		if len(relevantMetrics) == 0 {
+			return Metric{}, fmt.Errorf("Could not find relevant metrics for provided timeframe")
+		}
+		return makeAverageBackend(relevantMetrics), nil
 	}
-
 	// not found
-	return Metric{}
+	return Metric{}, fmt.Errorf("Could not find provided route %v", route)
 }
 
 /*
@@ -230,22 +217,17 @@ func makeAverageBackend(in []Metric) Metric {
 }
 
 func (st *LocalStorage) readPuffer() {
-
 	for routeName, routeData := range st.puffer {
-
 		for backendID, backendData := range routeData {
-
 			// no new data
 			if len(st.puffer[routeName][backendID]) == 0 {
 				continue
 			}
 
 			if _, found := st.data[routeName]; !found {
-
 				st.data[routeName] = make(map[uuid.UUID]map[time.Time]Metric)
 				st.data[routeName][backendID] = make(map[time.Time]Metric)
 			} else {
-
 				if _, found := st.data[routeName][backendID]; !found {
 					st.data[routeName][backendID] = make(map[time.Time]Metric)
 				}
@@ -259,23 +241,16 @@ func (st *LocalStorage) readPuffer() {
 }
 
 func (st *LocalStorage) deleteOldData() {
-
-	deletePeriod := st.RetentionPeriod
-
 	// for each route
 	for _, routeData := range st.data {
-
-		//outer:
 		// for each backend of route
 		for _, backendData := range routeData {
-
 			// for each timestamped, averaged metric of backend
 			for timestamp := range backendData {
-				if timestamp.Add(deletePeriod).Before(time.Now()) {
+				if timestamp.Add(st.RetentionPeriod).Before(time.Now()) {
 					// metric is out of retention period => delete it
 					delete(backendData, timestamp)
 				}
-				// continue
 			}
 		}
 	}
