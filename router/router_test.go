@@ -42,8 +42,8 @@ func Test_Redundant_Handle(t *testing.T) {
 
 func Test_CaseSensitity(t *testing.T) {
 	err := router.AddHandler("get", "/HellO", testHandle)
-	if err == nil {
-		t.Error("Inserted an already existing handle")
+	if err != nil {
+		t.Error("Unable to insert case sensitive handle")
 	}
 }
 

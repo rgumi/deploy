@@ -3,6 +3,7 @@ package router
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	radix "github.com/armon/go-radix"
 	log "github.com/sirupsen/logrus"
@@ -64,14 +65,14 @@ func (r *Router) CheckIfHandleExists(method, prefix string) (bool, error) {
 
 func (r *Router) AddHandler(method, prefix string, handler http.HandlerFunc) error {
 	var err error
-
+	httpMethod := strings.ToUpper(method)
 	// check if the prefix & method combination already exists
-	_, err = r.CheckIfHandleExists(method, prefix)
+	_, err = r.CheckIfHandleExists(httpMethod, prefix)
 	if err != nil {
 		return err
 	}
-	log.Debugf("Adding new Handle {Method:%s Prefix: %s} to Router", method, prefix)
-	if _, updated := r.tree[method].Insert(prefix, handler); updated {
+	log.Debugf("Adding new Handle {Method:%s Prefix: %s} to Router", httpMethod, prefix)
+	if _, updated := r.tree[httpMethod].Insert(prefix, handler); updated {
 		return fmt.Errorf("Updated an entry")
 	}
 	return nil
@@ -79,14 +80,14 @@ func (r *Router) AddHandler(method, prefix string, handler http.HandlerFunc) err
 
 func (r *Router) RemoveHandle(method, prefix string) error {
 	var err error
-
+	httpMethod := strings.ToUpper(method)
 	// check if the prefix & method combination already exists
-	_, err = r.CheckIfHandleExists(method, prefix)
+	_, err = r.CheckIfHandleExists(httpMethod, prefix)
 	if err == nil {
 		return fmt.Errorf("Handle does not exist")
 	}
 
-	if _, deleted := r.tree[method].Delete(prefix); !deleted {
+	if _, deleted := r.tree[httpMethod].Delete(prefix); !deleted {
 		return fmt.Errorf("Could not delete handle")
 	}
 
