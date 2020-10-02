@@ -252,7 +252,7 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 							).Set(float64(len(backend.activeAlerts)))
 							// check if alert existed for long enough to send an alert
 							now := time.Now()
-							if now.After(alert.StartTime.Add(condition.ActiveFor)) && alert.SendTime.IsZero() {
+							if now.After(alert.StartTime.Add(condition.GetActiveFor())) && alert.SendTime.IsZero() {
 								alert.Type = "Alarming"
 								alert.SendTime = now
 								backend.AlertChannel <- *alert
@@ -266,10 +266,10 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 						}
 						// 0 is interpreted as indefinitely and therefore once an alarm is active,
 						// the Backend will never be resolved again
-						if condition.ResolveIn == 0 {
+						if condition.GetResolveIn() == 0 {
 							continue
 						}
-						if time.Now().After(alert.EndTime.Add(condition.ResolveIn)) {
+						if time.Now().After(alert.EndTime.Add(condition.GetResolveIn())) {
 							alert.Type = "Resolved"
 							alert.Value = currentValue
 							backend.AlertChannel <- *alert
@@ -369,8 +369,14 @@ func (m *Repository) Listen() {
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:
 
+			backend, found := m.Backends[scrapeMetrics.BackendID]
+
+			// check if backend exists (to avoid nil pointer exc)
+			if !found {
+				continue
+			}
 			log.Trace(scrapeMetrics)
-			m.Backends[scrapeMetrics.BackendID].ScrapeMetricPuffer = scrapeMetrics.Metrics
+			backend.ScrapeMetricPuffer = scrapeMetrics.Metrics
 
 		case _ = <-m.shutdown:
 			return

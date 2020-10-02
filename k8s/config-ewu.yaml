@@ -22,7 +22,7 @@ data:
         cookieTTL: 2m0s
         strategy:
           type: sticky
-        healthcheck: true
+        healthcheck_bool: true
         timeout: 5s
         idleTimeout: 5s
         proxy: ""
@@ -49,7 +49,7 @@ data:
         cookieTTL: 2m0s
         strategy:
           type: sticky
-        healthcheck: true
+        healthcheck_bool: true
         timeout: 5s
         idleTimeout: 5s
         proxy: ""
@@ -76,7 +76,7 @@ data:
         cookieTTL: 2m0s
         strategy:
           type: sticky
-        healthcheck: true
+        healthcheck_bool: true
         timeout: 5s
         idleTimeout: 5s
         proxy: ""
@@ -103,7 +103,7 @@ data:
         cookieTTL: 2m0s
         strategy:
           type: sticky
-        healthcheck: true
+        healthcheck_bool: true
         timeout: 5s
         idleTimeout: 5s
         proxy: ""

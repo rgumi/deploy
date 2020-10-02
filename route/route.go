@@ -35,14 +35,14 @@ type Route struct {
 	Methods             []string               `json:"methods" yaml:"methods" validate:"empty=false"`
 	Host                string                 `json:"host" yaml:"host" default:"*"`
 	Rewrite             string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
-	CookieTTL           time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"  default:"5m0s"`
+	CookieTTL           time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"`
 	Strategy            *Strategy              `json:"strategy" yaml:"strategy" validate:"nil=false"`
 	HealthCheck         bool                   `json:"healthcheck_bool" yaml:"healthcheckBool" default:"true"`
-	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheckInterval" default:"5s"`
-	MonitoringInterval  time.Duration          `json:"monitoring_interval" yaml:"monitoringInterval" default:"5s"`
-	Timeout             time.Duration          `json:"timeout" yaml:"timeout" default:"5s"`
-	IdleTimeout         time.Duration          `json:"idle_timeout" yaml:"idleTimeout" default:"30s"`
-	ScrapeInterval      time.Duration          `json:"scrape_interval" yaml:"scrapeInterval" default:"5s"`
+	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheckInterval" "`
+	MonitoringInterval  time.Duration          `json:"monitoring_interval" yaml:"monitoringInterval" "`
+	Timeout             time.Duration          `json:"timeout" yaml:"timeout"`
+	IdleTimeout         time.Duration          `json:"idle_timeout" yaml:"idleTimeout"`
+	ScrapeInterval      time.Duration          `json:"scrape_interval" yaml:"scrapeInterval"`
 	Proxy               string                 `json:"proxy" yaml:"proxy" default:""`
 	Backends            map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
 	SwitchOver          *SwitchOver            `json:"switchover" yaml:"-"`
@@ -357,6 +357,11 @@ func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth uint8) error {
 }
 
 func (r *Route) healthCheck(backend *Backend) bool {
+	defer func() {
+		if err := recover(); err != nil {
+			return
+		}
+	}()
 	req, err := http.NewRequest("GET", backend.Healthcheckurl, nil)
 	if err != nil {
 		log.Error(err.Error())
@@ -422,9 +427,23 @@ func (r *Route) StartSwitchOver(
 	// check if a switchover is already active
 	// only one switchover is allowed per route at a time
 	if r.SwitchOver != nil {
-		return nil, fmt.Errorf("Only one switchover can be active per route")
+		if r.SwitchOver.Status == "Running" {
+			return nil, fmt.Errorf("Only one switchover can be active per route")
+		}
 	}
 
+	if from == "" {
+		// select an existing backend
+		for _, backend := range r.Backends {
+			if backend.Name != to && backend.Weigth == 100 {
+				from = backend.Name
+				goto forward
+			}
+		}
+		return nil, fmt.Errorf("from was empty and no backend of route could be selected")
+	}
+
+forward:
 	for _, backend := range r.Backends {
 		if backend.Name == from {
 			fromBackend = backend
@@ -432,6 +451,7 @@ func (r *Route) StartSwitchOver(
 			toBackend = backend
 		}
 	}
+
 	if fromBackend == nil {
 		return nil, fmt.Errorf("Cannot find backend with Name %v", from)
 	}
@@ -457,7 +477,7 @@ func (r *Route) StartSwitchOver(
 	} else {
 		// The Strategy must be canary (sticky or slippery) because otherwise
 		// the traffic cannot be increased/switched-over
-		if strings.ToLower(r.Strategy.Type) != "sticky" || strings.ToLower(r.Strategy.Type) != "slippery" {
+		if strings.ToLower(r.Strategy.Type) != "sticky" && strings.ToLower(r.Strategy.Type) != "slippery" {
 			return nil, fmt.Errorf(
 				"Switchover is only supported with Strategy \"sticky\" or \"slippery\"")
 		}

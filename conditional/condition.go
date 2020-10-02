@@ -3,6 +3,8 @@ package conditional
 import (
 	"fmt"
 	"time"
+
+	"github.com/rgumi/depoy/util"
 )
 
 // the metrics which are allowed for the condtions
@@ -21,9 +23,9 @@ type Condition struct {
 	// Threshhold that is checked
 	Threshold float64 `json:"threshold" yaml:"threshold"`
 	// Duration for which the condition has to be met
-	ActiveFor time.Duration `json:"active_for" yaml:"activeFor" default:"5s"`
+	ActiveFor util.ConfigDuration `json:"active_for" yaml:"activeFor" default:"\"5s\""`
 	// Duration for which an active alert needs to be inactive to be resolved
-	ResolveIn time.Duration `json:"resolve_in,omitempty" yaml:"resolveIn,omitempty"`
+	ResolveIn util.ConfigDuration `json:"resolve_in,omitempty" yaml:"resolveIn,omitempty"`
 	// time the condition was first true
 	TriggerTime time.Time `json:"-" yaml:"-"`
 	// Condtional function to evaluate condition
@@ -80,8 +82,8 @@ allowed:
 	cond := new(Condition)
 	cond.Metric = metric
 	cond.Operator = operator
-	cond.ActiveFor = activeFor
-	cond.ResolveIn = resolveIn
+	cond.ActiveFor = util.ConfigDuration{activeFor}
+	cond.ResolveIn = util.ConfigDuration{resolveIn}
 	cond.Threshold = threshhold
 	cond.Compile()
 
@@ -89,5 +91,9 @@ allowed:
 }
 
 func (c *Condition) GetActiveFor() time.Duration {
-	return c.ActiveFor
+	return c.ActiveFor.Duration
+}
+
+func (c *Condition) GetResolveIn() time.Duration {
+	return c.ResolveIn.Duration
 }

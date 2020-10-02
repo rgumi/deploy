@@ -51,6 +51,7 @@ func main() {
 		)
 	}
 	go g.Run()
+	log.Warnf("Gateway listening on Addr %s", config.GatewayAddr)
 	st := statemgt.NewStateMgt(config.StateMgtAddr, g)
 
 	// package static files into binary
@@ -58,6 +59,7 @@ func main() {
 	st.Box = box
 
 	go st.Start()
+	log.Warnf("StateMgt listening on Addr %s", config.StateMgtAddr)
 
 	// sys signal
 	signalChannel := make(chan os.Signal, 1)

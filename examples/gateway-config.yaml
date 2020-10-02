@@ -1,113 +1,407 @@
+addr: :8080
+read_timeout: 10s
+write_timeout: 10s
+http_timeout: 20s
+idle_timeout: 30s
 routes:
-  - name: Route1
-    prefix: /route1/
-    rewrite: /
-    strategy:
-      type: sticky
-    backends:
-      - name: backend1
-        addr: http://localhost:7070
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            resolveIn: 5s
-          - metric: "5xxRate"
-            operator: ">"
-            threshold: 0.2
-            activeFor: 2s
-            resolveIn: 0s
-          - metric: "4xxRate"
-            operator: ">"
-            threshold: 0.3
-            resolveIn: 5000
-      - name: backend2
-        addr: http://localhost:9090
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            resolveIn: 5000
-          - metric: "5xxRate"
-            operator: ">"
-            threshold: 0.2
-            activeFor: 2s
-            resolveIn: 0s
-          - metric: "4xxRate"
-            operator: ">"
-            threshold: 0.3
-            resolveIn: 5000
-      - name: b3
-        addr: http://localhost:9090
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-          - metric: "5xxRate"
-            operator: ">"
-            threshold: 0.2
-            activeFor: 2s
-            resolveIn: 0s
-  - name: Route2
-    prefix: /route2/
-    rewrite: /
-    strategy:
-      type: sticky
-    backends:
-      - name: b1
-        addr: http://localhost:7070
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-          - metric: "5xxRate"
-            operator: ">"
-            threshold: 0.2
-          - metric: "4xxRate"
-            operator: ">"
-            threshold: 0.3
-      - name: b2
-        addr: http://localhost:9090
-        weight: 0
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-      - name: b3
-        addr: http://localhost:9090
-        weight: 0
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-  - name: Route3
-    prefix: /route3/
-    rewrite: /
-    strategy:
-      type: sticky
-    backends:
-      - name: b1
-        addr: http://localhost:7070
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-      - name: b2
-        addr: http://localhost:9090
-        weight: 0
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-      - name: b3
-        addr: http://localhost:9090
-        weight: 0
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
+    - name: Route1
+      prefix: /route1/
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - HEAD
+        - OPTIONS
+        - TRACE
+        - TRACE
+      host: '*'
+      rewrite: /
+      cookieTTL: 5m0s
+      strategy:
+        type: sticky
+      healthcheckBool: true
+      healthcheckInterval: 5s
+      monitoringInterval: 5s
+      timeout: 5s
+      idleTimeout: 5s
+      scrapeInterval: 5s
+      proxy: ""
+      backends:
+        - id: d5460123-f88d-4b15-a9dc-e52492933596
+          name: b3
+          addr: http://localhost:9090
+          weight: 100
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 5xxRate
+              operator: '>'
+              threshold: 0.2
+              activeFor: 2s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:9090/
+        - id: f64047cd-060f-473e-b7c0-7e15aff2fec8
+          name: backend1
+          addr: http://localhost:7070
+          weight: 100
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+              resolveIn: 5s
+            - metric: 5xxRate
+              operator: '>'
+              threshold: 0.2
+              activeFor: 2s
+            - metric: 4xxRate
+              operator: '>'
+              threshold: 0.3
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:7070/
+        - id: 8447abae-6dcf-4cf3-bd62-9a0d07fe5be1
+          name: backend2
+          addr: http://localhost:9090
+          weight: 100
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 5xxRate
+              operator: '>'
+              threshold: 0.2
+              activeFor: 2s
+            - metric: 4xxRate
+              operator: '>'
+              threshold: 0.3
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:9090/
+    - name: Route2
+      prefix: /route2/
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - HEAD
+        - OPTIONS
+        - TRACE
+        - TRACE
+      host: '*'
+      rewrite: /
+      cookieTTL: 5m0s
+      strategy:
+        type: sticky
+      healthcheckBool: true
+      healthcheckInterval: 5s
+      monitoringInterval: 5s
+      timeout: 5s
+      idleTimeout: 5s
+      scrapeInterval: 5s
+      proxy: ""
+      backends:
+        - id: 5044710a-d360-4446-a89b-65dab860356f
+          name: b3
+          addr: http://localhost:9090
+          weight: 0
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:9090/
+        - id: 2738ed33-f3a8-48da-9311-a4ad649aa0ee
+          name: b1
+          addr: http://localhost:7070
+          weight: 100
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 5xxRate
+              operator: '>'
+              threshold: 0.2
+              activeFor: 5s
+            - metric: 4xxRate
+              operator: '>'
+              threshold: 0.3
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:7070/
+        - id: dc0f2b4e-99d5-4deb-8497-4108e44f4512
+          name: b2
+          addr: http://localhost:9090
+          weight: 0
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:9090/
+    - name: Route3
+      prefix: /route3/
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - HEAD
+        - OPTIONS
+        - TRACE
+        - TRACE
+      host: '*'
+      rewrite: /
+      cookieTTL: 5m0s
+      strategy:
+        type: sticky
+      healthcheckBool: true
+      healthcheckInterval: 5s
+      monitoringInterval: 5s
+      timeout: 5s
+      idleTimeout: 5s
+      scrapeInterval: 5s
+      proxy: ""
+      backends:
+        - id: b6afbb54-fe61-47cc-b083-b26262144ba1
+          name: b3
+          addr: http://localhost:9090
+          weight: 0
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:9090/
+        - id: e4a3e13b-6f5f-4745-9da8-02a9ef529f6c
+          name: b1
+          addr: http://localhost:7070
+          weight: 100
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:7070/
+        - id: 9fbd946d-7d15-4b4f-8f38-889a60f0d68f
+          name: b2
+          addr: http://localhost:9090
+          weight: 0
+          active: true
+          scrapeUrl: ""
+          scrapeMetrics: []
+          metricThresholds:
+            - metric: ResponseTime
+              operator: '>'
+              threshold: 1000
+              activeFor: 5s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+            - metric: 6xxRate
+              operator: '>'
+              threshold: 0.1
+              activeFor: 5s
+              resolveIn: 10s
+          healthcheckUrl: http://localhost:9090/

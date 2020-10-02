@@ -11,8 +11,7 @@ import (
 	"github.com/rgumi/depoy/route"
 	"github.com/rgumi/depoy/router"
 	log "github.com/sirupsen/logrus"
-
-	yaml "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 )
 
 // defaults
@@ -23,10 +22,10 @@ var (
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
 	Addr         string                    `yaml:"addr" json:"addr" validate:"empty=false"`
-	ReadTimeout  time.Duration             `yaml:"read_timeout" json:"read_timeout" default:"5s"`
-	WriteTimeout time.Duration             `yaml:"write_timeout" json:"write_timeout" default:"5s"`
-	HTTPTimeout  time.Duration             `yaml:"http_timeout" json:"http_timeout" default:"10s"`
-	IdleTimeout  time.Duration             `yaml:"idle_timeout" json:"idle_timeout" default:"30s"`
+	ReadTimeout  time.Duration             `yaml:"read_timeout" json:"read_timeout"`
+	WriteTimeout time.Duration             `yaml:"write_timeout" json:"write_timeout"`
+	HTTPTimeout  time.Duration             `yaml:"http_timeout" json:"http_timeout"`
+	IdleTimeout  time.Duration             `yaml:"idle_timeout" json:"idle_timeout"`
 	Routes       map[string]*route.Route   `yaml:"routes" json:"routes"`
 	Router       map[string]*router.Router `yaml:"-" json:"-"`
 	MetricsRepo  *metrics.Repository       `yaml:"-" json:"-"`
@@ -68,7 +67,7 @@ func NewGateway(
 // defined Routes in the Gateway. Then the old Router is replaced by
 // a pointer to the new Router
 func (g *Gateway) Reload() {
-	log.Info("Reloading backend")
+	log.Info("Reloading Gateway")
 	newRouter := make(map[string]*router.Router)
 	// any host router
 	newRouter["*"] = router.NewRouter()
@@ -100,6 +99,7 @@ func (g *Gateway) Run() {
 	}
 
 	go func() {
+		log.Info("Starting gateway server")
 		if err := g.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("gateway server listen failed with %v\n", err)
 		}
@@ -190,7 +190,6 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 // ServeHTTP is the required interface to quality as http.Handler
 // so the Gateway can be executed as a http.Server
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-
 	if router, found := g.Router[req.Host]; found {
 		log.Debugf("Found explicit match for %s", req.Host)
 		router.ServeHTTP(w, req)

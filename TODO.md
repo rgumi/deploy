@@ -24,6 +24,7 @@
 - [x] better workflow for creating routes/backends
 - [x] dynamic reloading of routes when backend is added
 - [x] add increasing counter for prom/dashboard
+- [ ] json structure Durations in second (currently: nanosecond => ugly!)
 
 ## Observed Errors
 

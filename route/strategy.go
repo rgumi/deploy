@@ -231,7 +231,6 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 		addCookie(w, cookieName, currentTarget.ID.String(), r.CookieTTL)
 
 	forward:
-
 		bBuffer.ReadFrom(req.Body)
 		readCloser := ioutil.NopCloser(&bBuffer)
 		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, readCloser)

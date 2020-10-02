@@ -30,7 +30,7 @@ func (s *StateMgt) GetRouteByName(w http.ResponseWriter, req *http.Request, ps h
 		return
 	}
 
-	marshalAndReturn(w, req, route)
+	marshalAndReturn(w, req, config.ConvertRouteToInputRoute(route))
 }
 
 // GetAllRoutes returns all defined routes of the Gateway
@@ -41,7 +41,12 @@ func (s *StateMgt) GetAllRoutes(w http.ResponseWriter, req *http.Request, _ http
 		w.WriteHeader(404)
 		return
 	}
-	bJson, err := json.Marshal(routes)
+	output := make(map[string]*config.InputRoute, len(routes))
+	for idx, route := range routes {
+		output[idx] = config.ConvertRouteToInputRoute(route)
+	}
+
+	b, err := json.Marshal(output)
 	if err != nil {
 		log.Errorf(err.Error())
 		http.Error(w, "Unable to marshal route", 500)
@@ -50,31 +55,18 @@ func (s *StateMgt) GetAllRoutes(w http.ResponseWriter, req *http.Request, _ http
 
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(200)
-	w.Write(bJson)
+	w.Write(b)
 }
 
 // CreateRoute creates a new Route. If route already exist, error
 func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	myRoute := new(config.InputRoute)
+	myRoute := config.NewInputRoute()
 	if err := readBodyAndUnmarshal(req, myRoute); err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
-	newRoute, err := route.New(
-		myRoute.Name,
-		myRoute.Prefix,
-		myRoute.Rewrite,
-		myRoute.Host,
-		myRoute.Proxy,
-		myRoute.Methods,
-		myRoute.Timeout,
-		myRoute.IdleTimeout,
-		myRoute.ScrapeInterval,
-		myRoute.HealthCheckInterval,
-		myRoute.MonitoringInterval,
-		myRoute.CookieTTL,
-		myRoute.HealthCheck,
-	)
+
+	newRoute, err := config.ConvertInputRouteToRoute(myRoute)
 	if err != nil {
 		returnError(w, req, 400, err, nil)
 		return
@@ -83,16 +75,6 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 		returnError(w, req, 400, err, nil)
 		return
 	}
-	for _, myBackend := range myRoute.Backends {
-		for _, cond := range myBackend.Metricthresholds {
-			cond.Compile()
-		}
-
-		newRoute.AddBackend(
-			myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
-			myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
-		)
-	}
 	err = myRoute.Strategy.Reset(newRoute)
 	if err != nil {
 		returnError(w, req, 400, err, nil)
@@ -100,13 +82,13 @@ func (s *StateMgt) CreateRoute(w http.ResponseWriter, req *http.Request, _ httpr
 	}
 
 	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
-		returnError(w, req, 500, err, nil)
+		returnError(w, req, 400, err, nil)
 		return
 	}
 
 	newRoute.Reload()
 	s.Gateway.Reload()
-	marshalAndReturn(w, req, s.Gateway.Routes[newRoute.Name])
+	marshalAndReturn(w, req, config.ConvertRouteToInputRoute(newRoute))
 }
 
 // DeleteRouteByName removed the given route and all its backends
@@ -117,12 +99,12 @@ func (s *StateMgt) DeleteRouteByName(w http.ResponseWriter, req *http.Request, p
 		w.WriteHeader(404)
 		return
 	}
-	marshalAndReturn(w, req, route)
+	marshalAndReturn(w, req, config.ConvertRouteToInputRoute(route))
 }
 
 // UpdateRouteByName removed route and replaces it with new route
 func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	myRoute := new(config.InputRoute)
+	myRoute := config.NewInputRoute()
 	routeName := ps.ByName("name")
 
 	if err := readBodyAndUnmarshal(req, myRoute); err != nil {
@@ -136,23 +118,7 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		returnError(w, req, 400, fmt.Errorf("Names must be equal. Otherwise they cant be replaced"), nil)
 		return
 	}
-
-	newRoute, err := route.New(
-		myRoute.Name,
-		myRoute.Prefix,
-		myRoute.Rewrite,
-		myRoute.Host,
-		myRoute.Proxy,
-		myRoute.Methods,
-		myRoute.Timeout,
-		myRoute.IdleTimeout,
-		myRoute.ScrapeInterval,
-		myRoute.HealthCheckInterval,
-		myRoute.MonitoringInterval,
-		myRoute.CookieTTL,
-		myRoute.HealthCheck,
-	)
-
+	newRoute, err := config.ConvertInputRouteToRoute(myRoute)
 	if err != nil {
 		returnError(w, req, 400, err, nil)
 		return
@@ -162,29 +128,11 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 		returnError(w, req, 400, err, nil)
 		return
 	}
-
-	for _, myBackend := range myRoute.Backends {
-
-		for _, cond := range myBackend.Metricthresholds {
-			cond.Compile()
-		}
-		_, err := newRoute.AddBackend(
-			myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
-			myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
-		)
-
-		if err != nil {
-			returnError(w, req, 400, err, nil)
-			return
-		}
-	}
-
 	err = myRoute.Strategy.Reset(newRoute)
 	if err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
-
 	// remove first
 	s.Gateway.RemoveRoute(newRoute.Name)
 	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
@@ -194,7 +142,7 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 
 	newRoute.Reload()
 	s.Gateway.Reload()
-	marshalAndReturn(w, req, s.Gateway.Routes[newRoute.Name])
+	marshalAndReturn(w, req, config.ConvertRouteToInputRoute(newRoute))
 }
 
 /*
@@ -203,40 +151,32 @@ func (s *StateMgt) UpdateRouteByName(w http.ResponseWriter, req *http.Request, p
 
 // AddNewBackendToRoute adds a new backend to the defined route
 func (s *StateMgt) AddNewBackendToRoute(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
 	myBackend := new(route.Backend)
-
 	routeName := ps.ByName("name")
-
 	route, found := s.Gateway.Routes[routeName]
 	if !found {
 		returnError(w, req, 404, fmt.Errorf("Could not find route"), nil)
 		return
 	}
-
 	if err := readBodyAndUnmarshal(req, myBackend); err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
-
 	for _, cond := range myBackend.Metricthresholds {
 		cond.Compile()
 	}
-
 	_, err := route.AddBackend(
 		myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
 		myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
 	)
-
 	if err != nil {
 		returnError(w, req, 400, err, nil)
 		return
 	}
 
 	route.Reload()
-
 	log.Debug("Sucessfully updated route")
-	marshalAndReturn(w, req, route)
+	marshalAndReturn(w, req, config.ConvertRouteToInputRoute(route))
 }
 
 // RemoveBackendFromRoute remoes a backend from the defined route
@@ -258,7 +198,7 @@ func (s *StateMgt) RemoveBackendFromRoute(w http.ResponseWriter, req *http.Reque
 	}
 	route.RemoveBackend(backendID)
 
-	marshalAndReturn(w, req, route)
+	marshalAndReturn(w, req, config.ConvertRouteToInputRoute(route))
 }
 
 /*
@@ -269,7 +209,7 @@ func (s *StateMgt) RemoveBackendFromRoute(w http.ResponseWriter, req *http.Reque
 // it is a wrapper for the actual SwitchOver struct and replaces
 // the actual backends (from and to) with their corrosponding ids
 type SwitchOverRequest struct {
-	From         string                   `json:"from" validate:"empty=false"`
+	From         string                   `json:"from"`
 	To           string                   `json:"to" validate:"empty=false"`
 	Conditions   []*conditional.Condition `json:"conditions" validate:"empty=false"`
 	Timeout      int                      `json:"timeout" default:"2m0s"`
@@ -290,9 +230,7 @@ func (s *StateMgt) CreateSwitchover(w http.ResponseWriter, req *http.Request, ps
 		returnError(w, req, 404, fmt.Errorf("Could not find route"), nil)
 		return
 	}
-
 	readBodyAndUnmarshal(req, mySwitchOver)
-
 	timeout := time.Duration(mySwitchOver.Timeout) * time.Second
 
 	newSwitchover, err := route.StartSwitchOver(
