@@ -20,12 +20,12 @@ type SwitchOver struct {
 	From               *Backend                 `json:"from"`
 	To                 *Backend                 `json:"to"`
 	Status             string                   `json:"status"`
-	Conditions         []*conditional.Condition `json:"conditions"`       // conditions that all need to be met to change
-	WeightChange       uint8                    `json:"weight_change"`    // amount of change to the weights
-	Timeout            time.Duration            `json:"timeout"`          // duration to wait before changing weights
-	Route              *Route                   `json:"-"`                // route for which the switch is defined
-	Rollback           bool                     `json:"rollback"`         // If Switchover is cancled or aborted, should the weights of backends be reset?
-	AllowedFailures    int                      `json:"allowed_failures"` // amount of failures that are allowed before switchover is aborted
+	Conditions         []*conditional.Condition `json:"conditions"`    // conditions that all need to be met to change
+	WeightChange       uint8                    `json:"weight_change"` // amount of change to the weights
+	Timeout            time.Duration            `json:"-"`             // duration to wait before changing weights
+	Route              *Route                   `json:"-"`             // route for which the switch is defined
+	Rollback           bool                     `json:"-"`             // If Switchover is cancled or aborted, should the weights of backends be reset?
+	AllowedFailures    int                      `json:"-"`             // amount of failures that are allowed before switchover is aborted
 	toRollbackWeight   uint8
 	fromRollbackWeight uint8
 	failureCounter     int

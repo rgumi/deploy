@@ -29,6 +29,7 @@ type InputRoute struct {
 	Rewrite             string              `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
 	CookieTTL           util.ConfigDuration `json:"cookie_ttl" yaml:"cookieTTL" default:"\"5m\""`
 	Strategy            *route.Strategy     `json:"strategy" yaml:"strategy" validate:"nil=false"`
+	SwitchOver          *route.SwitchOver   `json:"switchover" yaml:"-"`
 	HealthCheck         bool                `json:"healthcheck_bool" yaml:"healthcheckBool" default:"true"`
 	HealthCheckInterval util.ConfigDuration `json:"healthcheck_interval" yaml:"healthcheckInterval" default:"\"5s\""`
 	MonitoringInterval  util.ConfigDuration `json:"monitoring_interval" yaml:"monitoringInterval" default:"\"5s\""`
@@ -85,6 +86,7 @@ func ConvertRouteToInputRoute(r *route.Route) *InputRoute {
 		Host:                r.Host,
 		IdleTimeout:         util.ConfigDuration{r.IdleTimeout},
 		Methods:             r.Methods,
+		SwitchOver:          r.SwitchOver,
 	}
 	inputRoute.Backends = make([]*route.Backend, len(r.Backends))
 	i := 0

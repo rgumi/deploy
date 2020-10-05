@@ -38,8 +38,8 @@ type Route struct {
 	CookieTTL           time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"`
 	Strategy            *Strategy              `json:"strategy" yaml:"strategy" validate:"nil=false"`
 	HealthCheck         bool                   `json:"healthcheck_bool" yaml:"healthcheckBool" default:"true"`
-	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheckInterval" "`
-	MonitoringInterval  time.Duration          `json:"monitoring_interval" yaml:"monitoringInterval" "`
+	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheckInterval"`
+	MonitoringInterval  time.Duration          `json:"monitoring_interval" yaml:"monitoringInterval"`
 	Timeout             time.Duration          `json:"timeout" yaml:"timeout"`
 	IdleTimeout         time.Duration          `json:"idle_timeout" yaml:"idleTimeout"`
 	ScrapeInterval      time.Duration          `json:"scrape_interval" yaml:"scrapeInterval"`
