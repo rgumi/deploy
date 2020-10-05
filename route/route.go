@@ -291,8 +291,15 @@ func (r *Route) AddBackend(
 // AddExistingBackend can be used to add an existing backend to a route
 func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 
-	if backend.Addr == "" || backend.Name == "" || backend.ID.String() == "" {
+	if backend.Addr == "" {
 		return uuid.UUID{}, fmt.Errorf("Required Parameters of backend are missing")
+	}
+
+	if backend.ID == uuid.Nil {
+		backend.ID = uuid.New()
+	}
+	if backend.Name == "" {
+		backend.Name = backend.ID.String()
 	}
 
 	for _, existingBackend := range r.Backends {

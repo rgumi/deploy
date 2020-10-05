@@ -23,7 +23,7 @@ type InputGateway struct {
 type InputRoute struct {
 	Name                string              `json:"name" yaml:"name" validate:"empty=false"`
 	Prefix              string              `json:"prefix" yaml:"prefix" validate:"empty=false"`
-	Methods             []string            `json:"methods" yaml:"methods" default:"[\"GET\", \"POST\", \"PUT\", \"DELETE\", \"PATCH\", \"HEAD\", \"OPTIONS\", \"TRACE\", \"TRACE\"]"`
+	Methods             []string            `json:"methods" yaml:"methods" default:"[\"GET\", \"POST\", \"PUT\", \"DELETE\", \"PATCH\", \"HEAD\", \"OPTIONS\", \"TRACE\"]"`
 	Host                string              `json:"host" yaml:"host" default:"*"`
 	Rewrite             string              `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
 	CookieTTL           util.ConfigDuration `json:"cookie_ttl" yaml:"cookieTTL" default:"\"5m\""`

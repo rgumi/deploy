@@ -94,13 +94,13 @@
                   @blur="onEdit"
                   title="cookie_ttl"
                 >
-                  {{ route.cookie_ttl / 1000000000 }}
+                  {{ route.cookie_ttl }}
                 </td>
               </tr>
               <tr>
                 <th>Timeout</th>
                 <td :contenteditable="editable" @blur="onEdit" title="timeout">
-                  {{ route.timeout / 1000000000 }}
+                  {{ route.timeout }}
                 </td>
               </tr>
               <tr>
@@ -110,7 +110,7 @@
                   @blur="onEdit"
                   title="idle_timeout"
                 >
-                  {{ route.idle_timeout / 1000000000 }}
+                  {{ route.idle_timeout }}
                 </td>
               </tr>
               <tr>
@@ -120,7 +120,7 @@
                   @blur="onEdit"
                   title="scrape_interval"
                 >
-                  {{ route.scrape_interval / 1000000000 }}
+                  {{ route.scrape_interval }}
                 </td>
               </tr>
 

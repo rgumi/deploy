@@ -2,7 +2,11 @@
   <div>
     <v-navigation-drawer v-model="sidebar" absolute>
       <v-list nav tile>
-        <v-list-item v-for="item in menuItems" :key="item.title" :to="item.path">
+        <v-list-item
+          v-for="item in menuItems"
+          :key="item.title"
+          :to="item.path"
+        >
           <v-list-item-action>
             <v-icon>{{ item.icon }}</v-icon>
           </v-list-item-action>
@@ -11,9 +15,14 @@
       </v-list>
     </v-navigation-drawer>
     <v-toolbar>
-      <v-app-bar-nav-icon class="hidden-sm-and-up" @click="sidebar = !sidebar"></v-app-bar-nav-icon>
+      <v-app-bar-nav-icon
+        class="hidden-sm-and-up"
+        @click="sidebar = !sidebar"
+      ></v-app-bar-nav-icon>
       <v-toolbar-title>
-        <router-link to="/dashboard" tag="span" style="cursor: pointer">{{ appTitle }}</router-link>
+        <router-link to="/dashboard" tag="span" style="cursor: pointer">{{
+          appTitle
+        }}</router-link>
       </v-toolbar-title>
       <v-spacer></v-spacer>
       <v-toolbar-items class="hidden-xs-only">

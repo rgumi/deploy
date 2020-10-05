@@ -247,6 +247,7 @@ func (st *LocalStorage) deleteOldData() {
 		for _, backendData := range routeData {
 			// for each timestamped, averaged metric of backend
 			for timestamp := range backendData {
+				// "full table scan" as go maps are not sorted
 				if timestamp.Add(st.RetentionPeriod).Before(time.Now()) {
 					// metric is out of retention period => delete it
 					delete(backendData, timestamp)

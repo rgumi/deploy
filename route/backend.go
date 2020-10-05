@@ -37,8 +37,9 @@ func NewBackend(
 	metricThresholds []*conditional.Condition,
 	weight uint8) *Backend {
 
+	id := uuid.New()
 	if name == "" {
-		panic("name cannot be null")
+		name = id.String()
 	}
 
 	if healthCheckPath == "" {
@@ -55,7 +56,7 @@ func NewBackend(
 	}
 
 	backend := &Backend{
-		ID:               uuid.New(),
+		ID:               id,
 		Name:             name,
 		Addr:             url.String(),
 		Weigth:           weight,
@@ -67,7 +68,6 @@ func NewBackend(
 		ActiveAlerts:     make(map[string]metrics.Alert),
 		killChan:         make(chan int, 1),
 	}
-
 	return backend
 }
 

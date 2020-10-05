@@ -1,10 +1,5 @@
 <template>
-  <v-card class="chartContainer">
-    <v-card-title>{{ title }}</v-card-title>
-    <v-card-text>
-      <LineChart :options="options" :chart-data="responseStatusData"></LineChart>
-    </v-card-text>
-  </v-card>
+  <LineChart :options="options" :chart-data="responseStatusData"></LineChart>
 </template>
 
 <script>
@@ -17,8 +12,6 @@ export default {
   props: {
     data: Array,
     timestamps: Array,
-    selected: String,
-    title: String,
     options: {}
   },
   data() {

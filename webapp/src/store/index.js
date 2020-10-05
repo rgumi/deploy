@@ -254,7 +254,6 @@ export default new Vuex.Store({
     },
     getRoute: (state) => (routeName) => {
       // console.log(`Requested ${routeName}`);
-
       var routes = state.routes;
       if (routes.size == 0) {
         return null;
@@ -280,6 +279,17 @@ export default new Vuex.Store({
         return new Map();
       }
       return metrics;
+    },
+    getNameOfBackend: (state) => (routeName, backendID) => {
+      var name = backendID;
+      state.routes
+        .find((element) => element.name === routeName)
+        .backends.forEach((backend) => {
+          if (backend.id == backendID) {
+            name = backend.name;
+          }
+        });
+      return name;
     },
   },
 });
