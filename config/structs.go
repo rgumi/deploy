@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/creasty/defaults"
 	"github.com/google/uuid"
+	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/gateway"
 	"github.com/rgumi/depoy/metrics"
 	"github.com/rgumi/depoy/route"
@@ -36,6 +37,23 @@ type InputRoute struct {
 	ScrapeInterval      util.ConfigDuration `json:"scrape_interval" yaml:"scrapeInterval" default:"\"5s\""`
 	Proxy               string              `json:"proxy" yaml:"proxy" default:""`
 	Backends            []*route.Backend    `json:"backends" yaml:"backends"`
+}
+
+// SwitchOverRequest is required to add a switchover to a route
+// it is a wrapper for the actual SwitchOver struct and replaces
+// the actual backends (from and to) with their corrosponding ids
+type SwitchOverRequest struct {
+	From         string                   `json:"from"`
+	To           string                   `json:"to" validate:"empty=false"`
+	Conditions   []*conditional.Condition `json:"conditions" validate:"empty=false"`
+	Timeout      util.ConfigDuration      `json:"timeout" default:"2m0s"`
+	WeightChange uint8                    `json:"weight_change" default:"5"`
+	// Force overwrites the current config of the backends to enable switchover (if required)
+	Force bool `json:"force" default:"false"`
+	// If switchover fails, rollback all changes to the weights and stop switchover
+	Rollback bool `json:"rollback" default:"true"`
+	// The amount of times a cycle is allowed to fail before switchover is stopped
+	AllowedFailures int `json:"allowed_failures" default:"1"`
 }
 
 func NewInputRoute() *InputRoute {

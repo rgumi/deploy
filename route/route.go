@@ -426,8 +426,8 @@ func (r *Route) RunHealthCheckOnBackends() {
 func (r *Route) StartSwitchOver(
 	from, to string,
 	conditions []*conditional.Condition,
-	timeout time.Duration,
-	weightChange uint8, force bool) (*SwitchOver, error) {
+	timeout time.Duration, allowedFailures int,
+	weightChange uint8, force, rollback bool) (*SwitchOver, error) {
 
 	var fromBackend, toBackend *Backend
 
@@ -491,7 +491,7 @@ forward:
 	}
 
 	switchOver, err := NewSwitchOver(
-		fromBackend, toBackend, r, conditions, timeout, weightChange)
+		fromBackend, toBackend, r, conditions, timeout, allowedFailures, weightChange, rollback)
 
 	if err != nil {
 		return nil, err

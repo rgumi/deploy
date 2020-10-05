@@ -37,7 +37,8 @@ func NewSwitchOver(
 	route *Route,
 	conditions []*conditional.Condition,
 	timeout time.Duration,
-	weightChange uint8) (*SwitchOver, error) {
+	allowedFailures int,
+	weightChange uint8, rollback bool) (*SwitchOver, error) {
 
 	if from.ID == to.ID {
 		return nil, fmt.Errorf("from and to cannot be the same entity")
@@ -53,16 +54,17 @@ func NewSwitchOver(
 	counter++
 
 	return &SwitchOver{
-		ID:           counter,
-		From:         from,
-		To:           to,
-		Status:       "Registered",
-		Conditions:   conditions,
-		Timeout:      timeout,
-		WeightChange: weightChange,
-		Route:        route,
-		Rollback:     false,
-		killChan:     make(chan int, 1),
+		ID:              counter,
+		From:            from,
+		To:              to,
+		Status:          "Registered",
+		Conditions:      conditions,
+		Timeout:         timeout,
+		WeightChange:    weightChange,
+		AllowedFailures: allowedFailures,
+		Route:           route,
+		Rollback:        rollback,
+		killChan:        make(chan int, 1),
 	}, nil
 }
 

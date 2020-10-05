@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/config"
 	"github.com/rgumi/depoy/route"
 	log "github.com/sirupsen/logrus"
@@ -205,41 +203,27 @@ func (s *StateMgt) RemoveBackendFromRoute(w http.ResponseWriter, req *http.Reque
 	Switchover
 */
 
-// SwitchOverRequest is required to add a switchover to a route
-// it is a wrapper for the actual SwitchOver struct and replaces
-// the actual backends (from and to) with their corrosponding ids
-type SwitchOverRequest struct {
-	From         string                   `json:"from"`
-	To           string                   `json:"to" validate:"empty=false"`
-	Conditions   []*conditional.Condition `json:"conditions" validate:"empty=false"`
-	Timeout      int                      `json:"timeout" default:"2m0s"`
-	WeightChange uint8                    `json:"weight_change" default:"5"`
-	// Force overwrites the current config of the backends to enable switchover (if required)
-	Force bool `json:"force" default:"false"`
-}
-
 // CreateSwitchover adds a switchover struct to the given route
 func (s *StateMgt) CreateSwitchover(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	mySwitchOver := new(SwitchOverRequest)
+	mySwitchOver := new(config.SwitchOverRequest)
 	defaults.Set(mySwitchOver)
 
 	routeName := ps.ByName("name")
-
 	route, found := s.Gateway.Routes[routeName]
 	if !found {
 		returnError(w, req, 404, fmt.Errorf("Could not find route"), nil)
 		return
 	}
 	readBodyAndUnmarshal(req, mySwitchOver)
-	timeout := time.Duration(mySwitchOver.Timeout) * time.Second
-
 	newSwitchover, err := route.StartSwitchOver(
 		mySwitchOver.From,
 		mySwitchOver.To,
 		mySwitchOver.Conditions,
-		timeout,
+		mySwitchOver.Timeout.Duration,
+		mySwitchOver.AllowedFailures,
 		mySwitchOver.WeightChange,
 		mySwitchOver.Force,
+		mySwitchOver.Rollback,
 	)
 	if err != nil {
 		returnError(w, req, 400, err, nil)
