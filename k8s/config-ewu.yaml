@@ -27,7 +27,7 @@ data:
           - name: grafana
             addr: http://grafana-web.monitoring:3000
             weight: 100
-            metric_thresholds:          
+            metricThresholds:          
               - metric: ResponseTime
                 operator: ">"
                 threshold: 1000
@@ -51,7 +51,7 @@ data:
           - name: prometheus
             addr: http://prometheus-web.monitoring:8080
             weight: 100
-            metric_thresholds:          
+            metricThresholds:          
               - metric: ResponseTime
                 operator: ">"
                 threshold: 1000
@@ -75,7 +75,7 @@ data:
           - name: k8s-dashboard
             addr: https://kubernetes-dashboard.kubernetes-dashboard:443
             weight: 100
-            metric_thresholds:          
+            metricThresholds:          
               - metric: ResponseTime
                 operator: ">"
                 threshold: 1000
@@ -95,12 +95,12 @@ data:
         timeout: 10s
         idleTimeout: 30s
         proxy: ""
-        healthcheck_url: "http://v0-0-28-wabizdummy-svc.depoy-testing:8081/prometheus"
         backends:
           - name: v0-0-28
             addr: "http://v0-0-28-wabizdummy-svc.depoy-testing:8080"
             weight: 100
-            metric_thresholds:          
+            healthcheckUrl: "http://v0-0-28-wabizdummy-svc.depoy-testing:8081/prometheus"
+            metricThresholds:          
               - metric: ResponseTime
                 operator: ">"
                 threshold: 1000
