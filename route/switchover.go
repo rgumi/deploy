@@ -111,7 +111,9 @@ outer:
 					} else {
 						// check if condition was active for long enough
 						if condition.TriggerTime.Add(condition.GetActiveFor()).Before(time.Now()) {
-							log.Debugf("Updating status of condition %v %v %v to true", condition.Metric, condition.Operator, condition.Threshold)
+							log.Debugf("Updating status of condition %v %v %v to true",
+								condition.Metric, condition.Operator, condition.Threshold,
+							)
 							condition.Status = true
 						}
 					}
@@ -124,7 +126,9 @@ outer:
 			for _, condition := range s.Conditions {
 				if !condition.Status {
 					// if any condition is not true, cycle is failed
-					log.Debugf("A condition is false. (%v)", s)
+					log.Debugf("Condition (%s) of Switchover %v (%s) is false",
+						condition.Metric, s.ID, s.Route.Name,
+					)
 					s.FailureCounter++
 					if s.FailureCounter > s.AllowedFailures {
 						// failed too often...
@@ -147,7 +151,9 @@ outer:
 			}
 			if s.From.Weigth <= 0 || s.To.Weigth >= 100 {
 				// switchover was successful, all traffic is forwarded to new backend
-				log.Infof("Switchover from %v to %v was successful", s.From.ID, s.To.ID)
+				log.Infof("Switchover %d of %s from %v to %v was successful",
+					s.ID, s.Route.Name, s.From.ID, s.To.ID,
+				)
 				s.Status = "Success"
 				s.Stop()
 			}
