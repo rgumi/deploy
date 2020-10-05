@@ -44,6 +44,7 @@ type InputRoute struct {
 // it is a wrapper for the actual SwitchOver struct and replaces
 // the actual backends (from and to) with their corrosponding ids
 type InputSwitchover struct {
+	Status       string                   `json:"status"`
 	From         string                   `json:"from"`
 	To           string                   `json:"to" validate:"empty=false"`
 	Conditions   []*conditional.Condition `json:"conditions" validate:"empty=false"`
@@ -78,6 +79,7 @@ func NewInputeGateway() *InputGateway {
 
 func ConvertSwitchoverToInputSwitchover(s *route.Switchover) *InputSwitchover {
 	inputRoute := &InputSwitchover{
+		Status:          s.Status,
 		From:            s.From.Name,
 		To:              s.To.Name,
 		FailureCounter:  s.FailureCounter,

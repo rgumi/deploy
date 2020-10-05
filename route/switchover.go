@@ -95,15 +95,14 @@ outer:
 			log.Warnf("Killed SwitchOver %v of Route %v", s.ID, s.Route.Name)
 			return
 
-		default:
-			time.Sleep(s.Timeout)
-
+		case _ = <-time.After(s.Timeout):
 			metrics, err := s.Route.MetricsRepo.ReadRatesOfBackend(
 				s.To.ID, time.Now().Add(-s.Timeout), time.Now())
 			if err != nil {
 				log.Trace(err)
 				continue
 			}
+			// begin cycle => check each condition if true
 			for _, condition := range s.Conditions {
 				status := condition.IsTrue(metrics)
 				if status && s.To.Active {
@@ -119,19 +118,20 @@ outer:
 				} else {
 					// condition is not met, therefore reset triggerTime
 					condition.TriggerTime = time.Time{}
+				}
+			}
+			// end of cycle, check conditions
+			for _, condition := range s.Conditions {
+				if !condition.Status {
+					// if any condition is not true, cycle is failed
+					log.Debugf("A condition is false. (%v)", s)
 					s.FailureCounter++
 					if s.FailureCounter > s.AllowedFailures {
 						// failed too often...
 						s.Status = "Failed"
 						s.Stop()
 					}
-				}
-			}
-			// check
-			for _, condition := range s.Conditions {
-				if !condition.Status {
-					// if any condition is not true, continue
-					log.Debugf("A condition is false. (%v)", s)
+					// continue cycle
 					continue outer
 				}
 			}

@@ -346,6 +346,15 @@ func (r *Route) StopAll() {
 func (r *Route) RemoveBackend(backendID uuid.UUID) {
 	log.Warnf("Removing %s from %s", backendID, r.Name)
 
+	if r.Switchover != nil {
+		if r.Switchover.From.ID == backendID || r.Switchover.To.ID == backendID {
+			panic(
+				fmt.Errorf("Cannot deleted backend %v with switchover %d associated with it",
+					backendID, r.Switchover.ID,
+				),
+			)
+		}
+	}
 	if r.MetricsRepo != nil {
 		r.MetricsRepo.RemoveBackend(backendID)
 	}
