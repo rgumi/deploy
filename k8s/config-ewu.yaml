@@ -96,10 +96,10 @@ data:
         idleTimeout: 30s
         proxy: ""
         backends:
-          - name: v0-0-28
-            addr: "http://v0-0-28-wabizdummy-svc.depoy-testing:8080"
+          - name: v0-1-0
+            addr: "http://v0-1-0-wabizdummy-svc.depoy-testing:8080"
             weight: 100
-            healthcheckUrl: "http://v0-0-28-wabizdummy-svc.depoy-testing:8081/prometheus"
+            healthcheckUrl: "http://v0-1-0-wabizdummy-svc.depoy-testing:8081/prometheus"
             metricThresholds:          
               - metric: ResponseTime
                 operator: ">"
