@@ -73,12 +73,11 @@ func (s *SwitchOver) Stop() {
 		s.Status = "Stopped"
 	}
 
-	if s.Rollback {
+	if s.Rollback && s.Status == "Failed" {
 		s.From.UpdateWeight(s.fromRollbackWeight)
 		s.To.UpdateWeight(s.toRollbackWeight)
 		s.To.updateWeigth()
 	}
-
 	s.killChan <- 1
 }
 
@@ -99,7 +98,6 @@ outer:
 
 			metrics, err := s.Route.MetricsRepo.ReadRatesOfBackend(
 				s.To.ID, time.Now().Add(-s.Timeout), time.Now())
-
 			if err != nil {
 				log.Debug(err)
 				continue
@@ -120,7 +118,7 @@ outer:
 					// condition is not met, therefore reset triggerTime
 					condition.TriggerTime = time.Time{}
 					s.failureCounter++
-					if s.failureCounter == s.AllowedFailures {
+					if s.failureCounter > s.AllowedFailures {
 						// failed too often...
 						s.Status = "Failed"
 						s.Stop()

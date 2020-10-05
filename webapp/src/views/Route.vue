@@ -99,6 +99,7 @@
         <div v-else>
           <BackendComponent
             v-for="backend in backends"
+            v-on:deleteBackend="deleteBackend($event)"
             :key="backend.id"
             :showAll="showAll"
             :backend="backend"
@@ -155,6 +156,12 @@ export default {
     saveChanges: function() {
       this.editable = !this.editable;
       console.log(`Saving Changes on ${this.selectedRoute.name}`);
+    },
+    deleteBackend: function(id) {
+      this.$store.commit("deleteBackend", {
+        route: this.selectedRoute.name,
+        backend: id
+      });
     }
   },
   computed: {

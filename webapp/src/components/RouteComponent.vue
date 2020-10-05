@@ -13,7 +13,7 @@
         :disabled="currentlyLoading"
         :color="switchoverStatusColor"
         style="margin-left: 2px"
-        v-if="route.switchover !== null"
+        v-if="route.switchover !== undefined"
         >mdi-swap-horizontal</v-icon
       >
       <span

@@ -96,17 +96,21 @@
         <h1 class="avoid-clicks">Backends</h1>
       </v-col>
     </v-row>
-    <v-row>
-      <div class="text-center">
-        <v-btn
-          v-for="(backend, index) in backendNames"
-          :key="index"
-          @click="selectBackend(backend)"
-          v-bind:class="{ selected: isSelectedBackend(backend) }"
-          style="min-width: 150px; margin-left: 5px; margin-bottom: 5px"
-          >{{ backend }}</v-btn
-        >
-        <!--
+    <p class="text-center" v-if="Object.keys(backendNames).length == 0">
+      No backends found.
+    </p>
+    <div v-else>
+      <v-row>
+        <div class="text-center">
+          <v-btn
+            v-for="(backend, index) in backendNames"
+            :key="index"
+            @click="selectBackend(backend)"
+            v-bind:class="{ selected: isSelectedBackend(backend) }"
+            style="min-width: 150px; margin-left: 5px; margin-bottom: 5px"
+            >{{ backend }}</v-btn
+          >
+          <!--
         <v-menu offset-y @mouseleave="on = false">
           <template v-slot:activator="{ on, attrs }">
             <v-btn
@@ -130,16 +134,16 @@
             </v-list-item>
           </v-list>
         </v-menu>
-        -->
-      </div>
-    </v-row>
+        --></div>
+      </v-row>
 
-    <BackendCharts
-      :timestamps="timestamps"
-      :data="backendData"
-      :options="options"
-      ref="backendCharts"
-    ></BackendCharts>
+      <BackendCharts
+        :timestamps="timestamps"
+        :data="backendData"
+        :options="options"
+        ref="backendCharts"
+      ></BackendCharts>
+    </div>
   </v-container>
 </template>
 

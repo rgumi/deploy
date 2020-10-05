@@ -10,7 +10,7 @@ export default new Vuex.Store({
     this.startPulling();
   },
   state: {
-    baseUrl: location.origin, // "http://192.168.0.62:8081",
+    baseUrl: "http://192.168.0.62:8081", // location.origin, //
     iconList: {
       running: {
         color: "success",
@@ -220,6 +220,34 @@ export default new Vuex.Store({
     },
     setEditing: async function(state, status) {
       state.editing = status;
+    },
+    deleteBackend: async function(state, dObj) {
+      if (state.editing) {
+        return;
+      }
+      console.log(`Delete backend ${dObj.backend} from Route ${dObj.route}`);
+      state.loading = true;
+      axios
+        .delete(
+          `${this.state.baseUrl}/v1/routes/${dObj.route}/backends/${dObj.backend}`
+        )
+        .then((response) => {
+          if (response.status == 200) {
+            // route successfully deleted
+            this.commit("pullRoute");
+          }
+          state.loading = false;
+        })
+        .catch((error) => {
+          state.loading = false;
+          console.error(error);
+          eventBus.$emit("showEvent", {
+            icon: "mdi-alert",
+            icon_color: "error",
+            title: "Error",
+            message: error.message,
+          });
+        });
     },
   },
   modules: {},

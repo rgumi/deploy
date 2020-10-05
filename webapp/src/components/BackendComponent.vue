@@ -23,6 +23,15 @@
       </span>
       <v-spacer></v-spacer>
       <v-icon
+        v-if="!editable"
+        size="32"
+        title="Remove backend"
+        @click="deleteBackend()"
+        :disabled="currentlyLoading"
+        class="buttonIcon delButton"
+        >mdi-delete</v-icon
+      >
+      <v-icon
         title="Toggle visibility of backends"
         @click="show = !show"
         class="buttonIcon"
@@ -172,6 +181,9 @@ export default {
       console.log(e);
       console.log(e.target.title);
       console.log(this.route.cookie_ttl);
+    },
+    deleteBackend: function() {
+      this.$emit("deleteBackend", this.backend.id);
     }
   }
 };

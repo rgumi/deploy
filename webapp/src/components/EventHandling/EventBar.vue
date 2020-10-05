@@ -59,7 +59,6 @@ export default {
   background-color: transparent;
   display: fixed;
   margin-top: 8vh;
-  height: 100%;
   opacity: 0.8;
   padding: 0;
 }
