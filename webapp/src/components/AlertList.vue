@@ -13,7 +13,7 @@
 export default {
   name: "AlertList",
   props: {
-    alerts: Array,
+    alerts: Array
   },
   data() {
     return {
@@ -22,36 +22,36 @@ export default {
         {
           text: "Type",
           sortable: true,
-          value: "type",
+          value: "type"
         },
         {
           text: "Metric",
           sortable: true,
-          value: "metric",
+          value: "metric"
         },
         {
           text: "Threshold",
           sortable: true,
-          value: "threshold",
+          value: "threshold"
         },
         {
           text: "Value",
           sortable: true,
-          value: "value",
+          value: "value"
         },
         {
           text: "Started @",
           sortable: true,
-          value: "StartTime",
+          value: "StartTime"
         },
         {
           text: "Backend ID",
           sortable: true,
-          value: "backend_id",
-        },
-      ],
+          value: "backend_id"
+        }
+      ]
     };
-  },
+  }
 };
 </script>
 

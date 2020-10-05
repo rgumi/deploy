@@ -29,7 +29,7 @@ type InputRoute struct {
 	Rewrite             string              `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
 	CookieTTL           util.ConfigDuration `json:"cookie_ttl" yaml:"cookieTTL" default:"\"5m\""`
 	Strategy            *route.Strategy     `json:"strategy" yaml:"strategy" validate:"nil=false"`
-	SwitchOver          *route.SwitchOver   `json:"switchover" yaml:"-"`
+	Switchover          *InputSwitchover    `json:"switchover" yaml:"-"`
 	HealthCheck         bool                `json:"healthcheck_bool" yaml:"healthcheckBool" default:"true"`
 	HealthCheckInterval util.ConfigDuration `json:"healthcheck_interval" yaml:"healthcheckInterval" default:"\"5s\""`
 	MonitoringInterval  util.ConfigDuration `json:"monitoring_interval" yaml:"monitoringInterval" default:"\"5s\""`
@@ -40,21 +40,28 @@ type InputRoute struct {
 	Backends            []*route.Backend    `json:"backends" yaml:"backends"`
 }
 
-// SwitchOverRequest is required to add a switchover to a route
+// InputSwitchover is required to add a switchover to a route
 // it is a wrapper for the actual SwitchOver struct and replaces
 // the actual backends (from and to) with their corrosponding ids
-type SwitchOverRequest struct {
+type InputSwitchover struct {
 	From         string                   `json:"from"`
 	To           string                   `json:"to" validate:"empty=false"`
 	Conditions   []*conditional.Condition `json:"conditions" validate:"empty=false"`
-	Timeout      util.ConfigDuration      `json:"timeout" default:"2m0s"`
+	Timeout      util.ConfigDuration      `json:"timeout" default:"\"2m\""`
 	WeightChange uint8                    `json:"weight_change" default:"5"`
 	// Force overwrites the current config of the backends to enable switchover (if required)
-	Force bool `json:"force" default:"false"`
+	Force bool `json:"force,omitempty" default:"false"`
 	// If switchover fails, rollback all changes to the weights and stop switchover
-	Rollback bool `json:"rollback" default:"true"`
+	Rollback bool `json:"rollback,omitempty" default:"true"`
 	// The amount of times a cycle is allowed to fail before switchover is stopped
 	AllowedFailures int `json:"allowed_failures" default:"1"`
+	FailureCounter  int `json:"failure_counter"`
+}
+
+func NewInputSwitchover() *InputSwitchover {
+	switchover := new(InputSwitchover)
+	defaults.Set(switchover)
+	return switchover
 }
 
 func NewInputRoute() *InputRoute {
@@ -67,6 +74,20 @@ func NewInputeGateway() *InputGateway {
 	g := new(InputGateway)
 	defaults.Set(g)
 	return g
+}
+
+func ConvertSwitchoverToInputSwitchover(s *route.Switchover) *InputSwitchover {
+	inputRoute := &InputSwitchover{
+		From:            s.From.Name,
+		To:              s.To.Name,
+		FailureCounter:  s.FailureCounter,
+		AllowedFailures: s.AllowedFailures,
+		WeightChange:    s.WeightChange,
+		Timeout:         util.ConfigDuration{s.Timeout},
+		Conditions:      s.Conditions,
+		Rollback:        s.Rollback,
+	}
+	return inputRoute
 }
 
 func ConvertRouteToInputRoute(r *route.Route) *InputRoute {
@@ -86,7 +107,6 @@ func ConvertRouteToInputRoute(r *route.Route) *InputRoute {
 		Host:                r.Host,
 		IdleTimeout:         util.ConfigDuration{r.IdleTimeout},
 		Methods:             r.Methods,
-		SwitchOver:          r.SwitchOver,
 	}
 	inputRoute.Backends = make([]*route.Backend, len(r.Backends))
 	i := 0
@@ -94,6 +114,10 @@ func ConvertRouteToInputRoute(r *route.Route) *InputRoute {
 		inputRoute.Backends[i] = backend
 		i++
 	}
+	if r.Switchover != nil {
+		inputRoute.Switchover = ConvertSwitchoverToInputSwitchover(r.Switchover)
+	}
+
 	return inputRoute
 }
 

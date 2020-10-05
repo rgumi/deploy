@@ -9,7 +9,6 @@ import (
 	"github.com/rgumi/depoy/route"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/creasty/defaults"
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 )
@@ -205,16 +204,18 @@ func (s *StateMgt) RemoveBackendFromRoute(w http.ResponseWriter, req *http.Reque
 
 // CreateSwitchover adds a switchover struct to the given route
 func (s *StateMgt) CreateSwitchover(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	mySwitchOver := new(config.SwitchOverRequest)
-	defaults.Set(mySwitchOver)
-
+	mySwitchOver := config.NewInputSwitchover()
 	routeName := ps.ByName("name")
 	route, found := s.Gateway.Routes[routeName]
 	if !found {
 		returnError(w, req, 404, fmt.Errorf("Could not find route"), nil)
 		return
 	}
-	readBodyAndUnmarshal(req, mySwitchOver)
+	if err := readBodyAndUnmarshal(req, mySwitchOver); err != nil {
+		returnError(w, req, 400, err, nil)
+		return
+	}
+
 	newSwitchover, err := route.StartSwitchOver(
 		mySwitchOver.From,
 		mySwitchOver.To,
@@ -229,7 +230,7 @@ func (s *StateMgt) CreateSwitchover(w http.ResponseWriter, req *http.Request, ps
 		returnError(w, req, 400, err, nil)
 		return
 	}
-	marshalAndReturn(w, req, newSwitchover)
+	marshalAndReturn(w, req, config.ConvertSwitchoverToInputSwitchover(newSwitchover))
 
 }
 
@@ -243,11 +244,11 @@ func (s *StateMgt) GetSwitchover(w http.ResponseWriter, req *http.Request, ps ht
 		return
 	}
 
-	if route.SwitchOver == nil {
+	if route.Switchover == nil {
 		returnError(w, req, 404, fmt.Errorf("Route does not have a swtichover active"), nil)
 		return
 	}
-	marshalAndReturn(w, req, route.SwitchOver)
+	marshalAndReturn(w, req, config.ConvertSwitchoverToInputSwitchover(route.Switchover))
 }
 
 // DeleteSwitchover stops and removes the switchover of the given route
@@ -261,7 +262,7 @@ func (s *StateMgt) DeleteSwitchover(w http.ResponseWriter, req *http.Request, ps
 		return
 	}
 
-	if route.SwitchOver == nil {
+	if route.Switchover == nil {
 		returnError(w, req, 404, fmt.Errorf("Route does not have a swtichover active"), nil)
 		return
 	}

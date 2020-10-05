@@ -110,4 +110,4 @@ data:
                 operator: ">"
                 threshold: 0.3
                 active_for: 5s
-                resolve_in: 0s
+                resolve_in: 20s

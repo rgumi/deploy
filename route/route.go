@@ -45,7 +45,7 @@ type Route struct {
 	ScrapeInterval      time.Duration          `json:"scrape_interval" yaml:"scrapeInterval"`
 	Proxy               string                 `json:"proxy" yaml:"proxy" default:""`
 	Backends            map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
-	SwitchOver          *SwitchOver            `json:"switchover" yaml:"-"`
+	Switchover          *Switchover            `json:"switchover" yaml:"-"`
 	Client              UpstreamClient         `json:"-" yaml:"-"`
 	MetricsRepo         *metrics.Repository    `json:"-" yaml:"-"`
 	NextTargetDistr     []*Backend             `json:"-" yaml:"-"`
@@ -427,14 +427,14 @@ func (r *Route) StartSwitchOver(
 	from, to string,
 	conditions []*conditional.Condition,
 	timeout time.Duration, allowedFailures int,
-	weightChange uint8, force, rollback bool) (*SwitchOver, error) {
+	weightChange uint8, force, rollback bool) (*Switchover, error) {
 
 	var fromBackend, toBackend *Backend
 
 	// check if a switchover is already active
 	// only one switchover is allowed per route at a time
-	if r.SwitchOver != nil {
-		if r.SwitchOver.Status == "Running" {
+	if r.Switchover != nil {
+		if r.Switchover.Status == "Running" {
 			return nil, fmt.Errorf("Only one switchover can be active per route")
 		}
 	}
@@ -475,7 +475,7 @@ forward:
 		}
 		r.SetStrategy(strategy)
 
-		// set weights
+		// set initial weights
 		fromBackend.Weigth = 100 - weightChange
 		toBackend.Weigth = weightChange
 
@@ -490,24 +490,24 @@ forward:
 		}
 	}
 
-	switchOver, err := NewSwitchOver(
+	switchover, err := NewSwitchover(
 		fromBackend, toBackend, r, conditions, timeout, allowedFailures, weightChange, rollback)
 
 	if err != nil {
 		return nil, err
 	}
 
-	r.SwitchOver = switchOver
-	go switchOver.Start()
+	r.Switchover = switchover
+	go switchover.Start()
 
-	return switchOver, nil
+	return switchover, nil
 }
 
 // RemoveSwitchOver stops the switchover process and leaves the weights as they are last
 func (r *Route) RemoveSwitchOver() {
-	if r.SwitchOver != nil {
+	if r.Switchover != nil {
 		log.Warnf("Stopping Switchover of %s", r.Name)
-		r.SwitchOver.Stop()
-		r.SwitchOver = nil
+		r.Switchover.Stop()
+		r.Switchover = nil
 	}
 }

@@ -11,11 +11,11 @@ import (
 var counter int
 var granularity = 10 * time.Second
 
-// SwitchOver is used to configure a switch-over from
+// Switchover is used to configure a switch-over from
 // one backend to another. This can be used to gradually
 // increase the load to a backend by updating the
 // weights of the backends
-type SwitchOver struct {
+type Switchover struct {
 	ID                 int                      `json:"id"`
 	From               *Backend                 `json:"from"`
 	To                 *Backend                 `json:"to"`
@@ -26,19 +26,19 @@ type SwitchOver struct {
 	Route              *Route                   `json:"-"`             // route for which the switch is defined
 	Rollback           bool                     `json:"-"`             // If Switchover is cancled or aborted, should the weights of backends be reset?
 	AllowedFailures    int                      `json:"-"`             // amount of failures that are allowed before switchover is aborted
+	FailureCounter     int                      `json:"-"`
 	toRollbackWeight   uint8
 	fromRollbackWeight uint8
-	failureCounter     int
 	killChan           chan int // chan to stop the switchover process
 }
 
-func NewSwitchOver(
+func NewSwitchover(
 	from, to *Backend,
 	route *Route,
 	conditions []*conditional.Condition,
 	timeout time.Duration,
 	allowedFailures int,
-	weightChange uint8, rollback bool) (*SwitchOver, error) {
+	weightChange uint8, rollback bool) (*Switchover, error) {
 
 	if from.ID == to.ID {
 		return nil, fmt.Errorf("from and to cannot be the same entity")
@@ -52,8 +52,7 @@ func NewSwitchOver(
 	}
 
 	counter++
-
-	return &SwitchOver{
+	return &Switchover{
 		ID:              counter,
 		From:            from,
 		To:              to,
@@ -69,13 +68,14 @@ func NewSwitchOver(
 }
 
 // Stop the switchover process
-func (s *SwitchOver) Stop() {
+func (s *Switchover) Stop() {
 
 	if s.Status == "Running" {
 		s.Status = "Stopped"
 	}
 
 	if s.Rollback && s.Status == "Failed" {
+		log.Warnf("Switchover from %v to %v failed", s.From.ID, s.To.ID)
 		s.From.UpdateWeight(s.fromRollbackWeight)
 		s.To.UpdateWeight(s.toRollbackWeight)
 		s.To.updateWeigth()
@@ -84,7 +84,7 @@ func (s *SwitchOver) Stop() {
 }
 
 // Start the switchover process
-func (s *SwitchOver) Start() {
+func (s *Switchover) Start() {
 	s.toRollbackWeight = s.To.Weigth
 	s.fromRollbackWeight = s.From.Weigth
 	s.Status = "Running"
@@ -101,7 +101,7 @@ outer:
 			metrics, err := s.Route.MetricsRepo.ReadRatesOfBackend(
 				s.To.ID, time.Now().Add(-s.Timeout), time.Now())
 			if err != nil {
-				log.Debug(err)
+				log.Trace(err)
 				continue
 			}
 			for _, condition := range s.Conditions {
@@ -112,15 +112,15 @@ outer:
 					} else {
 						// check if condition was active for long enough
 						if condition.TriggerTime.Add(condition.GetActiveFor()).Before(time.Now()) {
-							log.Warnf("Updating status of condition %v %v %v to true", condition.Metric, condition.Operator, condition.Threshold)
+							log.Debugf("Updating status of condition %v %v %v to true", condition.Metric, condition.Operator, condition.Threshold)
 							condition.Status = true
 						}
 					}
 				} else {
 					// condition is not met, therefore reset triggerTime
 					condition.TriggerTime = time.Time{}
-					s.failureCounter++
-					if s.failureCounter > s.AllowedFailures {
+					s.FailureCounter++
+					if s.FailureCounter > s.AllowedFailures {
 						// failed too often...
 						s.Status = "Failed"
 						s.Stop()
@@ -147,7 +147,7 @@ outer:
 			}
 			if s.From.Weigth <= 0 || s.To.Weigth >= 100 {
 				// switchover was successful, all traffic is forwarded to new backend
-				log.Warnf("Switchover from %v to %v was successful", s.From.ID, s.To.ID)
+				log.Infof("Switchover from %v to %v was successful", s.From.ID, s.To.ID)
 				s.Status = "Success"
 				s.Stop()
 			}

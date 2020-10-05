@@ -33,6 +33,9 @@
             <td :contenteditable="editable" title="active_for" class="left">
               {{ row.item.active_for }}
             </td>
+            <td :contenteditable="editable" title="resolve_in" class="left">
+              {{ row.item.resolve_in }}
+            </td>
           </tr>
         </template>
       </v-data-table>
