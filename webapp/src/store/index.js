@@ -10,7 +10,7 @@ export default new Vuex.Store({
     this.startPulling();
   },
   state: {
-    baseUrl: "http://192.168.0.62:8081", // location.origin, //
+    baseUrl: location.origin, //"http://192.168.0.62:8081",
     iconList: {
       running: {
         color: "success",
