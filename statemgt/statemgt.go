@@ -62,16 +62,16 @@ func (s *StateMgt) Start() {
 
 	router.Handle("GET", s.Prefix+PromPath, Metrics(promhttp.Handler()))
 	if s.Prefix != "/" {
-		router.Handle("GET", "/healthz", s.HealthzHandler)
+		router.Handle("GET", "/healthz", s.HealthzHandler) // Kubernetes static healthcheck path
 	}
 	router.Handle("GET", s.Prefix+"healthz", s.HealthzHandler)
 
 	// single page app routes
-	router.Handle("GET", s.Prefix+"help", s.GetIndexPage)
 	router.Handle("GET", s.Prefix+"dashboard", s.GetIndexPage)
 	router.Handle("GET", s.Prefix+"routes/*filepath", s.GetIndexPage)
 	router.Handle("GET", s.Prefix+"home", s.GetIndexPage)
 	router.Handle("GET", s.Prefix+"login", s.GetIndexPage)
+	router.Handle("GET", s.Prefix+"help", s.GetIndexPage)
 
 	// Config
 	router.Handle("GET", s.Prefix+"v1/config", s.GetCurrentConfig)
@@ -79,7 +79,7 @@ func (s *StateMgt) Start() {
 
 	// gateway routes
 	router.Handle("GET", s.Prefix+"v1/routes/:name", s.GetRouteByName)
-	router.Handle("DELETE", s.Prefix+"/v1routes/:name", s.DeleteRouteByName)
+	router.Handle("DELETE", s.Prefix+"v1/routes/:name", s.DeleteRouteByName)
 	router.Handle("GET", s.Prefix+"v1/routes/", s.GetAllRoutes)
 	router.Handle("POST", s.Prefix+"v1/routes/", s.CreateRoute)
 	router.Handle("PUT", s.Prefix+"v1/routes/:name", s.UpdateRouteByName)
@@ -94,11 +94,11 @@ func (s *StateMgt) Start() {
 	router.Handle("DELETE", s.Prefix+"v1/routes/:name/switchover", s.DeleteSwitchover)
 
 	// monitoring
+	router.Handle("GET", s.Prefix+"v1/monitoring", s.GetMetricsData)
 	router.Handle("GET", s.Prefix+"v1/monitoring/routes/", s.GetMetricsOfAllRoutes)
 	router.Handle("GET", s.Prefix+"v1/monitoring/backends/", s.GetMetricsOfAllBackends)
 	router.Handle("GET", s.Prefix+"v1/monitoring/backends/:id", s.GetMetricsOfBackend)
 	router.Handle("GET", s.Prefix+"v1/monitoring/routes/:name", s.GetMetricsOfRoute)
-	router.Handle("GET", s.Prefix+"v1/monitoring", s.GetMetricsData)
 	router.Handle("GET", s.Prefix+"v1/monitoring/prometheus", s.GetPromMetrics)
 	router.Handle("GET", s.Prefix+"v1/monitoring/alerts", s.GetActiveAlerts)
 
