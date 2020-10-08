@@ -1,0 +1,29 @@
+FROM node as vue-builder
+WORKDIR /app
+COPY webapp/package*.json .
+RUN npm run install
+COPY webapp/* .
+RUN npm run build
+
+FROM golang as app-builder
+WORKDIR /go/src/github.com/rgumi/depoy/
+COPY . .
+COPY --from=vue-builder /app/dist .
+RUN ls -l && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build
+
+FROM alpine:latest
+RUN set -x && \
+    addgroup -S depoy && adduser -S -G depoy depoy && \
+    mkdir -p  /home/depoy/data && \
+    chown -R depoy:depoy /home/depoy
+USER depoy
+WORKDIR /home/depoy
+COPY --from=app-builder /go/src/github.com/rgumi/depoy/depoy .
+VOLUME /home/depoy/data
+
+EXPOSE 8080/tcp
+EXPOSE 8443/tcp
+EXPOSE 8081/tcp
+EXPOSE 8444/tcp
+
+ENTRYPOINT ["./depoy"]
