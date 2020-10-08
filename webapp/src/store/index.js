@@ -10,7 +10,8 @@ export default new Vuex.Store({
     this.startPulling();
   },
   state: {
-    baseUrl: process.env.NODE_ENV == "prodution" ? "" : "http://localhost:8081",
+    baseUrl:
+      process.env.NODE_ENV == "production" ? "" : "http://127.0.0.1:8081/",
     loading: true,
     routes: new Map(),
     routeMetrics: new Map(),
