@@ -23,7 +23,6 @@
         style="margin: 5px;"
         v-bind:class="{ rotate: !showAll }"
         @click="showAll = !showAll"
-        :disabled="currentlyLoading"
         >mdi-arrow-down-bold-circle</v-icon
       >
 
@@ -61,11 +60,11 @@ import store from "@/store/index";
 export default {
   name: "Routes",
   components: {
-    RouteComponent,
+    RouteComponent
   },
   data: () => {
     return {
-      showAll: false,
+      showAll: false
     };
   },
   created() {
@@ -79,7 +78,7 @@ export default {
     },
     getRoutes() {
       this.$store.commit("pullRoute");
-    },
+    }
   },
   computed: {
     configuredRoutes: function() {
@@ -87,8 +86,8 @@ export default {
     },
     currentlyLoading: function() {
       return store.state.loading;
-    },
-  },
+    }
+  }
 };
 </script>
 <style scoped>

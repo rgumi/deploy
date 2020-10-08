@@ -3,14 +3,13 @@
     <!-- Info row -->
     <v-row fluid no-gutters dense>
       <div style="min-width: 15%; text-align:left">
-        <h1 @dblclick="show = !show" :disabled="currentlyLoading">
+        <h1 @dblclick="show = !show" >
           {{ route.name }}
         </h1>
       </div>
       <v-icon
         title="Go to switchover"
         @click="$router.push(switchoverLink)"
-        :disabled="currentlyLoading"
         :color="switchoverStatusColor"
         style="margin-left: 2px"
         v-if="route.switchover !== null"
@@ -37,7 +36,6 @@
         @click="show = !show"
         class="buttonIcon"
         v-bind:class="{ rotate: !show }"
-        :disabled="currentlyLoading"
         >mdi-arrow-down-bold-circle</v-icon
       >
     </v-row>

@@ -25,7 +25,6 @@
         style="margin: 5px;"
         v-bind:class="{ rotate: !showAll }"
         @click="showAll = !showAll"
-        :disabled="currentlyLoading"
         >mdi-arrow-down-bold-circle</v-icon
       >
 

@@ -55,7 +55,7 @@ type InputSwitchover struct {
 	// If switchover fails, rollback all changes to the weights and stop switchover
 	Rollback bool `json:"rollback,omitempty" default:"true"`
 	// The amount of times a cycle is allowed to fail before switchover is stopped
-	AllowedFailures int `json:"allowed_failures" default:"1"`
+	AllowedFailures int `json:"allowed_failures" default:"5"`
 	FailureCounter  int `json:"failure_counter"`
 }
 

@@ -10,21 +10,7 @@ export default new Vuex.Store({
     this.startPulling();
   },
   state: {
-    baseUrl: location.origin, //"http://192.168.0.62:8081",
-    iconList: {
-      running: {
-        color: "success",
-        icon: "mdi-check-circle",
-      },
-      idle: {
-        color: "grey",
-        icon: "mdi-check-circle",
-      },
-      broken: {
-        color: "red",
-        icon: "mdi-check-circle",
-      },
-    },
+    baseUrl: process.env.NODE_ENV == "prodution" ? "" : "http://localhost:8081",
     loading: true,
     routes: new Map(),
     routeMetrics: new Map(),
@@ -40,6 +26,7 @@ export default new Vuex.Store({
       this.commit("pullMetricForRoute");
 
       window.setInterval(() => {
+        this.commit("pullRoute");
         this.commit("pullMetricForBackend");
         this.commit("pullMetricForRoute");
       }, this.state.granularity * 1000); // in ms
@@ -63,7 +50,7 @@ export default new Vuex.Store({
       }
 
       axios
-        .get(this.state.baseUrl + "/v1/routes/" + route, null, {
+        .get(this.state.baseUrl + "v1/routes/" + route, null, {
           params: {},
           timeout: 2,
         })
@@ -93,7 +80,7 @@ export default new Vuex.Store({
         route = "";
       }
       axios
-        .get(this.state.baseUrl + "/v1/monitoring/routes/" + route, {
+        .get(this.state.baseUrl + "v1/monitoring/routes/" + route, {
           data: {},
           params: {
             timeframe: this.state.timeframe,
@@ -142,7 +129,7 @@ export default new Vuex.Store({
         backend = "";
       }
       axios
-        .get(this.state.baseUrl + "/v1/monitoring/backends/" + backend, {
+        .get(this.state.baseUrl + "v1/monitoring/backends/" + backend, {
           data: {},
           params: {
             timeframe: this.state.timeframe,
@@ -199,7 +186,7 @@ export default new Vuex.Store({
       state.loading = true;
       console.log(routeName);
       axios
-        .delete(this.state.baseUrl + "/v1/routes/" + routeName)
+        .delete(this.state.baseUrl + "v1/routes/" + routeName)
         .then((response) => {
           if (response.status == 200) {
             // route successfully deleted
@@ -229,7 +216,7 @@ export default new Vuex.Store({
       state.loading = true;
       axios
         .delete(
-          `${this.state.baseUrl}/v1/routes/${dObj.route}/backends/${dObj.backend}`
+          `${this.state.baseUrl}v1/routes/${dObj.route}/backends/${dObj.backend}`
         )
         .then((response) => {
           if (response.status == 200) {
@@ -254,8 +241,6 @@ export default new Vuex.Store({
   getters: {
     getIcon: (state) => (status) => state.iconList[status],
     getActiveAlerts: (state) => (routeName) => {
-      console.log(`Requested ${routeName}`);
-
       var routes = state.routes;
       if (routes.size == 0) {
         return [];
@@ -281,7 +266,6 @@ export default new Vuex.Store({
       return routes;
     },
     getRoute: (state) => (routeName) => {
-      // console.log(`Requested ${routeName}`);
       var routes = state.routes;
       if (routes.size == 0) {
         return null;

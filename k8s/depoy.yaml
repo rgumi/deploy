@@ -46,6 +46,7 @@ spec:
             - "--global.loglevel=3"
             - "--global.configfile=/etc/depoy/gateway-config.yaml"
             - "--global.persistconfig=true"
+            - "--statemgt.prefix=/depoy/"
           image: depoy
           resources:
             limits:

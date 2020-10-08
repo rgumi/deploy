@@ -69,11 +69,9 @@ func NewSwitchover(
 
 // Stop the switchover process
 func (s *Switchover) Stop() {
-
 	if s.Status == "Running" {
 		s.Status = "Stopped"
 	}
-
 	if s.Rollback && s.Status == "Failed" {
 		log.Warnf("Switchover from %v to %v failed", s.From.ID, s.To.ID)
 		s.From.UpdateWeight(s.fromRollbackWeight)
@@ -104,8 +102,7 @@ outer:
 			}
 			// begin cycle => check each condition if true
 			for _, condition := range s.Conditions {
-				status := condition.IsTrue(metrics)
-				if status && s.To.Active {
+				if condition.IsTrue(metrics) && s.To.Active {
 					if condition.TriggerTime.IsZero() {
 						condition.TriggerTime = time.Now()
 					} else {
@@ -120,6 +117,7 @@ outer:
 				} else {
 					// condition is not met, therefore reset triggerTime
 					condition.TriggerTime = time.Time{}
+					condition.Status = false
 				}
 			}
 			// end of cycle, check conditions

@@ -1,6 +1,7 @@
 module.exports = {
   transpileDependencies: ["vuetify"],
   assetsDir: "static/",
+  publicPath: "",
   pwa: {
     name: "Depoy",
     themeColor: "#d9d511",

@@ -6,14 +6,13 @@ import vuetify from "./plugins/vuetify";
 import "./registerServiceWorker";
 
 Vue.config.productionTip = false;
-
-console.log(process.env.BASE_URL);
-
 export const eventBus = new Vue();
+
+console.log(process.env);
 
 new Vue({
   router,
   store,
   vuetify,
-  render: h => h(App)
+  render: (h) => h(App),
 }).$mount("#app");
