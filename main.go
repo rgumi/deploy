@@ -59,7 +59,7 @@ func main() {
 	st.Box = box
 
 	go st.Start()
-	log.Warnf("StateMgt listening on Addr %s", statemgt.Addr)
+	log.Warnf("StateMgt listening on Addr %s with prefix %s", statemgt.Addr, statemgt.Prefix)
 
 	// sys signal
 	signalChannel := make(chan os.Signal, 1)

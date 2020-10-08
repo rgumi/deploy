@@ -104,7 +104,7 @@ func (s *StateMgt) Start() {
 
 	// etc
 	if err := updateBaseUrl(s.Box, s.Prefix); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	router.NotFound = &StaticFileHandler{Prefix: s.Prefix, Fileserver: http.FileServer(s.Box)}
 	router.PanicHandler = func(w http.ResponseWriter, req *http.Request, e interface{}) {
