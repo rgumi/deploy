@@ -2,3 +2,4 @@ namespace: ingress-depoy
 resources:
   - depoy.yaml
   - config-ewu.yaml
+  - ingress.yaml
