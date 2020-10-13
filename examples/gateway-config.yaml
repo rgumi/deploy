@@ -52,7 +52,7 @@ routes:
             threshold: 0.1
             active_for: 10s
   - name: Kubernetes Dashboard
-    prefix: /
+    prefix: /k8s-dashboard/
     host: "*"
     rewrite: /
     cookieTTL: 2m0s
@@ -102,3 +102,30 @@ routes:
             threshold: 0.3
             active_for: 5s
             resolve_in: 0s
+  - name: Route1
+    prefix: /route1/
+    host: "*"
+    rewrite: /
+    cookieTTL: 10m
+    strategy:
+      type: sticky
+    healthcheck_bool: true
+    timeout: 10s
+    idleTimeout: 30s
+    proxy: ""
+    backends:
+      - name: b1
+        addr: "http://localhost:7070"
+        weight: 100
+        healthcheck_url: "http://localhost:7070/"
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+            activeFor: 10s
+            resolveIn: 5s
+          - metric: 5xxRate
+            operator: ">"
+            threshold: 0.3
+            activeFor: 5s
+            resolveIn: 0s

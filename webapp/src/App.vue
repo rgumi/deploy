@@ -154,4 +154,10 @@ table tr:last-child td {
   border-radius: 15%;
   margin-right: 5px;
 }
+.id-text {
+  padding: 1vh;
+  font-size: 0.875rem;
+  padding-top: 0;
+  margin-top: -10;
+}
 </style>

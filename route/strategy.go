@@ -162,10 +162,9 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 // based on its weight. Each request is handled seperately and no sessions are
 // handled
 func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
-
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
-
+		start := time.Now()
 		var bBuffer bytes.Buffer
 		currentTarget, err := r.getNextBackend()
 		if err != nil {
@@ -173,12 +172,10 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, "No Upstream Host Available", 503)
 			return
 		}
-
 		bBuffer.ReadFrom(req.Body)
 		IncContentLength := bBuffer.Len()
-		log.Warnf("Inc Content Length: %d", IncContentLength)
+		log.Debugf("Inc Content Length: %d", IncContentLength)
 		readCloser := ioutil.NopCloser(&bBuffer)
-
 		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, readCloser)
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
@@ -188,6 +185,11 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 		}
 		defer resp.Body.Close()
 		m.ContentLength = int64(sendResponse(resp, w))
+		log.Infof("%s \"%s %s %s\" %d %d %v %s %s",
+			req.RemoteAddr, req.Method, req.URL.Path,
+			req.Proto, resp.StatusCode, m.ContentLength, time.Since(start),
+			r.Name, currentTarget.Name,
+		)
 		r.MetricsRepo.InChannel <- m
 	}
 }
@@ -198,40 +200,37 @@ func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
+		start := time.Now()
 		var err error
 		var bBuffer bytes.Buffer
 		var currentTarget *Backend
-
 		cookieName := strings.ToUpper(r.Name) + "_SESSIONCOOKIE"
 
 		if value, expires := checkCookie(req, cookieName); value != "" {
-
-			backendName, err := uuid.Parse(value)
-			log.Debugf("Found routeCookie for %v", backendName)
-
+			BackendID, err := uuid.Parse(value)
+			log.Debugf("Found routeCookie for %v", BackendID)
 			// check if uuid is valid and cookie is not expired
+			// (browsers do not send expired cookies but w/e)
 			if err == nil && expires.Before(time.Now()) {
-				if target, found := r.Backends[backendName]; found {
+				if target, found := r.Backends[BackendID]; found {
 					if target.Active {
-						currentTarget = r.Backends[backendName]
+						currentTarget = r.Backends[BackendID]
 						goto forward
 					}
 				}
 			}
 		}
-
 		currentTarget, err = r.getNextBackend()
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
 			http.Error(w, "No Upstream Host Available", 503)
 			return
 		}
-
-		log.Debugf("Setting routeCookie for %v", currentTarget.ID)
 		addCookie(w, cookieName, currentTarget.ID.String(), r.CookieTTL)
-
 	forward:
 		bBuffer.ReadFrom(req.Body)
+		IncContentLength := bBuffer.Len()
+		log.Debugf("Inc Content Length: %d", IncContentLength)
 		readCloser := ioutil.NopCloser(&bBuffer)
 		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, readCloser)
 		if gErr != nil {
@@ -241,8 +240,12 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		defer resp.Body.Close()
-
 		m.ContentLength = int64(sendResponse(resp, w))
+		log.Infof("%s \"%s %s %s\" %d %d %v %s %s",
+			req.RemoteAddr, req.Method, req.URL.Path,
+			req.Proto, resp.StatusCode, m.ContentLength, time.Since(start),
+			r.Name, currentTarget.Name,
+		)
 		r.MetricsRepo.InChannel <- m
 	}
 }
@@ -252,18 +255,16 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
+		start := time.Now()
 		var bBuffer bytes.Buffer
-
 		// check if header exist
 		if value := req.Header.Get(headerName); value != "" {
 			// header is set therefore new backend will be used
 			// headerValue is ignored
-
 			bBuffer.ReadFrom(req.Body)
 			IncContentLength := bBuffer.Len()
-			log.Warnf("Inc Content Length: %d", IncContentLength)
+			log.Debugf("Inc Content Length: %d", IncContentLength)
 			readCloser := ioutil.NopCloser(&bBuffer)
-
 			resp, m, gErr := r.sendRequestToUpstream(target, req, readCloser)
 			if gErr != nil {
 				log.Warnf("%s %v %s. Error: %v", r.Name, target.ID, target.Name, gErr)
@@ -272,24 +273,25 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 				return
 			}
 			m.ContentLength = int64(sendResponse(resp, w))
+			log.Infof("%s \"%s %s %s\" %d %d %v %s %s",
+				req.RemoteAddr, req.Method, req.URL.Path,
+				req.Proto, resp.StatusCode, m.ContentLength, time.Since(start),
+				r.Name, target.Name,
+			)
 			r.MetricsRepo.InChannel <- m
 			return
 		}
-
 		// header is not set therefore old backend is used
-
 		bBuffer.ReadFrom(req.Body)
 		IncContentLength := bBuffer.Len()
-		log.Warnf("Inc Content Length: %d", IncContentLength)
+		log.Debugf("Inc Content Length: %d", IncContentLength)
 		readCloser := ioutil.NopCloser(&bBuffer)
-
 		target, err := r.getNextBackend()
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
 			http.Error(w, "No Upstream Host Available", 503)
 			return
 		}
-
 		resp, m, gErr := r.sendRequestToUpstream(target, req, readCloser)
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, target.ID, target.Name, gErr)
@@ -298,8 +300,12 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 			return
 		}
 		defer resp.Body.Close()
-
 		m.ContentLength = int64(sendResponse(resp, w))
+		log.Infof("%s \"%s %s %s\" %d %d %v %s %s",
+			req.RemoteAddr, req.Method, req.URL.Path,
+			req.Proto, resp.StatusCode, m.ContentLength, time.Since(start),
+			r.Name, target.Name,
+		)
 		r.MetricsRepo.InChannel <- m
 		return
 	}
@@ -311,21 +317,19 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer req.Body.Close()
+		start := time.Now()
 		var bBuffer bytes.Buffer
-
 		// send request to old backend
 		bBuffer.ReadFrom(req.Body)
 		IncContentLength := bBuffer.Len()
-		log.Warnf("Inc Content Length: %d", IncContentLength)
+		log.Debugf("Inc Content Length: %d", IncContentLength)
 		readCloser := ioutil.NopCloser(&bBuffer)
-
 		currentTarget, err := r.getNextBackend()
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
 			http.Error(w, "No Upstream Host Available", 503)
 			return
 		}
-
 		resp, m, gErr := r.sendRequestToUpstream(currentTarget, req, readCloser)
 		if gErr != nil {
 			log.Warnf("%s %v %s. Error: %v", r.Name, currentTarget.ID, currentTarget.Name, gErr)
@@ -334,18 +338,20 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 			return
 		}
 		defer resp.Body.Close()
-
 		m.ContentLength = int64(sendResponse(resp, w))
+		log.Infof("%s \"%s %s %s\" %d %d %v %s %s",
+			req.RemoteAddr, req.Method, req.URL.Path,
+			req.Proto, resp.StatusCode, m.ContentLength, time.Since(start),
+			r.Name, currentTarget.Name,
+		)
 		r.MetricsRepo.InChannel <- m
-
 		// send request to shadowed backend
 		go func() {
 			bBuffer.ReadFrom(req.Body)
 			IncContentLength := bBuffer.Len()
-			log.Warnf("Inc Content Length: %d", IncContentLength)
+			log.Debugf("Inc Content Length: %d", IncContentLength)
 			readCloser := ioutil.NopCloser(&bBuffer)
 			defer req.Body.Close()
-
 			respShadow, m, gErr := r.sendRequestToUpstream(shadow, req, readCloser)
 			if gErr != nil {
 				log.Warnf("%s %v %s. Error: %v", r.Name, shadow.ID, shadow.Name, gErr)

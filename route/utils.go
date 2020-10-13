@@ -61,8 +61,8 @@ func sendResponse(resp *http.Response, w http.ResponseWriter) int {
 	return len(b)
 }
 
-func formateRequest(old *http.Request, addr string, readCloser io.ReadCloser) (*http.Request, error) {
-	new, _ := http.NewRequest(old.Method, addr, readCloser)
+func formateRequest(old *http.Request, addr string, body io.ReadCloser) (*http.Request, error) {
+	new, _ := http.NewRequest(old.Method, addr, body)
 	// setup the X-Forwarded-For header
 	if clientIP, _, err := net.SplitHostPort(old.RemoteAddr); err == nil {
 		appendHostToXForwardHeader(new.Header, clientIP)

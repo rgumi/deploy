@@ -7,7 +7,7 @@
         :disabled="currentlyLoading"
       >
         <h1>Backend: {{ backend.name }}</h1>
-        <span class="backend-id-text">{{ backend.id }}</span>
+        <span class="id-text">{{ backend.id }}</span>
       </div>
       <span
         title="Currently active alerts"
@@ -209,11 +209,5 @@ h1 {
   padding: 1vh;
   padding-bottom: 0;
   margin-bottom: 0;
-}
-.backend-id-text {
-  padding: 1vh;
-  font-size: 0.875rem;
-  padding-top: 0;
-  margin-top: -10;
 }
 </style>

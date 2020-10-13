@@ -15,7 +15,10 @@ func LogRequest(handler http.Handler) http.Handler {
 		defer func() {
 			delta := time.Since(before)
 
-			log.Infof("%s %s %s %v", r.RemoteAddr, r.Method, r.URL, delta)
+			log.Infof("%s \"%s %s %s\" %v",
+				r.RemoteAddr, r.Method, r.URL.Path,
+				r.Proto, delta,
+			)
 		}()
 		handler.ServeHTTP(w, r)
 	})

@@ -223,7 +223,6 @@ func (st *LocalStorage) readPuffer() {
 			if len(st.puffer[routeName][backendID]) == 0 {
 				continue
 			}
-
 			if _, found := st.data[routeName]; !found {
 				st.data[routeName] = make(map[uuid.UUID]map[time.Time]Metric)
 				st.data[routeName][backendID] = make(map[time.Time]Metric)
@@ -239,7 +238,6 @@ func (st *LocalStorage) readPuffer() {
 		}
 	}
 }
-
 func (st *LocalStorage) deleteOldData() {
 	// for each route
 	for _, routeData := range st.data {

@@ -28,7 +28,7 @@ type Condition struct {
 	ResolveIn util.ConfigDuration `json:"resolve_in,omitempty" yaml:"resolveIn,omitempty"`
 	// time the condition was first true
 	TriggerTime time.Time `json:"-" yaml:"-"`
-	// Condtional function to evaluate condition
+	// Condtional function to evaluate condition using backend metrics rates
 	IsTrue func(m map[string]float64) bool `json:"-" yaml:"-"`
 }
 

@@ -12,5 +12,6 @@ VOLUME /home/depoy/data
 EXPOSE 8080/tcp
 EXPOSE 8443/tcp
 EXPOSE 8081/tcp
+EXPOSE 8444/tcp
 
 ENTRYPOINT ["./depoy"]

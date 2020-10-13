@@ -40,28 +40,6 @@
         </template>
       </v-data-table>
     </v-row>
-    <!--
-    <v-row
-      style="height: 48px;"
-      v-for="condition in conditions"
-      :key="condition.metric"
-    >
-      <div :contenteditable="editable" class="condition-wrapper">
-        {{ condition.metric }}
-      </div>
-
-      <div :contenteditable="editable" class="condition-wrapper">
-        {{ condition.operator }}
-      </div>
-
-      <div :contenteditable="editable" class="condition-wrapper">
-        {{ condition.threshold }}
-      </div>
-      <div :contenteditable="editable" class="condition-wrapper">
-        {{ condition.active_for / 1000000000 }} seconds
-      </div>
-    </v-row>
-    -->
   </div>
 </template>
 
@@ -93,6 +71,12 @@ export default {
           text: "Active For",
           sortable: true,
           value: "active_for"
+        }
+        ,
+        {
+          text: "Resolve In",
+          sortable: true,
+          value: "resolve_in"
         }
       ]
     };

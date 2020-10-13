@@ -45,6 +45,8 @@
               :showBackends="true"
               :showButtons="true"
               :showAll="showAll"
+              :showConfig="false"
+              :showAlerts="true"
               :route="item"
             ></RouteComponent>
           </v-row>

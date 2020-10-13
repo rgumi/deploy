@@ -30,25 +30,25 @@ type UpstreamClient interface {
 }
 
 type Route struct {
-	Name                string                 `json:"name" yaml:"name" validate:"empty=false"`
-	Prefix              string                 `json:"prefix" yaml:"prefix" validate:"empty=false"`
-	Methods             []string               `json:"methods" yaml:"methods" validate:"empty=false"`
-	Host                string                 `json:"host" yaml:"host" default:"*"`
-	Rewrite             string                 `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
-	CookieTTL           time.Duration          `json:"cookie_ttl" yaml:"cookieTTL"`
-	Strategy            *Strategy              `json:"strategy" yaml:"strategy" validate:"nil=false"`
-	HealthCheck         bool                   `json:"healthcheck_bool" yaml:"healthcheckBool" default:"true"`
-	HealthCheckInterval time.Duration          `json:"healthcheck_interval" yaml:"healthcheckInterval"`
-	MonitoringInterval  time.Duration          `json:"monitoring_interval" yaml:"monitoringInterval"`
-	Timeout             time.Duration          `json:"timeout" yaml:"timeout"`
-	IdleTimeout         time.Duration          `json:"idle_timeout" yaml:"idleTimeout"`
-	ScrapeInterval      time.Duration          `json:"scrape_interval" yaml:"scrapeInterval"`
-	Proxy               string                 `json:"proxy" yaml:"proxy" default:""`
-	Backends            map[uuid.UUID]*Backend `json:"backends" yaml:"backends"`
-	Switchover          *Switchover            `json:"switchover" yaml:"-"`
-	Client              UpstreamClient         `json:"-" yaml:"-"`
-	MetricsRepo         *metrics.Repository    `json:"-" yaml:"-"`
-	NextTargetDistr     []*Backend             `json:"-" yaml:"-"`
+	Name                string
+	Prefix              string
+	Methods             []string
+	Host                string
+	Rewrite             string
+	CookieTTL           time.Duration
+	Strategy            *Strategy
+	HealthCheck         bool
+	HealthCheckInterval time.Duration
+	MonitoringInterval  time.Duration
+	Timeout             time.Duration
+	IdleTimeout         time.Duration
+	ScrapeInterval      time.Duration
+	Proxy               string
+	Backends            map[uuid.UUID]*Backend
+	Switchover          *Switchover
+	Client              UpstreamClient
+	MetricsRepo         *metrics.Repository
+	NextTargetDistr     []*Backend
 	lenNextTargetDistr  int
 	killHealthCheck     chan int
 	mux                 sync.RWMutex
@@ -174,7 +174,7 @@ func (r *Route) Reload() {
 		if backend.AlertChan == nil {
 			if r.HealthCheck {
 				mustHaveCondition := conditional.NewCondition(
-					"6xxRate", ">", 0.1, 5*time.Second, 10*time.Second)
+					"6xxRate", ">", 0, 5*time.Second, 2*time.Second)
 				mustHaveCondition.Compile()
 				backend.Metricthresholds = append(backend.Metricthresholds, mustHaveCondition)
 			}

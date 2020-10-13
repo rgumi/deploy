@@ -104,11 +104,11 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}()
 	if _, found := r.tree[req.Method]; found {
-		if _, h, found := r.tree[req.Method].LongestPrefix(req.URL.String()); found {
+		if _, h, found := r.tree[req.Method].LongestPrefix(req.URL.Path); found {
 			h.(http.HandlerFunc)(w, req)
 			return
 		}
 	}
-	log.Warnf("Unable to find matching handle for '%s => %s' in Router", req.Method, req.URL.String())
+	log.Warnf("Unable to find matching handle for '%s => %s' in Router", req.Method, req.URL.Path)
 	r.NotFoundHandler(w, req)
 }

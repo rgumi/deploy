@@ -44,7 +44,7 @@
     <v-row fluid no-gutters dense v-if="show">
       <v-col>
         <!-- Properties -->
-        <v-row fluid no-gutters class="text text-left">
+        <v-row v-if="showConfig" fluid no-gutters class="text text-left">
           <v-col>
             <table class="props" style="width:100%">
               <tr>
@@ -65,10 +65,8 @@
               </tr>
               <tr>
                 <th>Healthcheck</th>
-                <td>{{ route.healthcheck ? "active" : "not defined" }}</td>
+                <td>{{ route.healthcheck_bool ? "active" : "inactive" }}</td>
               </tr>
-
-              <!-- special case -->
               <tr>
                 <th>Methods</th>
                 <td>
@@ -81,9 +79,15 @@
                   </span>
                 </td>
               </tr>
+              <tr>
+                <th>Proxy</th>
+                <td :contenteditable="editable" @blur="onEdit" title="proxy">
+                  {{ route.proxy == "" ? "not defined" : route.proxy }}
+                </td>
+              </tr>
             </table>
           </v-col>
-          <v-col v-if="showAllProps">
+          <v-col>
             <table class="props" style="width:100%">
               <tr>
                 <th>CookieTTL (in min)</th>
@@ -121,16 +125,20 @@
                   {{ route.scrape_interval }}
                 </td>
               </tr>
-
               <tr>
-                <th>Proxy</th>
-                <td :contenteditable="editable" @blur="onEdit" title="proxy">
-                  {{ route.proxy == "" ? "not defined" : route.proxy }}
+                <th>Monitoring Interval</th>
+                <td :contenteditable="editable" @blur="onEdit" title="monitoring_interval">
+                  {{ route.monitoring_interval }}
+                </td>
+              </tr>
+              <tr>
+                <th>Healthcheck Interval</th>
+                <td :contenteditable="editable" @blur="onEdit" title="healthcheck_interval">
+                  {{ route.healthcheck_interval }}
                 </td>
               </tr>
             </table>
           </v-col>
-          <v-col v-else class="d-none d-lg-flex"> </v-col>
         </v-row>
 
         <v-divider v-if="showBackends"></v-divider>
@@ -138,18 +146,6 @@
         <div v-if="showBackends">
           <v-row fluid no-gutters class="text" style="padding-bottom: 0;">
             <h1>Backends</h1>
-            <!--
-          <v-spacer></v-spacer>
-          <v-text-field
-            v-model="search"
-            append-icon="mdi-magnify"
-            class="shrink text"
-            label="Search"
-            single-line
-            hide-details
-            style="min-width: 200px"
-          ></v-text-field>
-          -->
           </v-row>
           <v-row fluid class="text">
             <v-data-table
@@ -180,6 +176,20 @@
           </v-row>
         </div>
 
+        <v-divider v-if="showSwitchover"></v-divider>
+        <div v-if="showSwitchover">
+          <v-row fluid no-gutters class="text" style="padding-bottom: 0;">
+            <h1>Switchover</h1>
+          </v-row>
+          <v-row fluid no-gutters class="text-center">
+            <v-col>
+              <p v-if="route.switchover == null" >No Switchover defined.</p>
+              <Switchover v-else :switchover="route.switchover" />
+            </v-col>
+          </v-row>
+          
+        </div>
+
         <v-divider v-if="showAlerts"></v-divider>
         <div v-if="showAlerts">
           <v-row fluid no-gutters class="text" style="padding-bottom: 0;">
@@ -202,12 +212,14 @@
 
 <script>
 import AlertList from "@/components/AlertList";
+import Switchover from "@/components/Switchover";
 import NotificationBell from "vue-notification-bell";
 export default {
   name: "routeComponent",
   components: {
     NotificationBell,
-    AlertList
+    AlertList,
+    Switchover
   },
   props: {
     route: Object,
@@ -215,7 +227,7 @@ export default {
     showButtons: Boolean,
     showBackends: Boolean,
     showAlerts: Boolean,
-    showAllProps: Boolean,
+    showConfig: Boolean,
     editable: Boolean
   },
   created() {
@@ -224,6 +236,7 @@ export default {
   data() {
     return {
       show: Boolean,
+      showSwitchover: true,
       search: "",
       headers: [
         {
