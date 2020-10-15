@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,7 @@ type Metrics struct {
 	BackendID            uuid.UUID
 	ResponseStatus       int
 	RequestMethod        string
+	DSContentLength      int64
 	ContentLength        int64
 	UpstreamResponseTime int64
 	UpstreamRequestTime  int64
@@ -72,7 +74,7 @@ type ScrapeMetrics struct {
 type MonitoredBackend struct {
 	ID                 uuid.UUID
 	Route              string
-	ScrapeURL          string
+	ScrapeURL          *url.URL
 	Errors             int
 	nextTimeout        time.Duration
 	MetricThreshholds  []*conditional.Condition
@@ -124,7 +126,7 @@ func NewMetricsRepository(
 func (m *Repository) RegisterBackend(
 	routeName string,
 	backendID uuid.UUID,
-	scrapeURL string,
+	scrapeURL *url.URL,
 	scrapeMetrics []string,
 	scrapeInterval time.Duration,
 	metricsTresholds []*conditional.Condition) (<-chan Alert, error) {
@@ -154,7 +156,9 @@ func (m *Repository) RegisterBackend(
 
 	// add to PromMetrics
 	m.PromMetrics.RegisterRouteBackend(routeName, backendID)
-	go m.jobLoop(newBackend)
+	if newBackend.ScrapeURL != nil {
+		go m.jobLoop(newBackend)
+	}
 
 	// append to the list
 	m.Backends[backendID] = newBackend
@@ -312,7 +316,6 @@ func (m *Repository) Listen() {
 		select {
 		// received the metrics struct with backendID and all metrics
 		case metrics := <-m.InChannel:
-
 			log.Trace(metrics)
 
 			// update PromMetrics
@@ -389,9 +392,8 @@ func (m *Repository) Listen() {
 func (m *Repository) scrapeJob(instance *MonitoredBackend) {
 	// timeout if last scrape was an error
 	time.Sleep(instance.nextTimeout)
-	req, err := http.NewRequest("GET", instance.ScrapeURL, nil)
+	req, err := http.NewRequest("GET", instance.ScrapeURL.String(), nil)
 	if err != nil {
-		// should never happen
 		panic(err)
 	}
 	log.Tracef("Scraping instance %v", instance.ID)

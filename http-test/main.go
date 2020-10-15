@@ -5,12 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -21,6 +21,22 @@ var (
 	statusCode         = flag.Int("statusCode", 500, "defines the status code that is returned on testing handle")
 )
 
+func LogRequest(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		before := time.Now()
+
+		defer func() {
+			delta := time.Since(before)
+
+			log.Infof("%s \"%s %s %s\" %v",
+				r.RemoteAddr, r.Method, r.URL.Path,
+				r.Proto, delta,
+			)
+		}()
+		handler.ServeHTTP(w, r)
+	})
+}
+
 func hello(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer r.Body.Close()
 	time.Sleep(time.Duration(*timeout) * time.Millisecond)
@@ -30,14 +46,11 @@ func hello(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	b := make([]byte, 2900)
 	rand.Read(b)
 	w.Write(b)
-
-	fmt.Printf("%d/%d\n", counter1, counter2)
 }
 
 func returnStatusCode(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer r.Body.Close()
 	w.WriteHeader(*statusCode)
-
 }
 
 func world(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -52,8 +65,6 @@ func world(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	w.Header().Add("Backend", *addr)
 	w.WriteHeader(200)
 	w.Write([]byte("{\"test\":\"World\"}"))
-
-	fmt.Printf("%d/%d\n", counter1, counter2)
 }
 
 func main() {
@@ -76,7 +87,7 @@ func main() {
 
 	server1 := http.Server{
 		Addr:         *addr,
-		Handler:      router1,
+		Handler:      LogRequest(router1),
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
 		IdleTimeout:  time.Second * 30,

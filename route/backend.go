@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"sync"
 
+	"gopkg.in/dealancer/validate.v2"
+
 	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/metrics"
 	log "github.com/sirupsen/logrus"
@@ -15,13 +17,13 @@ import (
 type Backend struct {
 	ID               uuid.UUID                `json:"id" yaml:"id" validate:"empty=false"`
 	Name             string                   `json:"name" yaml:"name" validate:"empty=false"`
-	Addr             string                   `json:"addr" yaml:"addr" validate:"empty=true | format=url"`
+	Addr             *url.URL                 `json:"addr" yaml:"addr"`
 	Weigth           uint8                    `json:"weight" yaml:"weight"`
 	Active           bool                     `json:"active" yaml:"active"`
-	Scrapeurl        string                   `json:"scrape_url" yaml:"scrapeUrl" validate:"empty=true | format=url"`
+	Scrapeurl        *url.URL                 `json:"scrape_url" yaml:"scrapeUrl"`
 	Scrapemetrics    []string                 `json:"scrape_metrics" yaml:"scrapeMetrics"`
 	Metricthresholds []*conditional.Condition `json:"metric_thresholds" yaml:"metricThresholds"`
-	Healthcheckurl   string                   `json:"healthcheck_url" yaml:"healthcheckUrl" validate:"empty=true | format=url"`
+	Healthcheckurl   *url.URL                 `json:"healthcheck_url" yaml:"healthcheckUrl"`
 	ActiveAlerts     map[string]metrics.Alert `json:"active_alerts" yaml:"-"`
 	AlertChan        <-chan metrics.Alert     `json:"-" yaml:"-"`
 	updateWeigth     func()
@@ -32,43 +34,50 @@ type Backend struct {
 // NewBackend returns a new base Target
 // it has the minimum required configs and misses configs for Scraping
 func NewBackend(
-	name, addr, scrapeURL, healthCheckPath string,
+	name string, addr, scrapeURL, healthCheckAddr *url.URL,
 	scrapeMetrics []string,
 	metricThresholds []*conditional.Condition,
-	weight uint8) *Backend {
+	weight uint8) (*Backend, error) {
 
 	id := uuid.New()
 	if name == "" {
 		name = id.String()
 	}
 
-	if healthCheckPath == "" {
-		healthCheckPath = addr + "/"
+	if healthCheckAddr.Host == "" {
+		healthCheckAddr.Scheme = addr.Scheme
+		healthCheckAddr.Host = addr.Host
+		healthCheckAddr.Path = "/"
 	}
 
 	if weight > 100 {
-		panic(fmt.Errorf("Weight cannot be larger than 100"))
-	}
-
-	url, err := url.Parse(addr)
-	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("Weight cannot be larger than 100")
 	}
 
 	backend := &Backend{
 		ID:               id,
 		Name:             name,
-		Addr:             url.String(),
+		Addr:             addr,
 		Weigth:           weight,
 		Active:           true,
 		Scrapeurl:        scrapeURL,
 		Scrapemetrics:    scrapeMetrics,    // can be nil
 		Metricthresholds: metricThresholds, // can be nil
-		Healthcheckurl:   healthCheckPath,
+		Healthcheckurl:   healthCheckAddr,
 		ActiveAlerts:     make(map[string]metrics.Alert),
 		killChan:         make(chan int, 1),
 	}
-	return backend
+
+	if err := validate.Validate(backend); err != nil {
+		return nil, err
+	}
+
+	// compile conditions to prevent nil-pointers
+	for _, cond := range backend.Metricthresholds {
+		cond.Compile()
+	}
+
+	return backend, nil
 }
 
 func (b *Backend) UpdateWeight(weight uint8) {

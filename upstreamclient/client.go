@@ -2,6 +2,7 @@ package upstreamclient
 
 import (
 	"crypto/tls"
+	"flag"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -13,26 +14,34 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type ProxyFunction func(*http.Request) (*url.URL, error)
+var (
+	MaxIdleConnsPerHost, MaxIdleConns int
+	TLSVerfiy                         bool
+)
+
+func init() {
+	flag.IntVar(&MaxIdleConnsPerHost, "client.idleHostConns", 0, "defines the maxIdleConnsPerHost")
+	flag.IntVar(&MaxIdleConns, "client.idleConns", 0, "defines the maxIdleConns")
+	flag.BoolVar(&TLSVerfiy, "client.tlsVerify", false, "defines if tls should be verified")
+}
+
+type UpstreamClient interface {
+	Send(req *http.Request, m metrics.Metrics) (*http.Response, metrics.Metrics, error)
+	GetClient() *http.Transport
+}
 
 type upstreamClient struct {
-	Client *http.Client
-	// http[s]://host:port
+	Client   *http.Transport
 	UseProxy bool
 	Proxy    string
 }
-type UpstreamClient interface {
-	Send(req *http.Request) (*http.Response, metrics.Metrics, error)
-	GetClient() *http.Client
-}
 
 func NewDefaultClient() UpstreamClient {
-
-	client := NewClient(100, 5000, 30000, "", false)
+	client := NewClient(MaxIdleConns, MaxIdleConnsPerHost, 5000, 30000, "", TLSVerfiy)
 	return client
 }
 
-func NewClient(maxIdleConns int,
+func NewClient(maxIdleConns, maxIdleConnsPerHost int,
 	timeout, idleConnTimeout time.Duration,
 	proxy string,
 	tlsVerify bool) UpstreamClient {
@@ -47,11 +56,11 @@ func NewClient(maxIdleConns int,
 		client.Proxy = ""
 	}
 
-	client.configClient(maxIdleConns, timeout, idleConnTimeout, 0, 0, true)
+	client.configClient(maxIdleConns, maxIdleConnsPerHost, timeout, idleConnTimeout, 0, 0, true)
 	return client
 }
 
-func (u *upstreamClient) GetClient() *http.Client {
+func (u *upstreamClient) GetClient() *http.Transport {
 	return u.Client
 }
 
@@ -70,7 +79,7 @@ func (uc *upstreamClient) getProxy(_ *http.Request) (*url.URL, error) {
 }
 
 func (uc *upstreamClient) configClient(
-	maxIdleConns int,
+	maxIdleConns, maxIdleConnsPerHost int,
 	timeout,
 	idleConnTimeout,
 	responseHeaderTimeout,
@@ -80,42 +89,36 @@ func (uc *upstreamClient) configClient(
 	// if a proxy is required it will be set
 	// if not Proxy attribute of http.Transport will be set to nil
 	// to avoid checking
-	var proxy ProxyFunction
+	var proxy func(*http.Request) (*url.URL, error)
 	if uc.UseProxy {
 		proxy = uc.getProxy
 	} else {
 		proxy = nil
 	}
 
-	uc.Client = &http.Client{
-		Transport: &http.Transport{
-			// Use the default proxy as configured in the system environment
-			Proxy: proxy,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			MaxIdleConnsPerHost:   maxIdleConns,
-			MaxIdleConns:          maxIdleConns,
-			IdleConnTimeout:       idleConnTimeout,
-			ResponseHeaderTimeout: responseHeaderTimeout,
-			TLSHandshakeTimeout:   tlsHandshakeTimeout,
-			DisableCompression:    true,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: tlsVerify,
-			},
+	uc.Client = &http.Transport{
+		Proxy: proxy,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConnsPerHost:   maxIdleConnsPerHost,
+		MaxIdleConns:          maxIdleConns,
+		IdleConnTimeout:       idleConnTimeout,
+		ResponseHeaderTimeout: responseHeaderTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: tlsVerify,
 		},
-		// do not follow redirects as they are forwarded to the downstream client
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Timeout: timeout,
+		ForceAttemptHTTP2:  false,
+		DisableCompression: true,
+		DisableKeepAlives:  false,
 	}
 }
 
 // Send a HTTP message to the upstream client and collect metrics
-func (u *upstreamClient) Send(req *http.Request) (*http.Response, metrics.Metrics, error) {
-	var m metrics.Metrics
+func (u *upstreamClient) Send(req *http.Request, m metrics.Metrics) (*http.Response, metrics.Metrics, error) {
 	startOfRequest := time.Now()
 	trace := &httptrace.ClientTrace{
 		ConnectDone: func(network, addr string, err error) {
@@ -128,11 +131,6 @@ func (u *upstreamClient) Send(req *http.Request) (*http.Response, metrics.Metric
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
-	resp, err := u.Client.Do(req)
-	if err != nil {
-		return nil, m, err
-	}
-	log.Debugf("Successfully received response from upstream host: %d", resp.StatusCode)
-	m.ResponseStatus = resp.StatusCode
-	return resp, m, nil
+	resp, err := u.Client.RoundTrip(req)
+	return resp, m, err
 }

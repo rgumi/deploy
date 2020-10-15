@@ -56,8 +56,7 @@ func (st *LocalStorage) Job() {
 		case _ = <-st.killChan:
 			// exit loop
 			return
-		default:
-			time.Sleep(st.Granularity)
+		case <-time.After(st.Granularity):
 			go func() {
 				// Lock & Unlock data
 				st.mux.Lock()
@@ -217,6 +216,8 @@ func makeAverageBackend(in []Metric) Metric {
 }
 
 func (st *LocalStorage) readPuffer() {
+	now := time.Now()
+
 	for routeName, routeData := range st.puffer {
 		for backendID, backendData := range routeData {
 			// no new data
@@ -232,13 +233,15 @@ func (st *LocalStorage) readPuffer() {
 				}
 			}
 			// write pufferdata to data
-			st.data[routeName][backendID][time.Now()] = makeAverageBackend(backendData)
+			st.data[routeName][backendID][now] = makeAverageBackend(backendData)
 			// empty puffer
 			st.puffer[routeName][backendID] = []Metric{}
 		}
 	}
 }
 func (st *LocalStorage) deleteOldData() {
+	now := time.Now()
+
 	// for each route
 	for _, routeData := range st.data {
 		// for each backend of route
@@ -246,7 +249,7 @@ func (st *LocalStorage) deleteOldData() {
 			// for each timestamped, averaged metric of backend
 			for timestamp := range backendData {
 				// "full table scan" as go maps are not sorted
-				if timestamp.Add(st.RetentionPeriod).Before(time.Now()) {
+				if timestamp.Add(st.RetentionPeriod).Before(now) {
 					// metric is out of retention period => delete it
 					delete(backendData, timestamp)
 				}

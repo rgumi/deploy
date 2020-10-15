@@ -14,6 +14,9 @@ import (
 	"github.com/rgumi/depoy/storage"
 	log "github.com/sirupsen/logrus"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	packr "github.com/gobuffalo/packr/v2"
 )
 
@@ -60,6 +63,10 @@ func main() {
 
 	go st.Start()
 	log.Warnf("StateMgt listening on Addr %s with prefix %s", statemgt.Addr, statemgt.Prefix)
+
+	go func() {
+		log.Println(http.ListenAndServe(":6060", nil))
+	}()
 
 	// sys signal
 	signalChannel := make(chan os.Signal, 1)

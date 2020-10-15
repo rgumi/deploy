@@ -3,105 +3,6 @@ read_timeout: 10s
 write_timeout: 10s
 scrape_interval: 5s
 routes:
-  - name: Grafana
-    prefix: /grafana/
-    host: "*"
-    rewrite: /grafana/
-    cookieTTL: 2m0s
-    strategy:
-      type: sticky
-    healthcheck_bool: true
-    timeout: 5s
-    idleTimeout: 30s
-    proxy: ""
-    backends:
-      - name: grafana
-        addr: http://grafana-web.monitoring:3000
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            active_for: 10s
-          - metric: 6xxRate
-            operator: ">"
-            threshold: 0.1
-            active_for: 10s
-  - name: Prometheus
-    prefix: /prom/
-    host: "*"
-    rewrite: /prom/
-    cookieTTL: 2m0s
-    strategy:
-      type: sticky
-    healthcheck_bool: true
-    timeout: 5s
-    idleTimeout: 30s
-    proxy: ""
-    backends:
-      - name: prometheus
-        addr: http://prometheus-web.monitoring:8080
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            active_for: 10s
-          - metric: 6xxRate
-            operator: ">"
-            threshold: 0.1
-            active_for: 10s
-  - name: Kubernetes Dashboard
-    prefix: /k8s-dashboard/
-    host: "*"
-    rewrite: /
-    cookieTTL: 2m0s
-    strategy:
-      type: sticky
-    healthcheck_bool: true
-    timeout: 5s
-    idleTimeout: 30s
-    proxy: ""
-    backends:
-      - name: k8s-dashboard
-        addr: https://kubernetes-dashboard.kubernetes-dashboard:443
-        weight: 100
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            active_for: 10s
-          - metric: 6xxRate
-            operator: ">"
-            threshold: 0.1
-            active_for: 10s
-  - name: WAHub Dummy
-    prefix: /wahub/
-    host: "*"
-    rewrite: /watest/
-    cookieTTL: 10m
-    strategy:
-      type: sticky
-    healthcheck_bool: true
-    timeout: 10s
-    idleTimeout: 30s
-    proxy: ""
-    backends:
-      - name: v0-0-28
-        addr: "http://v0-0-28-wabizdummy-svc.depoy-testing:8080"
-        weight: 100
-        healthcheck_url: "http://v0-0-28-wabizdummy-svc.depoy-testing:8081/prometheus"
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            active_for: 10s
-            resolve_in: 5s
-          - metric: 5xxRate
-            operator: ">"
-            threshold: 0.3
-            active_for: 5s
-            resolve_in: 0s
   - name: Route1
     prefix: /route1/
     host: "*"
@@ -114,10 +15,60 @@ routes:
     idleTimeout: 30s
     proxy: ""
     backends:
+      - id: e5ea34d1-55c9-4ede-9635-a0824ffc67c7
+        name: b1
+        addr: "http://localhost:7070"
+        weight: 100
+        healthcheckUrl: "http://localhost:7070/"
+        scrapeUrl: "http://localhost:7071/metrics"
+        scrapeMetrics: ["go_goroutines"]
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+            activeFor: 10s
+            resolveIn: 5s
+          - metric: 5xxRate
+            operator: ">"
+            threshold: 0.3
+            activeFor: 5s
+            resolveIn: 0s
+  - name: Route2
+    prefix: /route2/
+    host: "*"
+    rewrite: /
+    cookieTTL: 10m
+    strategy:
+      type: shadow
+      targetBackend: b2
+    healthcheck_bool: true
+    timeout: 10s
+    idleTimeout: 30s
+    proxy: ""
+    backends:
       - name: b1
         addr: "http://localhost:7070"
         weight: 100
-        healthcheck_url: "http://localhost:7070/"
+        healthcheckUrl: "http://localhost:7070/"
+        scrapeUrl: "http://localhost:7071/metrics"
+        scrapeMetrics: ["go_goroutines"]
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+            activeFor: 10s
+            resolveIn: 5s
+          - metric: 5xxRate
+            operator: ">"
+            threshold: 0.3
+            activeFor: 5s
+            resolveIn: 0s
+      - name: b2
+        addr: "http://localhost:9090"
+        weight: 0
+        healthcheckUrl: "http://localhost:9090/"
+        scrapeUrl: "http://localhost:9091/metrics"
+        scrapeMetrics: ["go_goroutines"]
         metricThresholds:
           - metric: ResponseTime
             operator: ">"

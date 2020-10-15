@@ -191,13 +191,11 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 // so the Gateway can be executed as a http.Server
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if router, found := g.Router[req.Host]; found {
-		log.Debugf("Found explicit match for %s", req.Host)
 		router.ServeHTTP(w, req)
+		return
 
-	} else {
-		log.Debugf("Did not find explicit match for %s. Using any Host", req.Host)
-		g.Router["*"].ServeHTTP(w, req)
 	}
+	g.Router["*"].ServeHTTP(w, req)
 }
 
 // GetRoutes returns all Routes that are configured for the Gateway

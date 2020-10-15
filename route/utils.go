@@ -1,14 +1,10 @@
 package route
 
 import (
-	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -32,6 +28,7 @@ func copyHeaders(src, dest http.Header) {
 	}
 }
 
+// Remove all hop-to-hop-headers (https://tools.ietf.org/html/rfc2616#section-13.5.1)
 func delHopHeaders(r http.Header) {
 	for _, h := range hopHeaders {
 		r.Del(h)
@@ -39,38 +36,10 @@ func delHopHeaders(r http.Header) {
 }
 
 func appendHostToXForwardHeader(r http.Header, host string) {
-	// If we aren't the first proxy retain prior
-	// X-Forwarded-For information as a comma+space
-	// separated list and fold multiple headers into one.
 	if prior, ok := r["X-Forwarded-For"]; ok {
 		host = strings.Join(prior, ", ") + ", " + host
 	}
 	r.Set("X-Forwarded-For", host)
-}
-
-func sendResponse(resp *http.Response, w http.ResponseWriter) int {
-	log.Debug("Sending response to downstream client")
-	b, _ := ioutil.ReadAll(resp.Body)
-
-	copyHeaders(resp.Header, w.Header())
-
-	w.Header().Add("Server", ServerName)
-	w.WriteHeader(resp.StatusCode)
-	w.Write(b)
-	log.Debug("Successfully send response to downstream client")
-	return len(b)
-}
-
-func formateRequest(old *http.Request, addr string, body io.ReadCloser) (*http.Request, error) {
-	new, _ := http.NewRequest(old.Method, addr, body)
-	// setup the X-Forwarded-For header
-	if clientIP, _, err := net.SplitHostPort(old.RemoteAddr); err == nil {
-		appendHostToXForwardHeader(new.Header, clientIP)
-	}
-	copyHeaders(old.Header, new.Header)
-	// Remove all hop-to-hop-headers (https://tools.ietf.org/html/rfc2616#section-13.5.1)
-	delHopHeaders(new.Header)
-	return new, nil
 }
 
 // GGT receives list of ints of which the ggT needs to be found
@@ -82,7 +51,6 @@ func GGT(in []uint8) uint8 {
 		return in[0]
 	}
 	ggt := ggT(in[0], in[1])
-
 	for i := 2; i < count; i++ {
 		ggt = ggT(ggt, in[i])
 	}
