@@ -1,6 +1,7 @@
 #!/bin/sh
 set -ex
 echo "Deploying version $DEPOY_TAG"
+echo
 
 NS=ingress-depoy
 kubectl create ns $NS |true
