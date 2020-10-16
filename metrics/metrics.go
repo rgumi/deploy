@@ -369,7 +369,6 @@ func (m *Repository) Listen() {
 					metrics.Route, metrics.BackendID, scrapeMetrics, metrics.UpstreamResponseTime,
 					metrics.ContentLength, metrics.ResponseStatus)
 			}
-
 			MetricsPool.Put(metrics)
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/rgumi/depoy/config"
@@ -31,6 +32,7 @@ var (
 )
 
 func main() {
+	runtime.SetCPUProfileRate(1000)
 	// set global config
 	flag.Parse()
 	// log.SetFormatter(&log.JSONFormatter{})

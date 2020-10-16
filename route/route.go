@@ -472,14 +472,6 @@ func (r *Route) RemoveSwitchOver() {
 	}
 }
 
-// Pools
-
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
-
 func (r *Route) httpDo(
 	ctx context.Context,
 	target *Backend,
@@ -525,23 +517,52 @@ func (r *Route) httpReturn(w http.ResponseWriter) func(*http.Response, *metrics.
 		w.WriteHeader(resp.StatusCode)
 		copyHeaders(resp.Header, w.Header())
 		w.Header().Add("Server", ServerName)
-		err = copyResponse(w, resp.Body, 0)
+
+		buf := bufPool.Get().([]byte)
+		defer bufPool.Put(buf)
+		n, err := copyBuffer(w, resp.Body, buf)
 		if err != nil {
 			defer resp.Body.Close()
 			return NewGatewayError(err)
 		}
 		resp.Body.Close()
 		m.ResponseStatus = resp.StatusCode
-		//m.ContentLength = int64(n)
+		m.ContentLength = int64(n)
 		r.MetricsRepo.InChannel <- m
 		return nil
 	}
 }
 
-func copyBody(dst io.Writer, src io.Reader) error {
-	_, err := io.Copy(dst, src)
-	return err
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
 }
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 32*1024)
+	},
+}
+
+/*
+func copyBuffer(dst io.Writer, src io.Reader) (int64, error) {
+	buffer := bufferPool.Get().(*bytes.Buffer)
+	nr, err := buffer.ReadFrom(src)
+	if err != nil && err != io.EOF && err != context.Canceled {
+		return nr, err
+	}
+	nw, err := buffer.WriteTo(dst)
+	if err != nil {
+		return nw, err
+	}
+	if nr != nw {
+		return nw, io.ErrShortWrite
+	}
+	buffer.Reset()
+	bufferPool.Put(buffer)
+	return nw, nil
+}
+*/
 
 func (r *Route) setupRequestURL(req *http.Request, backend *Backend) {
 	req.URL.Scheme = backend.Addr.Scheme
@@ -551,97 +572,15 @@ func (r *Route) setupRequestURL(req *http.Request, backend *Backend) {
 	}
 }
 
-type writeFlusher interface {
-	io.Writer
-	http.Flusher
-}
-
-type maxLatencyWriter struct {
-	dst          writeFlusher
-	latency      time.Duration // non-zero; negative means to flush immediately
-	mu           sync.Mutex    // protects t, flushPending, and dst.Flush
-	t            *time.Timer
-	flushPending bool
-}
-
-func (m *maxLatencyWriter) Write(p []byte) (n int, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	n, err = m.dst.Write(p)
-	if m.latency < 0 {
-		m.dst.Flush()
-		return
-	}
-	if m.flushPending {
-		return
-	}
-	if m.t == nil {
-		m.t = time.AfterFunc(m.latency, m.delayedFlush)
-	} else {
-		m.t.Reset(m.latency)
-	}
-	m.flushPending = true
-	return
-}
-
-func (m *maxLatencyWriter) delayedFlush() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if !m.flushPending { // if stop was called but AfterFunc already started this goroutine
-		return
-	}
-	m.dst.Flush()
-	m.flushPending = false
-}
-
-func (m *maxLatencyWriter) stop() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.flushPending = false
-	if m.t != nil {
-		m.t.Stop()
-	}
-}
-
-func copyResponse(dst io.Writer, src io.Reader, flushInterval time.Duration) error {
-	if flushInterval != 0 {
-		if wf, ok := dst.(writeFlusher); ok {
-			mlw := &maxLatencyWriter{
-				dst:     wf,
-				latency: flushInterval,
-			}
-			defer mlw.stop()
-
-			// set up initial timer so headers get flushed even if body writes are delayed
-			mlw.flushPending = true
-			mlw.t = time.AfterFunc(flushInterval, mlw.delayedFlush)
-
-			dst = mlw
-		}
-	}
-	buffer := bufferPool.Get().(*bytes.Buffer)
-	if _, err := buffer.ReadFrom(src); err != nil {
-		return err
-	}
-	if _, err := buffer.WriteTo(dst); err != nil {
-		return err
-	}
-	buffer.Reset()
-	bufferPool.Put(buffer)
-	return nil
-}
-
-// copyBuffer returns any write errors or non-EOF read errors, and the amount
-// of bytes written.
 func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (int64, error) {
-	if buf == nil {
+	if len(buf) == 0 {
 		buf = make([]byte, 32*1024)
 	}
 	var written int64
 	for {
 		nr, rerr := src.Read(buf)
 		if rerr != nil && rerr != io.EOF && rerr != context.Canceled {
-			log.Errorf("read error during body copy: %v", rerr)
+			return written, rerr
 		}
 		if nr > 0 {
 			nw, werr := dst.Write(buf[:nr])
