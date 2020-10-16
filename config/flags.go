@@ -46,7 +46,7 @@ func init() {
 	HTTPTimeout = time.Duration(*flag.Int("gateway.httpTimeout", 10, "read timeout of in seconds (overwritten by configfile)")) * time.Second
 	IdleTimeout = time.Duration(*flag.Int("gateway.idleTimeout", 30, "write timeout in seconds (overwritten by configfile)")) * time.Second
 	// metrics defaults
-	flag.IntVar(&MetricsChannelPuffersize, "metrics.metricsPuffersize", 100, "Size of the puffer for the metric channel")
+	flag.IntVar(&MetricsChannelPuffersize, "metrics.metricsPuffersize", 200, "Size of the puffer for the metric channel")
 	flag.IntVar(&ScrapeMetricsChannelPuffersize, "metrics.scrapePuffersize", 50, "Size of the puffer for the scrapeMetric channel")
 	RetentionPeriod = time.Duration(*flag.Int("metrics.retentionPeriod", 5, "number of minutes after a collected metric is deleted")) * time.Minute
 	Granulartiy = time.Duration(*flag.Int("metrics.granulartiy", 5, "number of second that define the granularity of stored metrics")) * time.Second

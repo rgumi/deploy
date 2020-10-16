@@ -21,14 +21,14 @@ var (
 
 //Gateway has a HTTP-Server which has Routes configured for it
 type Gateway struct {
-	Addr         string                    `yaml:"addr" json:"addr" validate:"empty=false"`
-	ReadTimeout  time.Duration             `yaml:"read_timeout" json:"read_timeout"`
-	WriteTimeout time.Duration             `yaml:"write_timeout" json:"write_timeout"`
-	HTTPTimeout  time.Duration             `yaml:"http_timeout" json:"http_timeout"`
-	IdleTimeout  time.Duration             `yaml:"idle_timeout" json:"idle_timeout"`
-	Routes       map[string]*route.Route   `yaml:"routes" json:"routes"`
-	Router       map[string]*router.Router `yaml:"-" json:"-"`
-	MetricsRepo  *metrics.Repository       `yaml:"-" json:"-"`
+	Addr         string
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	HTTPTimeout  time.Duration
+	IdleTimeout  time.Duration
+	Routes       map[string]*route.Route
+	Router       map[string]*router.Router
+	MetricsRepo  *metrics.Repository
 	server       http.Server
 	mux          sync.Mutex
 }

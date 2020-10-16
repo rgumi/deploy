@@ -1,6 +1,7 @@
 package route
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -27,7 +28,7 @@ var (
 // UpstreamClient is an interface for the http.Client
 // it implements the method Send which is used to send http requests
 type UpstreamClient interface {
-	Send(*http.Request, metrics.Metrics) (*http.Response, metrics.Metrics, error)
+	Send(*http.Request, *metrics.Metrics) (*http.Response, *metrics.Metrics, error)
 }
 
 type Route struct {
@@ -338,12 +339,13 @@ func (r *Route) healthCheck(backend *Backend) bool {
 		log.Error(err.Error())
 		return false
 	}
-	m := metrics.Metrics{
-		Route:          r.Name,
-		RequestMethod:  req.Method,
-		DownstreamAddr: req.RemoteAddr,
-		BackendID:      backend.ID,
-	}
+	m := metrics.MetricsPool.Get().(*metrics.Metrics)
+	m.BackendID = backend.ID
+	m.Route = r.Name
+	m.DSContentLength = req.ContentLength
+	m.RequestMethod = req.Method
+	m.DownstreamAddr = req.RemoteAddr
+
 	resp, m, err := r.Client.Send(req, m)
 	if err != nil {
 		log.Debugf("Healthcheck for %v failed due to %v", backend.ID, err)
@@ -470,12 +472,20 @@ func (r *Route) RemoveSwitchOver() {
 	}
 }
 
+// Pools
+
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 func (r *Route) httpDo(
 	ctx context.Context,
 	target *Backend,
 	req *http.Request,
 	body io.ReadCloser,
-	f func(*http.Response, metrics.Metrics, error) GatewayError) GatewayError {
+	f func(*http.Response, *metrics.Metrics, error) GatewayError) GatewayError {
 
 	c := make(chan error, 1)
 	upReq, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
@@ -489,15 +499,15 @@ func (r *Route) httpDo(
 	}
 	copyHeaders(req.Header, upReq.Header)
 	delHopHeaders(upReq.Header)
-
 	upReq.Close = false
-	m := metrics.Metrics{
-		BackendID:       target.ID,
-		Route:           r.Name,
-		DSContentLength: req.ContentLength,
-		RequestMethod:   req.Method,
-		DownstreamAddr:  req.RemoteAddr,
-	}
+
+	m := metrics.MetricsPool.Get().(*metrics.Metrics)
+	m.BackendID = target.ID
+	m.Route = r.Name
+	m.DSContentLength = req.ContentLength
+	m.RequestMethod = req.Method
+	m.DownstreamAddr = req.RemoteAddr
+
 	go func() { c <- f(r.Client.Send(upReq, m)) }()
 	select {
 	case <-ctx.Done():
@@ -507,22 +517,22 @@ func (r *Route) httpDo(
 		return NewGatewayError(err)
 	}
 }
-func (r *Route) httpReturn(w http.ResponseWriter) func(*http.Response, metrics.Metrics, error) GatewayError {
-	return func(resp *http.Response, m metrics.Metrics, err error) GatewayError {
+func (r *Route) httpReturn(w http.ResponseWriter) func(*http.Response, *metrics.Metrics, error) GatewayError {
+	return func(resp *http.Response, m *metrics.Metrics, err error) GatewayError {
 		if err != nil {
 			return NewGatewayError(err)
 		}
 		w.WriteHeader(resp.StatusCode)
 		copyHeaders(resp.Header, w.Header())
 		w.Header().Add("Server", ServerName)
-		n, err := copyBuffer(w, resp.Body, nil)
+		err = copyResponse(w, resp.Body, 0)
 		if err != nil {
 			defer resp.Body.Close()
 			return NewGatewayError(err)
 		}
 		resp.Body.Close()
 		m.ResponseStatus = resp.StatusCode
-		m.ContentLength = int64(n)
+		//m.ContentLength = int64(n)
 		r.MetricsRepo.InChannel <- m
 		return nil
 	}
@@ -609,16 +619,22 @@ func copyResponse(dst io.Writer, src io.Reader, flushInterval time.Duration) err
 			dst = mlw
 		}
 	}
-
-	var buf []byte
-	_, err := copyBuffer(dst, src, buf)
-	return err
+	buffer := bufferPool.Get().(*bytes.Buffer)
+	if _, err := buffer.ReadFrom(src); err != nil {
+		return err
+	}
+	if _, err := buffer.WriteTo(dst); err != nil {
+		return err
+	}
+	buffer.Reset()
+	bufferPool.Put(buffer)
+	return nil
 }
 
 // copyBuffer returns any write errors or non-EOF read errors, and the amount
 // of bytes written.
 func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (int64, error) {
-	if len(buf) == 0 {
+	if buf == nil {
 		buf = make([]byte, 32*1024)
 	}
 	var written int64

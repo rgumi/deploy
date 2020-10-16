@@ -1,7 +1,8 @@
 addr: :8080
-read_timeout: 10s
-write_timeout: 10s
-scrape_interval: 5s
+readTimeout: 5s
+writeTimeout: 5s
+idleTimeout: 10s
+httpTimeout: 10s
 routes:
   - name: Route1
     prefix: /route1/
@@ -12,7 +13,7 @@ routes:
       type: sticky
     healthcheck_bool: true
     timeout: 10s
-    idleTimeout: 30s
+    idleTimeout: 10s
     proxy: ""
     backends:
       - id: e5ea34d1-55c9-4ede-9635-a0824ffc67c7

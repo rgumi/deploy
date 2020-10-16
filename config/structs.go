@@ -31,7 +31,7 @@ type InputGateway struct {
 	Addr         string              `yaml:"addr" json:"addr" default:":8080"`
 	ReadTimeout  util.ConfigDuration `yaml:"read_timeout" json:"readTimeout" default:"\"5s\""`
 	WriteTimeout util.ConfigDuration `yaml:"write_timeout" json:"writeTimeout" default:"\"5s\""`
-	HTTPTimeout  util.ConfigDuration `yaml:"http_timeout" json:"httpTimeout" default:"\"5s\""`
+	HTTPTimeout  util.ConfigDuration `yaml:"http_timeout" json:"httpTimeout" default:"\"10s\""`
 	IdleTimeout  util.ConfigDuration `yaml:"idle_timeout" json:"idleTimeout" default:"\"5s\""`
 	Routes       []*InputRoute       `yaml:"routes" json:"routes"`
 }

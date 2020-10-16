@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rgumi/depoy/conditional"
@@ -32,6 +33,11 @@ var (
 		"4xxRate",
 		"5xxRate",
 		"6xxRate",
+	}
+	MetricsPool = sync.Pool{
+		New: func() interface{} {
+			return new(Metrics)
+		},
 	}
 )
 
@@ -90,7 +96,7 @@ type MonitoredBackend struct {
 type Repository struct {
 	Storage              Storage                         `yaml:"-" json:"-"`
 	PromMetrics          *PromMetrics                    `yaml:"-" json:"-"`
-	InChannel            chan (Metrics)                  `yaml:"-" json:"-"`
+	InChannel            chan (*Metrics)                 `yaml:"-" json:"-"`
 	Backends             map[uuid.UUID]*MonitoredBackend `yaml:"backends" json:"backends"`
 	Granularity          time.Duration
 	client               *http.Client
@@ -102,9 +108,9 @@ type Repository struct {
 // return a channel for Metrics
 func NewMetricsRepository(
 	st Storage, granularity time.Duration,
-	metricChannelPuffersize, scrapeMetricChannelPuffersize int) (chan<- Metrics, *Repository) {
+	metricChannelPuffersize, scrapeMetricChannelPuffersize int) (chan<- *Metrics, *Repository) {
 
-	channel := make(chan Metrics, metricChannelPuffersize)
+	channel := make(chan *Metrics, metricChannelPuffersize)
 	scrapeMetricsChannel := make(chan ScrapeMetrics, scrapeMetricChannelPuffersize)
 	log.Info("Created new metricsRepository")
 	repo := &Repository{
@@ -228,8 +234,7 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 			select {
 			case _ = <-backend.stopMonitoring:
 				return nil
-			default:
-				now := time.Now()
+			case now := <-time.After(interval):
 				collected, _ := m.ReadRatesOfBackend(backendID, now.Add(-2*interval), now)
 				log.Debugf("Rates of Backend %v: %v", backendID, collected)
 				// loop over every metric that was collected
@@ -255,7 +260,6 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 								},
 							).Set(float64(len(backend.activeAlerts)))
 							// check if alert existed for long enough to send an alert
-							now := time.Now()
 							if now.After(alert.StartTime.Add(condition.GetActiveFor())) && alert.SendTime.IsZero() {
 								alert.Type = "Alarming"
 								alert.SendTime = now
@@ -266,14 +270,14 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 						}
 						// treshhold is no longer reached
 						if alert.EndTime.IsZero() {
-							alert.EndTime = time.Now()
+							alert.EndTime = now
 						}
 						// 0 is interpreted as indefinitely and therefore once an alarm is active,
 						// the Backend will never be resolved again
 						if condition.GetResolveIn() == 0 {
 							continue
 						}
-						if time.Now().After(alert.EndTime.Add(condition.GetResolveIn())) {
+						if now.After(alert.EndTime.Add(condition.GetResolveIn())) {
 							alert.Type = "Resolved"
 							alert.Value = currentValue
 							backend.AlertChannel <- *alert
@@ -292,7 +296,7 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 							Metric:     condition.Metric,
 							Threshhold: condition.Threshold,
 							Value:      collected[condition.Metric],
-							StartTime:  time.Now(),
+							StartTime:  now,
 						}
 						backend.activeAlerts[condition.Metric] = alert
 						// sending pending alarming to backend
@@ -301,7 +305,6 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 					}
 				}
 			}
-			time.Sleep(interval)
 		}
 	}
 	return fmt.Errorf("Could not find backend with id %v", backendID)
@@ -352,23 +355,22 @@ func (m *Repository) Listen() {
 
 			// Get Scrape Metrics and persist to Storage
 			backend, found := m.Backends[metrics.BackendID]
-
 			// check if backend exists (to avoid nil pointer exc)
 			if !found {
 				continue
 			}
 			scrapeMetrics := backend.ScrapeMetricPuffer
 			if scrapeMetrics == nil {
-
 				m.Storage.Write(
 					metrics.Route, metrics.BackendID, nil, metrics.UpstreamResponseTime,
 					metrics.ContentLength, metrics.ResponseStatus)
 			} else {
-
 				m.Storage.Write(
 					metrics.Route, metrics.BackendID, scrapeMetrics, metrics.UpstreamResponseTime,
 					metrics.ContentLength, metrics.ResponseStatus)
 			}
+
+			MetricsPool.Put(metrics)
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:
 

@@ -18,18 +18,12 @@ type LocalStorage struct {
 	killChan        chan int
 
 	data map[string]map[uuid.UUID]map[time.Time]Metric // map of backend to metrics
-
-	// storage for all data that is stored longterm with increasing counter for e. g. Prometheus
-	// for each route/backend
-	// TotalRequests, 2xx, 3xx, 4xx, 5xx, 6xx Requests, avg Responsetime
-	overview map[string]map[uuid.UUID]Metric
 }
 
 func NewLocalStorage(retentionPeriod, granularity time.Duration) *LocalStorage {
 	st := new(LocalStorage)
 	st.data = make(map[string]map[uuid.UUID]map[time.Time]Metric)
 	st.puffer = make(map[string]map[uuid.UUID][]Metric)
-	st.overview = make(map[string]map[uuid.UUID]Metric)
 	st.killChan = make(chan int, 1)
 
 	st.RetentionPeriod = retentionPeriod
@@ -56,7 +50,8 @@ func (st *LocalStorage) Job() {
 		case _ = <-st.killChan:
 			// exit loop
 			return
-		case <-time.After(st.Granularity):
+		default:
+			time.Sleep(st.Granularity)
 			go func() {
 				// Lock & Unlock data
 				st.mux.Lock()
@@ -84,7 +79,6 @@ func (st *LocalStorage) Write(
 
 	if _, found := st.puffer[routeName]; !found {
 		st.puffer[routeName] = make(map[uuid.UUID][]Metric)
-		st.overview[routeName] = make(map[uuid.UUID]Metric)
 	}
 
 	tmpMetric := Metric{
@@ -216,8 +210,6 @@ func makeAverageBackend(in []Metric) Metric {
 }
 
 func (st *LocalStorage) readPuffer() {
-	now := time.Now()
-
 	for routeName, routeData := range st.puffer {
 		for backendID, backendData := range routeData {
 			// no new data
@@ -233,15 +225,13 @@ func (st *LocalStorage) readPuffer() {
 				}
 			}
 			// write pufferdata to data
-			st.data[routeName][backendID][now] = makeAverageBackend(backendData)
+			st.data[routeName][backendID][time.Now()] = makeAverageBackend(backendData)
 			// empty puffer
 			st.puffer[routeName][backendID] = []Metric{}
 		}
 	}
 }
 func (st *LocalStorage) deleteOldData() {
-	now := time.Now()
-
 	// for each route
 	for _, routeData := range st.data {
 		// for each backend of route
@@ -249,7 +239,7 @@ func (st *LocalStorage) deleteOldData() {
 			// for each timestamped, averaged metric of backend
 			for timestamp := range backendData {
 				// "full table scan" as go maps are not sorted
-				if timestamp.Add(st.RetentionPeriod).Before(now) {
+				if timestamp.Add(st.RetentionPeriod).Before(time.Now()) {
 					// metric is out of retention period => delete it
 					delete(backendData, timestamp)
 				}

@@ -285,7 +285,7 @@ func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *h
 		go func() {
 			if err := r.httpDo(
 				context.TODO(), shadow, req, ioutil.NopCloser(bodyReader),
-				func(resp *http.Response, m metrics.Metrics, err error) GatewayError {
+				func(resp *http.Response, m *metrics.Metrics, err error) GatewayError {
 					if err != nil {
 						return NewGatewayError(err)
 					}

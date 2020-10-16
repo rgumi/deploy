@@ -17,16 +17,34 @@ import (
 var (
 	MaxIdleConnsPerHost, MaxIdleConns int
 	TLSVerfiy                         bool
+	DisableKeepAlives                 bool
+	currentTime                       *time.Time
 )
 
 func init() {
-	flag.IntVar(&MaxIdleConnsPerHost, "client.idleHostConns", 0, "defines the maxIdleConnsPerHost")
-	flag.IntVar(&MaxIdleConns, "client.idleConns", 0, "defines the maxIdleConns")
+	flag.IntVar(&MaxIdleConnsPerHost, "client.idleHostConns", 1024, "defines the maxIdleConnsPerHost")
+	flag.IntVar(&MaxIdleConns, "client.idleConns", 1024, "defines the maxIdleConns")
 	flag.BoolVar(&TLSVerfiy, "client.tlsVerify", false, "defines if tls should be verified")
+	flag.BoolVar(&DisableKeepAlives, "client.keepAlives", true, "defines if http-keep-alive")
+	timeAccuracy := time.Duration(*flag.Int64("client.timeAccuracy", 500, "time accuracy in milliseconds")) * time.Millisecond
+
+	// start time goroutine
+	go func(deviation time.Duration) {
+		var ct time.Time
+		ct = time.Now()
+		currentTime = &ct
+		for {
+			select {
+			case ct = <-time.After(deviation):
+				currentTime = &ct
+			}
+		}
+	}(timeAccuracy)
+
 }
 
 type UpstreamClient interface {
-	Send(req *http.Request, m metrics.Metrics) (*http.Response, metrics.Metrics, error)
+	Send(req *http.Request, m *metrics.Metrics) (*http.Response, *metrics.Metrics, error)
 	GetClient() *http.Transport
 }
 
@@ -57,6 +75,7 @@ func NewClient(maxIdleConns, maxIdleConnsPerHost int,
 	}
 
 	client.configClient(maxIdleConns, maxIdleConnsPerHost, timeout, idleConnTimeout, 0, 0, true)
+
 	return client
 }
 
@@ -113,21 +132,20 @@ func (uc *upstreamClient) configClient(
 		},
 		ForceAttemptHTTP2:  false,
 		DisableCompression: true,
-		DisableKeepAlives:  false,
+		DisableKeepAlives:  DisableKeepAlives,
 	}
 }
 
 // Send a HTTP message to the upstream client and collect metrics
-func (u *upstreamClient) Send(req *http.Request, m metrics.Metrics) (*http.Response, metrics.Metrics, error) {
-	startOfRequest := time.Now()
+func (u *upstreamClient) Send(req *http.Request, m *metrics.Metrics) (*http.Response, *metrics.Metrics, error) {
 	trace := &httptrace.ClientTrace{
 		ConnectDone: func(network, addr string, err error) {
 			if err == nil {
-				m.UpstreamRequestTime = time.Since(startOfRequest).Milliseconds()
+				m.UpstreamRequestTime = time.Since(*currentTime).Milliseconds()
 			}
 		},
 		GotFirstResponseByte: func() {
-			m.UpstreamResponseTime = time.Since(startOfRequest).Milliseconds()
+			m.UpstreamResponseTime = time.Since(*currentTime).Milliseconds()
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
