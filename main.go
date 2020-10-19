@@ -16,7 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"net/http"
-	_ "net/http/pprof"
+	_ "net/http/pprof" // profiling and debugging TODO delete
 
 	packr "github.com/gobuffalo/packr/v2"
 )
@@ -24,7 +24,7 @@ import (
 const (
 	// web application files
 	distFilepath = "webapp/dist"
-	signalMsg    = "Received Signal%v"
+	signalMsg    = "Received Signal %v"
 )
 
 var (
@@ -32,7 +32,15 @@ var (
 )
 
 func main() {
-	runtime.SetCPUProfileRate(1000)
+
+	// profiling and debugging TODO delete
+	go func() {
+		log.Println(http.ListenAndServe(":6060", nil))
+	}()
+
+	// set gc interval to reduce cpu load
+	runtime.SetCPUProfileRate(config.GCRate)
+
 	// set global config
 	flag.Parse()
 	// log.SetFormatter(&log.JSONFormatter{})
@@ -65,10 +73,6 @@ func main() {
 
 	go st.Start()
 	log.Warnf("StateMgt listening on Addr %s with prefix %s", statemgt.Addr, statemgt.Prefix)
-
-	go func() {
-		log.Println(http.ListenAndServe(":6060", nil))
-	}()
 
 	// sys signal
 	signalChannel := make(chan os.Signal, 1)

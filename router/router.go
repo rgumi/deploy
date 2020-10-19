@@ -2,26 +2,27 @@ package router
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
+
+	"github.com/valyala/fasthttp"
 
 	radix "github.com/armon/go-radix"
 	log "github.com/sirupsen/logrus"
 )
 
-func defaultErrorHandler(w http.ResponseWriter, r *http.Request, e error) {
-	w.WriteHeader(500)
-	w.Write([]byte(e.Error()))
+func defaultErrorHandler(ctx *fasthttp.RequestCtx, e error) {
+	ctx.Response.SetStatusCode(500)
+	ctx.Response.SetBody([]byte(e.Error()))
 }
 
-func defaultNotFoundHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(404)
+func defaultNotFoundHandler(ctx *fasthttp.RequestCtx) {
+	ctx.Response.SetStatusCode(404)
 }
 
 type Router struct {
 	tree            map[string]*radix.Tree
-	ErrorHandler    func(w http.ResponseWriter, r *http.Request, e error)
-	NotFoundHandler func(w http.ResponseWriter, r *http.Request)
+	ErrorHandler    func(ctx *fasthttp.RequestCtx, e error)
+	NotFoundHandler func(ctx *fasthttp.RequestCtx)
 }
 
 func NewRouter() *Router {
@@ -63,7 +64,7 @@ func (r *Router) CheckIfHandleExists(method, prefix string) (bool, error) {
 	return false, nil
 }
 
-func (r *Router) AddHandler(method, prefix string, handler http.HandlerFunc) error {
+func (r *Router) Handle(method, prefix string, handler fasthttp.RequestHandler) error {
 	var err error
 	httpMethod := strings.ToUpper(method)
 	// check if the prefix & method combination already exists
@@ -95,20 +96,18 @@ func (r *Router) RemoveHandle(method, prefix string) error {
 	return nil
 }
 
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (r *Router) ServeHTTP(ctx *fasthttp.RequestCtx) {
 	defer func() {
 		if err := recover(); err != nil {
-			log.Errorf("Recovered in Router: %v", err)
-			r.ErrorHandler(w, req, err.(error))
-			return
+			r.ErrorHandler(ctx, err.(error))
 		}
 	}()
-
-	if _, found := r.tree[req.Method]; found {
-		if _, h, found := r.tree[req.Method].LongestPrefix(req.URL.Path); found {
-			h.(http.HandlerFunc)(w, req)
+	method := string(ctx.Method())
+	if _, found := r.tree[method]; found {
+		if _, h, found := r.tree[method].LongestPrefix(string(ctx.URI().Path())); found {
+			h.(fasthttp.RequestHandler)(ctx)
 			return
 		}
 	}
-	r.NotFoundHandler(w, req)
+	r.NotFoundHandler(ctx)
 }

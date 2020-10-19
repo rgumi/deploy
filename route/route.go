@@ -1,35 +1,24 @@
 package route
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
-	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/valyala/fasthttp"
+
+	"github.com/rgumi/depoy/upstreamclient"
+
 	"github.com/rgumi/depoy/conditional"
 	"github.com/rgumi/depoy/metrics"
-	"github.com/rgumi/depoy/upstreamclient"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
-
-var (
-	ServerName = "depoy/0.1.0"
-)
-
-// UpstreamClient is an interface for the http.Client
-// it implements the method Send which is used to send http requests
-type UpstreamClient interface {
-	Send(*http.Request, *metrics.Metrics) (*http.Response, *metrics.Metrics, error)
-}
 
 type Route struct {
 	Name                string
@@ -42,13 +31,15 @@ type Route struct {
 	HealthCheck         bool
 	HealthCheckInterval time.Duration
 	MonitoringInterval  time.Duration
-	Timeout             time.Duration
+	ReadTimeout         time.Duration
+	WriteTimeout        time.Duration
 	IdleTimeout         time.Duration
 	ScrapeInterval      time.Duration
 	Proxy               string
+	cookieName          string
 	Backends            map[uuid.UUID]*Backend
 	Switchover          *Switchover
-	Client              UpstreamClient
+	Client              *upstreamclient.Upstreamclient
 	MetricsRepo         *metrics.Repository
 	NextTargetDistr     []*Backend
 	lenNextTargetDistr  int
@@ -60,15 +51,10 @@ type Route struct {
 func New(
 	name, prefix, rewrite, host, proxy string,
 	methods []string,
-	timeout, idleTimeout, scrapeInterval, healthcheckInterval,
+	readTimeout, writeTimeout, idleTimeout, scrapeInterval, healthcheckInterval,
 	monitoringInterval, cookieTTL time.Duration,
 	doHealthCheck bool,
 ) (*Route, error) {
-
-	client := upstreamclient.NewClient(
-		upstreamclient.MaxIdleConns, upstreamclient.MaxIdleConnsPerHost,
-		timeout, idleTimeout, proxy, upstreamclient.TLSVerfiy,
-	)
 
 	// fix prefix if prefix does not end with /
 	if prefix[len(prefix)-1] != '/' {
@@ -81,17 +67,21 @@ func New(
 		Methods:             methods,
 		Host:                host,
 		Proxy:               proxy,
-		Timeout:             timeout,
+		ReadTimeout:         readTimeout,
+		WriteTimeout:        writeTimeout,
 		IdleTimeout:         idleTimeout,
 		ScrapeInterval:      scrapeInterval,
 		HealthCheck:         doHealthCheck,
 		HealthCheckInterval: healthcheckInterval,
 		MonitoringInterval:  monitoringInterval,
+		cookieName:          strings.ToUpper(name) + "_SESSIONCOOKIE",
 		Strategy:            nil,
 		Backends:            make(map[uuid.UUID]*Backend),
 		killHealthCheck:     make(chan int, 1),
 		CookieTTL:           cookieTTL,
-		Client:              client,
+		Client: upstreamclient.NewUpstreamclient(readTimeout, writeTimeout, idleTimeout,
+			upstreamclient.MaxIdleConnsPerHost, upstreamclient.TLSVerfiy,
+		),
 	}
 
 	if route.HealthCheck {
@@ -105,7 +95,7 @@ func (r *Route) SetStrategy(strategy *Strategy) {
 	r.Strategy = strategy
 }
 
-func (r *Route) GetHandler() http.HandlerFunc {
+func (r *Route) GetHandler() fasthttp.RequestHandler {
 	if r.Strategy == nil {
 		panic(fmt.Errorf("No strategy is set for %s", r.Name))
 	}
@@ -193,7 +183,6 @@ func (r *Route) Reload() {
 			go r.MetricsRepo.Monitor(backend.ID, r.MonitoringInterval)
 			// starts listening on alertChan
 			go backend.Monitor()
-
 		}
 
 		if r.HealthCheck {
@@ -206,6 +195,7 @@ func (r *Route) Reload() {
 
 func (r *Route) validateStatus(backend *Backend) {
 	log.Debugf("Executing validateStatus on %v", backend.ID)
+
 	if r.healthCheck(backend) {
 		log.Debugf("Finished healtcheck of %v successfully", backend.ID)
 		backend.UpdateStatus(true)
@@ -267,6 +257,7 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 	if err != nil {
 		return uuid.UUID{}, err
 	}
+	newBackend.ID = backend.ID
 
 	for _, existingBackend := range r.Backends {
 		if existingBackend.Name == newBackend.Name {
@@ -329,24 +320,16 @@ func (r *Route) UpdateBackendWeight(id uuid.UUID, newWeigth uint8) error {
 }
 
 func (r *Route) healthCheck(backend *Backend) bool {
-	defer func() {
-		if err := recover(); err != nil {
-			return
-		}
-	}()
-	req, err := http.NewRequest("GET", backend.Healthcheckurl.String(), nil)
-	if err != nil {
-		log.Error(err.Error())
-		return false
-	}
+	req := fasthttp.AcquireRequest()
+	req.SetRequestURI(backend.Healthcheckurl.String())
+	req.Header.SetMethod("GET")
 	m := metrics.MetricsPool.Get().(*metrics.Metrics)
 	m.BackendID = backend.ID
 	m.Route = r.Name
-	m.DSContentLength = req.ContentLength
-	m.RequestMethod = req.Method
-	m.DownstreamAddr = req.RemoteAddr
-
-	resp, m, err := r.Client.Send(req, m)
+	m.RequestMethod = string(req.Header.Method())
+	m.DownstreamAddr = "depoy-healthcheck"
+	resp, err := r.Client.Send(req, m)
+	fasthttp.ReleaseRequest(req)
 	if err != nil {
 		log.Debugf("Healthcheck for %v failed due to %v", backend.ID, err)
 		if backend.Active {
@@ -357,12 +340,11 @@ func (r *Route) healthCheck(backend *Backend) bool {
 		r.MetricsRepo.InChannel <- m
 		return false
 	}
-	resp.Body.Close()
-	m.ResponseStatus = resp.StatusCode
-	m.ContentLength = resp.ContentLength
+	m.ResponseStatus = resp.Header.StatusCode()
+	m.ContentLength = int64(resp.Header.ContentLength())
 	r.MetricsRepo.InChannel <- m
+	fasthttp.ReleaseResponse(resp)
 	return true
-
 }
 
 func (r *Route) RunHealthCheckOnBackends() {
@@ -373,7 +355,6 @@ func (r *Route) RunHealthCheckOnBackends() {
 			return
 		default:
 			for _, backend := range r.Backends {
-				// could be a go-routine
 				go r.healthCheck(backend)
 			}
 		}
@@ -472,133 +453,69 @@ func (r *Route) RemoveSwitchOver() {
 	}
 }
 
-func (r *Route) httpDo(
-	ctx context.Context,
+// HTTPDo accepts a request, target and the return-function
+// it sends the request to the target and
+// the response of the target is then handed to the return-function
+func (r *Route) HTTPDo(
+	req *fasthttp.Request,
 	target *Backend,
-	req *http.Request,
-	body io.ReadCloser,
-	f func(*http.Response, *metrics.Metrics, error) GatewayError) GatewayError {
-
-	c := make(chan error, 1)
-	upReq, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
-	if err != nil {
-		return NewGatewayError(err)
-	}
-	r.setupRequestURL(upReq, target)
-	// setup the X-Forwarded-For header
-	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		appendHostToXForwardHeader(upReq.Header, clientIP)
-	}
-	copyHeaders(req.Header, upReq.Header)
-	delHopHeaders(upReq.Header)
-	upReq.Close = false
+	f func(*fasthttp.Response)) error {
 
 	m := metrics.MetricsPool.Get().(*metrics.Metrics)
-	m.BackendID = target.ID
 	m.Route = r.Name
-	m.DSContentLength = req.ContentLength
-	m.RequestMethod = req.Method
-	m.DownstreamAddr = req.RemoteAddr
+	m.BackendID = target.ID
+	m.RequestMethod = string(req.Header.Method())
+	m.DSContentLength = int64(req.Header.ContentLength())
 
-	go func() { c <- f(r.Client.Send(upReq, m)) }()
-	select {
-	case <-ctx.Done():
-		<-c // Wait for f to return.
-		return NewGatewayError(ctx.Err())
-	case err := <-c:
-		return NewGatewayError(err)
-	}
-}
-func (r *Route) httpReturn(w http.ResponseWriter) func(*http.Response, *metrics.Metrics, error) GatewayError {
-	return func(resp *http.Response, m *metrics.Metrics, err error) GatewayError {
-		if err != nil {
-			return NewGatewayError(err)
-		}
-		w.WriteHeader(resp.StatusCode)
-		copyHeaders(resp.Header, w.Header())
-		w.Header().Add("Server", ServerName)
-
-		buf := bufPool.Get().([]byte)
-		defer bufPool.Put(buf)
-		n, err := copyBuffer(w, resp.Body, buf)
-		if err != nil {
-			defer resp.Body.Close()
-			return NewGatewayError(err)
-		}
-		resp.Body.Close()
-		m.ResponseStatus = resp.StatusCode
-		m.ContentLength = int64(n)
-		r.MetricsRepo.InChannel <- m
-		return nil
-	}
-}
-
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
-var bufPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 32*1024)
-	},
-}
-
-/*
-func copyBuffer(dst io.Writer, src io.Reader) (int64, error) {
-	buffer := bufferPool.Get().(*bytes.Buffer)
-	nr, err := buffer.ReadFrom(src)
-	if err != nil && err != io.EOF && err != context.Canceled {
-		return nr, err
-	}
-	nw, err := buffer.WriteTo(dst)
+	uri := fasthttp.AcquireURI()
+	defer fasthttp.ReleaseURI(uri)
+	req.URI().CopyTo(uri)
+	r.formateURI(uri, target)
+	req.SetRequestURI(uri.String())
+	resp, err := r.Client.Send(req, m)
 	if err != nil {
-		return nw, err
+		return err
 	}
-	if nr != nw {
-		return nw, io.ErrShortWrite
-	}
-	buffer.Reset()
-	bufferPool.Put(buffer)
-	return nw, nil
+	defer fasthttp.ReleaseResponse(resp)
+	f(resp)
+	m.ResponseStatus = resp.StatusCode()
+	m.ContentLength = int64(resp.Header.ContentLength())
+	r.MetricsRepo.InChannel <- m
+	return nil
 }
-*/
 
-func (r *Route) setupRequestURL(req *http.Request, backend *Backend) {
-	req.URL.Scheme = backend.Addr.Scheme
-	req.URL.Host = backend.Addr.Host
+// HTTPReturn takes a ctx and returns a functions that accepts an upstream response
+// which is then copied to the ctx response
+func HTTPReturn(
+	ctx *fasthttp.RequestCtx,
+	c *fasthttp.Cookie) func(resp *fasthttp.Response) {
+
+	return func(resp *fasthttp.Response) {
+		resp.Header.CopyTo(&ctx.Response.Header)
+		if c != nil {
+			ctx.Response.Header.SetCookie(c)
+		}
+		ctx.SetStatusCode(resp.StatusCode())
+		delResponseHopHeader(resp)
+		ctx.Response.SetBody(resp.Body())
+	}
+}
+
+func (r *Route) formateURI(uri *fasthttp.URI, backend *Backend) {
+	uri.SetScheme(backend.Addr.Scheme)
+	uri.SetHost(backend.Addr.Host)
 	if r.Rewrite != "" {
-		req.URL.Path = strings.Replace(req.URL.Path, r.Prefix, r.Rewrite, 1)
+		uri.SetPath(strings.Replace(string(uri.Path()), r.Prefix, r.Rewrite, 1))
 	}
 }
 
-func copyBuffer(dst io.Writer, src io.Reader, buf []byte) (int64, error) {
-	if len(buf) == 0 {
-		buf = make([]byte, 32*1024)
+func handleNetError(err error) (string, int) {
+	netErr, ok := err.(net.Error)
+	if !ok {
+		return err.Error(), 500
 	}
-	var written int64
-	for {
-		nr, rerr := src.Read(buf)
-		if rerr != nil && rerr != io.EOF && rerr != context.Canceled {
-			return written, rerr
-		}
-		if nr > 0 {
-			nw, werr := dst.Write(buf[:nr])
-			if nw > 0 {
-				written += int64(nw)
-			}
-			if werr != nil {
-				return written, werr
-			}
-			if nr != nw {
-				return written, io.ErrShortWrite
-			}
-		}
-		if rerr != nil {
-			if rerr == io.EOF {
-				rerr = nil
-			}
-			return written, rerr
-		}
+	if netErr.Timeout() {
+		return netErr.Error(), 504
 	}
+	return netErr.Error(), 502
 }

@@ -1,22 +1,22 @@
 package gateway
 
 import (
-	"context"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
+
+	"github.com/valyala/fasthttp/reuseport"
 
 	"github.com/rgumi/depoy/metrics"
 	"github.com/rgumi/depoy/route"
 	"github.com/rgumi/depoy/router"
 	log "github.com/sirupsen/logrus"
+	"github.com/valyala/fasthttp"
 	"gopkg.in/yaml.v3"
 )
 
-// defaults
 var (
-	ReadHeaderTimeout = 2 * time.Second
+	ServerName = "depoy/0.1.0"
 )
 
 //Gateway has a HTTP-Server which has Routes configured for it
@@ -29,7 +29,7 @@ type Gateway struct {
 	Routes       map[string]*route.Route
 	Router       map[string]*router.Router
 	MetricsRepo  *metrics.Repository
-	server       http.Server
+	server       *fasthttp.Server
 	mux          sync.Mutex
 }
 
@@ -80,7 +80,7 @@ func (g *Gateway) Reload() {
 		// add all routes to the router
 		for _, method := range routeItem.Methods {
 			// for each http-method add a handler to the router
-			newRouter[routeItem.Host].AddHandler(method, routeItem.Prefix, routeItem.GetHandler())
+			newRouter[routeItem.Host].Handle(method, routeItem.Prefix, routeItem.GetHandler())
 		}
 	}
 	// overwrite existing tree with new
@@ -89,27 +89,38 @@ func (g *Gateway) Reload() {
 
 // Run starts the HTTP-Server of the Gateway
 func (g *Gateway) Run() {
-	g.server = http.Server{
-		Addr:              g.Addr,
-		Handler:           http.TimeoutHandler(g, g.HTTPTimeout, "HTTP Handling Timeout"),
-		WriteTimeout:      g.WriteTimeout,
-		ReadTimeout:       g.ReadTimeout,
-		ReadHeaderTimeout: ReadHeaderTimeout,
-		IdleTimeout:       g.IdleTimeout,
+	g.server = &fasthttp.Server{
+		Handler:                       g.ServeHTTP,
+		Name:                          ServerName,
+		Concurrency:                   256 * 1024,
+		DisableKeepalive:              false,
+		ReadTimeout:                   g.ReadTimeout,
+		WriteTimeout:                  g.WriteTimeout,
+		IdleTimeout:                   g.IdleTimeout,
+		MaxConnsPerIP:                 0,
+		MaxRequestsPerConn:            0,
+		TCPKeepalive:                  false,
+		DisableHeaderNamesNormalizing: false,
+		NoDefaultServerHeader:         false,
 	}
 
 	go func() {
 		log.Info("Starting gateway server")
-		if err := g.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		ln, err := reuseport.Listen("tcp4", g.Addr)
+		if err != nil {
+			log.Fatalf("gateway reuseport listener failed with %v\n", err)
+		}
+
+		if err := g.server.Serve(ln); err != nil {
 			log.Fatalf("gateway server listen failed with %v\n", err)
 		}
-		log.Debug("Successfully shutdown gateway server")
+		ln.Close()
+		log.Info("Successfully shutdown gateway server")
 	}()
 }
 
 // checkIfExists checks if the newRoute is already present on the Gateway
 func (g *Gateway) checkIfExists(newRoute *route.Route) error {
-
 	for routeName, route := range g.Routes {
 		// if name is already defined, return error
 		if routeName == newRoute.Name {
@@ -130,7 +141,6 @@ func (g *Gateway) checkIfExists(newRoute *route.Route) error {
 
 // GetRoute returns the Route, if it exists. Otherwise nil
 func (g *Gateway) GetRoute(routeName string) *route.Route {
-
 	if route, found := g.Routes[routeName]; found {
 		return route
 	}
@@ -167,7 +177,6 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 // all children of the Route (backends, monitoring components)
 // then reload the Gateway
 func (g *Gateway) RemoveRoute(name string) *route.Route {
-
 	g.mux.Lock()
 	defer g.mux.Unlock()
 
@@ -189,13 +198,13 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 
 // ServeHTTP is the required interface to quality as http.Handler
 // so the Gateway can be executed as a http.Server
-func (g *Gateway) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	if router, found := g.Router[req.Host]; found {
-		router.ServeHTTP(w, req)
+func (g *Gateway) ServeHTTP(ctx *fasthttp.RequestCtx) {
+	// error handling is done in router
+	if router, found := g.Router[string(ctx.Host())]; found {
+		router.ServeHTTP(ctx)
 		return
-
 	}
-	g.Router["*"].ServeHTTP(w, req)
+	g.Router["*"].ServeHTTP(ctx)
 }
 
 // GetRoutes returns all Routes that are configured for the Gateway
@@ -206,18 +215,12 @@ func (g *Gateway) GetRoutes() map[string]*route.Route {
 // Stop executes a shutdown of the Gateway server and removes all
 // routes of the Gateway
 func (g *Gateway) Stop() {
-
 	for routeName := range g.Routes {
 		g.RemoveRoute(routeName)
 	}
 	g.MetricsRepo.Stop()
 
-	ctxShutDown, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer func() {
-		cancel()
-	}()
-
-	if err := g.server.Shutdown(ctxShutDown); err != nil {
+	if err := g.server.Shutdown(); err != nil {
 		log.Fatalf("gateway server shutdown failed: %v\n", err)
 	}
 }

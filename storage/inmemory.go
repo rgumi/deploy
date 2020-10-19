@@ -50,8 +50,7 @@ func (st *LocalStorage) Job() {
 		case _ = <-st.killChan:
 			// exit loop
 			return
-		default:
-			time.Sleep(st.Granularity)
+		case _ = <-time.After(st.Granularity):
 			go func() {
 				// Lock & Unlock data
 				st.mux.Lock()
@@ -106,10 +105,8 @@ func (st *LocalStorage) Write(
 
 // ReadData returns the whole data map
 func (st *LocalStorage) ReadData() map[string]map[uuid.UUID]map[time.Time]Metric {
-
 	st.mux.RLock()
 	defer st.mux.RUnlock()
-
 	return st.data
 }
 
@@ -122,13 +119,11 @@ func (st *LocalStorage) ReadBackend(backend uuid.UUID, start, end time.Time) (Me
 		for id, metrics := range backendMap {
 			if id == backend {
 				relevantMetrics := []Metric{}
-
 				for time, metric := range metrics {
 					if time.After(start) && time.Before(end) {
 						relevantMetrics = append(relevantMetrics, metric)
 					}
 				}
-
 				if len(relevantMetrics) == 0 {
 					return Metric{}, fmt.Errorf("Could not find relevant metrics for provided timeframe")
 				}
@@ -210,6 +205,7 @@ func makeAverageBackend(in []Metric) Metric {
 }
 
 func (st *LocalStorage) readPuffer() {
+	now := time.Now()
 	for routeName, routeData := range st.puffer {
 		for backendID, backendData := range routeData {
 			// no new data
@@ -225,13 +221,14 @@ func (st *LocalStorage) readPuffer() {
 				}
 			}
 			// write pufferdata to data
-			st.data[routeName][backendID][time.Now()] = makeAverageBackend(backendData)
+			st.data[routeName][backendID][now] = makeAverageBackend(backendData)
 			// empty puffer
 			st.puffer[routeName][backendID] = []Metric{}
 		}
 	}
 }
 func (st *LocalStorage) deleteOldData() {
+	now := time.Now()
 	// for each route
 	for _, routeData := range st.data {
 		// for each backend of route
@@ -239,7 +236,7 @@ func (st *LocalStorage) deleteOldData() {
 			// for each timestamped, averaged metric of backend
 			for timestamp := range backendData {
 				// "full table scan" as go maps are not sorted
-				if timestamp.Add(st.RetentionPeriod).Before(time.Now()) {
+				if timestamp.Add(st.RetentionPeriod).Before(now) {
 					// metric is out of retention period => delete it
 					delete(backendData, timestamp)
 				}

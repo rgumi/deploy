@@ -1,10 +1,7 @@
 package route
 
 import (
-	"net"
-	"net/http"
-	"strings"
-	"time"
+	"github.com/valyala/fasthttp"
 )
 
 // Hop-by-hop headers. These are removed when sent to the backend.
@@ -20,26 +17,25 @@ var hopHeaders = []string{
 	"Upgrade",
 }
 
-func copyHeaders(src, dest http.Header) {
-	for k, v := range src {
-		for _, vv := range v {
-			dest.Add(k, vv)
-		}
+func appendXForwardForHeader(req *fasthttp.Request, host string) {
+	prior := string(req.Header.Peek("X-Forwarded-For"))
+
+	if prior != "" {
+		prior = prior + ", "
 	}
+	req.Header.Set("X-Forwarded-For", prior+host)
 }
 
-// Remove all hop-to-hop-headers (https://tools.ietf.org/html/rfc2616#section-13.5.1)
-func delHopHeaders(r http.Header) {
+func delRequestHopHeader(src *fasthttp.Request) {
 	for _, h := range hopHeaders {
-		r.Del(h)
+		src.Header.Del(h)
 	}
 }
 
-func appendHostToXForwardHeader(r http.Header, host string) {
-	if prior, ok := r["X-Forwarded-For"]; ok {
-		host = strings.Join(prior, ", ") + ", " + host
+func delResponseHopHeader(src *fasthttp.Response) {
+	for _, h := range hopHeaders {
+		src.Header.Del(h)
 	}
-	r.Set("X-Forwarded-For", host)
 }
 
 // GGT receives list of ints of which the ggT needs to be found
@@ -65,68 +61,4 @@ func ggT(a, b uint8) uint8 {
 		a = t
 	}
 	return a
-}
-
-func addCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {
-	expire := time.Now().Add(ttl)
-	cookie := http.Cookie{
-		Name:    name,
-		Value:   value,
-		Expires: expire,
-	}
-	http.SetCookie(w, &cookie)
-}
-
-func checkCookie(req *http.Request, name string) (string, time.Time) {
-	cookie, err := req.Cookie(name)
-	if err != nil {
-		return "", time.Time{}
-	}
-	return cookie.Value, cookie.Expires
-}
-
-type GatewayError interface {
-	Error() string
-	Code() int
-}
-
-// NewGatewayError returns a new instance of GatewayError which
-// implements the error-Interface and also returns the status code
-// based on the net.Error
-func NewGatewayError(err error) GatewayError {
-	// if net.Error
-	if err, ok := err.(net.Error); ok {
-
-		if err.Timeout() {
-
-			return &gatewayError{
-				code: 504,
-				s:    "Upstream connection timed out",
-			}
-		}
-		return &gatewayError{
-			code: 502,
-			s:    "Upstream service is unable to handle request",
-		}
-		// every other error
-	} else if err != nil {
-		return &gatewayError{
-			code: 500,
-			s:    "Server is  unable to handle request",
-		}
-	}
-	return nil
-}
-
-type gatewayError struct {
-	code int
-	s    string
-}
-
-func (e *gatewayError) Error() string {
-	return e.s
-}
-
-func (e *gatewayError) Code() int {
-	return e.code
 }

@@ -29,6 +29,7 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		if err := defaults.Set(existingRoute); err != nil {
 			panic(err)
 		}
+
 		log.Debugf("Adding existing route %v to  new Gateway", existingRoute.Name)
 		newRoute, err := ConvertInputRouteToRoute(existingRoute)
 		if err != nil {

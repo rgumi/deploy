@@ -45,13 +45,14 @@ type InputRoute struct {
 	CookieTTL           util.ConfigDuration `json:"cookie_ttl" yaml:"cookieTTL" default:"\"5m\""`
 	Strategy            *route.Strategy     `json:"strategy" yaml:"strategy" validate:"nil=false"`
 	Switchover          *InputSwitchover    `json:"switchover" yaml:"-"`
-	HealthCheck         bool                `json:"healthcheck_bool" yaml:"healthcheckBool" default:"true"`
+	HealthCheck         *bool               `json:"healthcheck_bool" yaml:"healthcheckBool"`
 	HealthCheckInterval util.ConfigDuration `json:"healthcheck_interval" yaml:"healthcheckInterval" default:"\"5s\""`
 	MonitoringInterval  util.ConfigDuration `json:"monitoring_interval" yaml:"monitoringInterval" default:"\"5s\""`
-	Timeout             util.ConfigDuration `json:"timeout" yaml:"timeout" default:"\"5s\""`
+	ReadTimeout         util.ConfigDuration `json:"read_timeout" yaml:"readTimeout" default:"\"5s\""`
+	WriteTimeout        util.ConfigDuration `json:"write_timeout" yaml:"writeTimeout" default:"\"5s\""`
 	IdleTimeout         util.ConfigDuration `json:"idle_timeout" yaml:"idleTimeout" default:"\"5s\""`
 	ScrapeInterval      util.ConfigDuration `json:"scrape_interval" yaml:"scrapeInterval" default:"\"5s\""`
-	Proxy               string              `json:"proxy" yaml:"proxy" default:""`
+	Proxy               string              `json:"proxy" yaml:"proxy"`
 	Backends            []*InputBackend     `json:"backends" yaml:"backends"`
 }
 
@@ -154,11 +155,12 @@ func ConvertRouteToInputRoute(r *route.Route) *InputRoute {
 		Rewrite:             r.Rewrite,
 		Strategy:            r.Strategy,
 		Proxy:               r.Proxy,
-		Timeout:             util.ConfigDuration{r.Timeout},
+		ReadTimeout:         util.ConfigDuration{r.ReadTimeout},
+		WriteTimeout:        util.ConfigDuration{r.WriteTimeout},
 		ScrapeInterval:      util.ConfigDuration{r.ScrapeInterval},
 		Backends:            []*InputBackend{},
 		CookieTTL:           util.ConfigDuration{r.CookieTTL},
-		HealthCheck:         r.HealthCheck,
+		HealthCheck:         &r.HealthCheck,
 		HealthCheckInterval: util.ConfigDuration{r.HealthCheckInterval},
 		MonitoringInterval:  util.ConfigDuration{r.MonitoringInterval},
 		Host:                r.Host,
@@ -179,6 +181,12 @@ func ConvertRouteToInputRoute(r *route.Route) *InputRoute {
 }
 
 func ConvertInputRouteToRoute(r *InputRoute) (*route.Route, error) {
+	var hs bool
+	if r.HealthCheck == nil {
+		hs = true
+	} else {
+		hs = *r.HealthCheck
+	}
 	newRoute, err := route.New(
 		r.Name,
 		r.Prefix,
@@ -186,18 +194,19 @@ func ConvertInputRouteToRoute(r *InputRoute) (*route.Route, error) {
 		r.Host,
 		r.Proxy,
 		r.Methods,
-		r.Timeout.Duration,
+		r.ReadTimeout.Duration,
+		r.WriteTimeout.Duration,
 		r.IdleTimeout.Duration,
 		r.ScrapeInterval.Duration,
 		r.HealthCheckInterval.Duration,
 		r.MonitoringInterval.Duration,
 		r.CookieTTL.Duration,
-		r.HealthCheck,
+		hs,
 	)
 
 	for _, backend := range r.Backends {
 		if backend.ID == uuid.Nil {
-			log.Debugf("Setting new uuid for %s", r.Name)
+			log.Warnf("Setting new uuid for %s", r.Name)
 			backend.ID = uuid.New()
 		}
 		for _, cond := range backend.Metricthresholds {

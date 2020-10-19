@@ -1,15 +1,12 @@
 package statemgt
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"github.com/valyala/fasthttp"
 )
 
 var (
@@ -25,99 +22,67 @@ type ErrorMessage struct {
 	Details    []string  `json:"details"`
 }
 
-func getTimeDurationFromURLQuery(paramName string, req *http.Request, defaultValue time.Duration) (time.Duration, error) {
-	queryValues := req.URL.Query()
-	queryTimeframe := queryValues.Get(paramName)
-	if queryTimeframe != "" {
-		timeframe, err := strconv.Atoi(queryTimeframe)
-		if err != nil {
-			// timeframe must be int
-			return 0, err
-		}
-		return time.Duration(timeframe) * time.Second, nil
+func getTimeDurationFromURLQuery(paramName string, ctx *fasthttp.RequestCtx, defaultValue time.Duration) time.Duration {
+	queryValue := ctx.QueryArgs().GetUfloatOrZero(paramName)
+	if queryValue > 0 {
+		return time.Duration(queryValue) * time.Second
 	}
-
 	// key not found
 	// not error but default needs to be used
-	return defaultValue, nil
+	return defaultValue
 }
 
-func (s *StateMgt) GetMetricsOfAllRoutes(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
-	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
-	if err != nil {
-		// failure in atoi
-		returnError(w, req, 400, err, nil)
-		return
-	}
-
+func (s *StateMgt) GetMetricsOfAllRoutes(ctx *fasthttp.RequestCtx) {
+	timeframe := getTimeDurationFromURLQuery("timeframe", ctx, DefaultTimeframe)
+	granularity := getTimeDurationFromURLQuery("granularity", ctx, timeframe)
 	if timeframe < granularity {
-		returnError(w, req, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
+		returnError(ctx, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
 		return
 	}
 
 	data, err := s.Gateway.MetricsRepo.ReadAllRoutes(time.Now().Add(-timeframe), time.Now(), granularity)
 	if err != nil {
 		log.Errorf(err.Error())
-		returnError(w, req, 400, err, nil)
+		returnError(ctx, 400, err, nil)
 		return
 	}
-	marshalAndReturn(w, req, data)
+	marshalAndReturn(ctx, data)
 }
 
-func (s *StateMgt) GetMetricsOfAllBackends(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (s *StateMgt) GetMetricsOfAllBackends(ctx *fasthttp.RequestCtx) {
 
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
-	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
-	if err != nil {
-		// failure in atoi
-		returnError(w, req, 400, err, nil)
-		return
-	}
+	timeframe := getTimeDurationFromURLQuery("timeframe", ctx, DefaultTimeframe)
+	granularity := getTimeDurationFromURLQuery("granularity", ctx, timeframe)
+
 	if timeframe < granularity {
-		returnError(w, req, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
+		returnError(ctx, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
 		return
 	}
 
 	data, err := s.Gateway.MetricsRepo.ReadAllBackends(time.Now().Add(-timeframe), time.Now(), granularity)
 	if err != nil {
 		log.Errorf(err.Error())
-		returnError(w, req, 400, err, nil)
+		returnError(ctx, 400, err, nil)
 		return
 	}
-	marshalAndReturn(w, req, data)
+	marshalAndReturn(ctx, data)
 }
 
 // GetMetricsData is used solely for debugging. Returns the data-map of Storage
-func (s *StateMgt) GetMetricsData(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (s *StateMgt) GetMetricsData(ctx *fasthttp.RequestCtx) {
 	data := s.Gateway.MetricsRepo.Storage.ReadData()
-
-	b, err := json.Marshal(data)
-	if err != nil {
-		log.Errorf(err.Error())
-		http.Error(w, "Unable to marshal route", 500)
-		return
-	}
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(b)
+	marshalAndReturn(ctx, data)
 }
 
-func (s *StateMgt) GetMetricsOfBackend(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
+func (s *StateMgt) GetMetricsOfBackend(ctx *fasthttp.RequestCtx) {
 
-	id := ps.ByName("id")
+	id := string(ctx.QueryArgs().Peek("id"))
 
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
-	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
-	if err != nil {
-		// failure in atoi
-		returnError(w, req, 400, err, nil)
-		return
-	}
+	timeframe := getTimeDurationFromURLQuery("timeframe", ctx, DefaultTimeframe)
+	granularity := getTimeDurationFromURLQuery("granularity", ctx, timeframe)
 
 	if timeframe < granularity {
-		returnError(w, req, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
+		returnError(ctx, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
 		return
 	}
 
@@ -125,53 +90,47 @@ func (s *StateMgt) GetMetricsOfBackend(w http.ResponseWriter, req *http.Request,
 	backendID, err := uuid.Parse(id)
 	if err != nil {
 		// failure in uuid.Parse
-		returnError(w, req, 400, err, nil)
+		returnError(ctx, 400, err, nil)
 		return
 	}
 
 	data, err := s.Gateway.MetricsRepo.ReadBackend(backendID, time.Now().Add(-timeframe), time.Now(), granularity)
 
 	if err != nil {
-		returnError(w, req, 400, err, nil)
+		returnError(ctx, 400, err, nil)
 		return
 	}
-	marshalAndReturn(w, req, data)
+	marshalAndReturn(ctx, data)
 
 }
 
 // GetMetricsOfRoute returns all metrics for the route
-func (s *StateMgt) GetMetricsOfRoute(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-	routeName := ps.ByName("name")
+func (s *StateMgt) GetMetricsOfRoute(ctx *fasthttp.RequestCtx) {
+	routeName := string(ctx.QueryArgs().Peek("route"))
 
-	timeframe, err := getTimeDurationFromURLQuery("timeframe", req, DefaultTimeframe)
-	granularity, err := getTimeDurationFromURLQuery("granularity", req, timeframe)
-	if err != nil {
-		// failure in atoi
-		returnError(w, req, 400, err, nil)
-		return
-	}
+	timeframe := getTimeDurationFromURLQuery("timeframe", ctx, DefaultTimeframe)
+	granularity := getTimeDurationFromURLQuery("granularity", ctx, timeframe)
 
 	if timeframe < granularity {
-		returnError(w, req, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
+		returnError(ctx, 400, fmt.Errorf("Timeframe must be greater than granularity"), nil)
 		return
 	}
 
 	data, err := s.Gateway.MetricsRepo.ReadRoute(routeName, time.Now().Add(-timeframe), time.Now(), granularity)
 
 	if err != nil {
-		returnError(w, req, 400, err, nil)
+		returnError(ctx, 400, err, nil)
 		return
 	}
-	marshalAndReturn(w, req, data)
+	marshalAndReturn(ctx, data)
 }
 
-func (s *StateMgt) GetPromMetrics(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+func (s *StateMgt) GetPromMetrics(ctx *fasthttp.RequestCtx) {
 
 	var metrics interface{}
 
-	route := req.URL.Query().Get("route")
-	backend := req.URL.Query().Get("backend")
-
+	route := string(ctx.QueryArgs().Peek("route"))
+	backend := string(ctx.QueryArgs().Peek("backend"))
 	if route != "" {
 		if metricsOfRoute, found := s.Gateway.MetricsRepo.PromMetrics.Metrics[route]; found {
 			metrics = metricsOfRoute
@@ -182,7 +141,7 @@ func (s *StateMgt) GetPromMetrics(w http.ResponseWriter, req *http.Request, _ ht
 		if err != nil {
 			err := fmt.Errorf("Unable to parse backendID from query parameter (%v)", err)
 			log.Error(err)
-			returnError(w, req, 400, err, nil)
+			returnError(ctx, 400, err, nil)
 			return
 		}
 
@@ -196,11 +155,10 @@ func (s *StateMgt) GetPromMetrics(w http.ResponseWriter, req *http.Request, _ ht
 	} else {
 		metrics = s.Gateway.MetricsRepo.PromMetrics.Metrics
 	}
-	marshalAndReturn(w, req, metrics)
+	marshalAndReturn(ctx, metrics)
 }
 
-func (s *StateMgt) GetActiveAlerts(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+func (s *StateMgt) GetActiveAlerts(ctx *fasthttp.RequestCtx) {
 	alerts := s.Gateway.MetricsRepo.GetActiveAlerts()
-
-	marshalAndReturn(w, req, alerts)
+	marshalAndReturn(ctx, alerts)
 }

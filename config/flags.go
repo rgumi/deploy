@@ -32,6 +32,8 @@ var (
 	// in the Monitoring-Job. The higher the value, the more historic data will be used
 	Granulartiy     time.Duration
 	RetentionPeriod time.Duration
+	// Go Garbage Collector CPU profiling rate
+	GCRate int
 )
 
 func init() {
@@ -39,6 +41,7 @@ func init() {
 	flag.BoolVar(&PersistConfigOnExit, "global.persistconfig", true, "defines if configs of gateway are stored on exit")
 	flag.StringVar(&ConfigFile, "global.configfile", "", "configfile to get and store config of gateway")
 	flag.IntVar(&LogLevel, "global.loglevel", 3, "loglevel of the application (default=warn)")
+	flag.IntVar(&GCRate, "global.gcrate", 1000, "defines the garbage collector cpu profiling rate")
 	// gateway defaults (overwritten by configfile)
 	flag.StringVar(&GatewayAddr, "gateway.addr", ":8080", "The address that the gateway listens on (overwritten by configfile)")
 	ReadTimeout = time.Duration(*flag.Int("gateway.readtimeout", 5, "read timeout of in seconds (overwritten by configfile)")) * time.Second
@@ -50,4 +53,5 @@ func init() {
 	flag.IntVar(&ScrapeMetricsChannelPuffersize, "metrics.scrapePuffersize", 50, "Size of the puffer for the scrapeMetric channel")
 	RetentionPeriod = time.Duration(*flag.Int("metrics.retentionPeriod", 5, "number of minutes after a collected metric is deleted")) * time.Minute
 	Granulartiy = time.Duration(*flag.Int("metrics.granulartiy", 5, "number of second that define the granularity of stored metrics")) * time.Second
+
 }

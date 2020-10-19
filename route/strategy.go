@@ -1,25 +1,20 @@
 package route
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/rgumi/depoy/metrics"
 	log "github.com/sirupsen/logrus"
+	"github.com/valyala/fasthttp"
 )
 
 type Strategy struct {
-	Type        string                                         `json:"type" yaml:"type" validate:"empty=false"`
-	HeaderName  string                                         `json:"header_name,omitempty" yaml:"headerName,omitempty"`
-	HeaderValue string                                         `json:"header_value,omitempty" yaml:"headerValue,omitempty"`
-	Target      string                                         `json:"target_backend,omitempty" yaml:"targetBackend,omitempty"`
-	Handler     func(w http.ResponseWriter, req *http.Request) `json:"-" yaml:"-"`
+	Type        string                         `json:"type" yaml:"type" validate:"empty=false"`
+	HeaderName  string                         `json:"header_name,omitempty" yaml:"headerName,omitempty"`
+	HeaderValue string                         `json:"header_value,omitempty" yaml:"headerValue,omitempty"`
+	Target      string                         `json:"target_backend,omitempty" yaml:"targetBackend,omitempty"`
+	Handler     func(ctx *fasthttp.RequestCtx) `json:"-" yaml:"-"`
 }
 
 func (s *Strategy) Validate(newRoute *Route) (err error) {
@@ -62,12 +57,6 @@ func (s *Strategy) Reset(newRoute *Route) error {
 			return err
 		}
 		newRoute.SetStrategy(strat)
-	case "slippery":
-		strat, err := NewSlipperyStrategy(newRoute)
-		if err != nil {
-			return err
-		}
-		newRoute.SetStrategy(strat)
 	case "shadow":
 		strat, err := NewShadowStrategy(newRoute, s.Target)
 		if err != nil {
@@ -88,26 +77,12 @@ func (s *Strategy) Reset(newRoute *Route) error {
 	return nil
 }
 
-func NewSlipperyStrategy(r *Route) (*Strategy, error) {
-	if r == nil {
-		return nil, fmt.Errorf("router cannot be nil")
-	}
-
-	return &Strategy{
-		Type:    "slippery",
-		Handler: SlipperyHandler(r),
-	}, nil
-}
-
 func NewStickyStrategy(r *Route) (*Strategy, error) {
-	if r == nil {
-		return nil, fmt.Errorf("router cannot be nil")
-	}
-
-	return &Strategy{
+	st := &Strategy{
 		Type:    "sticky",
 		Handler: StickyHandler(r),
-	}, nil
+	}
+	return st, st.Validate(r)
 }
 
 func NewHeaderStrategy(r *Route, headerName, headerValue, targetBackend string) (*Strategy, error) {
@@ -126,6 +101,7 @@ func NewHeaderStrategy(r *Route, headerName, headerValue, targetBackend string) 
 	if target == nil {
 		return nil, fmt.Errorf("Unable to find the provided backends")
 	}
+	target.Weigth = 0
 
 	return &Strategy{
 		Type:        "header",
@@ -153,6 +129,8 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 		return nil, fmt.Errorf("Unable to find the provided backend")
 	}
 
+	shadow.Weigth = 0
+
 	return &Strategy{
 		Type:    "shadow",
 		Target:  shadowBackend,
@@ -160,45 +138,24 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 	}, nil
 }
 
-// SlipperyHandler uses a Canary Strategy and select a backend for forwarding
-// based on its weight. Each request is handled seperately and no sessions are
-// handled
-func SlipperyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
-
-		currentTarget, err := r.getNextBackend()
-		if err != nil {
-			log.Debugf("Could not get next backend: %v", err)
-			http.Error(w, "No Upstream Host Available", 503)
-			return
-		}
-		if err := r.httpDo(req.Context(), currentTarget, req, req.Body, r.httpReturn(w)); err != nil {
-			log.Errorf("Unable to handle request (%v)", err)
-			http.Error(w, err.Error(), err.Code())
-		}
-	}
-}
-
 // StickyHandler uses a Canary Strategy and selects a backend for forwarding
 // based on its weight. StickyHandler also sets a session cookie so that all
 // following requests are forwarded to the same backend
-func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
+func StickyHandler(r *Route) func(ctx *fasthttp.RequestCtx) {
+	return func(ctx *fasthttp.RequestCtx) {
 		var err error
 		var target *Backend
-		cookieName := strings.ToUpper(r.Name) + "_SESSIONCOOKIE"
+		c := fasthttp.AcquireCookie()
 
-		if value, expires := checkCookie(req, cookieName); value != "" {
+		if value := string(ctx.Request.Header.Cookie(r.cookieName)); value != "" {
 			BackendID, err := uuid.Parse(value)
 			log.Debugf("Found routeCookie for %v", BackendID)
-			// check if uuid is valid and cookie is not expired
-			// (browsers do not send expired cookies but w/e)
-			if err == nil && expires.Before(time.Now()) {
+			if err == nil {
 				if t, found := r.Backends[BackendID]; found {
 					if t.Active {
 						target = t
+						fasthttp.ReleaseCookie(c)
+						c = nil
 						goto forward
 					}
 				}
@@ -207,100 +164,83 @@ func StickyHandler(r *Route) func(w http.ResponseWriter, req *http.Request) {
 		target, err = r.getNextBackend()
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
-			http.Error(w, "No Upstream Host Available", 503)
+			ctx.Error("No Upstream Host Available", 503)
 			return
 		}
-		addCookie(w, cookieName, target.ID.String(), r.CookieTTL)
+		log.Debugf("Setting new routeCookie for %v", target.ID)
+		c.SetKey(r.cookieName)
+		c.SetValue(target.ID.String())
+		defer fasthttp.ReleaseCookie(c)
 
 	forward:
-		if err := r.httpDo(req.Context(), target, req, req.Body, r.httpReturn(w)); err != nil {
-			log.Errorf("Unable to handle request (%v)", err)
-			http.Error(w, err.Error(), err.Code())
-		}
+		req := fasthttp.AcquireRequest()
+		defer fasthttp.ReleaseRequest(req)
+		ctx.Request.CopyTo(req)
+		appendXForwardForHeader(req, ctx.RemoteAddr().String())
+		delRequestHopHeader(req)
+		r.HTTPDo(req, target, HTTPReturn(ctx, c))
 	}
 }
 
 // HeaderHandler is used to check the header of an downstream request
 // if a routing header is found, the request is routed to the specified backend
-func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
+func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) func(ctx *fasthttp.RequestCtx) {
+	return func(ctx *fasthttp.RequestCtx) {
 		var err error
 
-		if value := req.Header.Get(headerName); value != "" {
-			// header is set therefore new backend will be used
-			// headerValue is ignored
-			if err = r.httpDo(req.Context(), target, req, req.Body, r.httpReturn(w)); err != nil {
-				log.Errorf("Unable to handle request (%v)", err)
-				http.Error(w, err.Error(), 503)
-			}
+		req := fasthttp.AcquireRequest()
+		defer fasthttp.ReleaseRequest(req)
+		ctx.Request.CopyTo(req)
+		delRequestHopHeader(req)
+		appendXForwardForHeader(req, ctx.RemoteAddr().String())
+
+		if len(ctx.Request.Header.Peek(headerName)) > 0 {
+			r.HTTPDo(req, target, HTTPReturn(ctx, nil))
 			return
 		}
 
 		target, err = r.getNextBackend()
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
-			http.Error(w, "No Upstream Host Available", 503)
+			ctx.Error("No Upstream Host Available", 503)
 			return
 		}
-		if err := r.httpDo(req.Context(), target, req, req.Body, r.httpReturn(w)); err != nil {
-			log.Errorf("Unable to handle request (%v)", err)
-			http.Error(w, err.Error(), err.Code())
-		}
+		r.HTTPDo(req, target, HTTPReturn(ctx, nil))
 	}
 }
 
 // ShadowHandler accepts requests of the downstream client and forward it to two backends
 // (the new version and the old version). Only the response of the old version is
 // returned. Both responses can then be compared
-func ShadowHandler(r *Route, shadow *Backend) func(w http.ResponseWriter, req *http.Request) {
-	return func(w http.ResponseWriter, req *http.Request) {
-		defer req.Body.Close()
-		var err error
-
-		// read body so that it can be send to both backends (shadow & actual)
-		body, err := ioutil.ReadAll(req.Body)
-		if err != nil {
-			log.Errorf("Unable to read body of request (%v)", err)
-			http.Error(w, err.Error(), 500)
-		}
-
-		// actual backend
-
-		bodyReader := bytes.NewReader(body)
+func ShadowHandler(r *Route, shadow *Backend) func(ctx *fasthttp.RequestCtx) {
+	return func(ctx *fasthttp.RequestCtx) {
 		target, err := r.getNextBackend()
 		if err != nil {
 			log.Debugf("Could not get next backend: %v", err)
-			http.Error(w, "No Upstream Host Available", 503)
+			ctx.Error("No Upstream Host Available", 503)
 			return
 		}
-		if err := r.httpDo(req.Context(), target, req, ioutil.NopCloser(bodyReader), r.httpReturn(w)); err != nil {
-			log.Errorf("Unable to handle request (%v)", err)
-			http.Error(w, err.Error(), err.Code())
+
+		req1 := fasthttp.AcquireRequest()
+		defer fasthttp.ReleaseRequest(req1)
+		ctx.Request.CopyTo(req1)
+		delRequestHopHeader(req1)
+		appendXForwardForHeader(req1, ctx.RemoteAddr().String())
+
+		req2 := fasthttp.AcquireRequest()
+		defer fasthttp.ReleaseRequest(req2)
+		req2.SetBody(req1.Body())
+		req1.Header.CopyTo(&req2.Header)
+
+		if err = r.HTTPDo(req1, target, HTTPReturn(ctx, nil)); err != nil {
+			ctx.Error(handleNetError(err))
 		}
 
-		// shadow backend
-
-		bodyReader = bytes.NewReader(body)
 		go func() {
-			if err := r.httpDo(
-				context.TODO(), shadow, req, ioutil.NopCloser(bodyReader),
-				func(resp *http.Response, m *metrics.Metrics, err error) GatewayError {
-					if err != nil {
-						return NewGatewayError(err)
-					}
-					body, err := ioutil.ReadAll(resp.Body)
-					if err != nil {
-						return NewGatewayError(err)
-					}
-					resp.Body.Close()
-					m.ResponseStatus = resp.StatusCode
-					m.ContentLength = int64(len(body))
-					r.MetricsRepo.InChannel <- m
-
-					return nil
-				}); err != nil {
-				log.Errorf("Unable to handle request of shadow (%v)", err)
+			if err = r.HTTPDo(req2, shadow, func(resp *fasthttp.Response) {
+				return
+			}); err != nil {
+				log.Infof("Shadow Request failed with %s", err.Error())
 			}
 		}()
 	}

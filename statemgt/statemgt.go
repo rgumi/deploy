@@ -1,30 +1,31 @@
 package statemgt
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/valyala/fasthttp"
+
 	"github.com/rgumi/depoy/gateway"
-	"github.com/rgumi/depoy/middleware"
-	"github.com/rs/cors"
+	"github.com/rgumi/depoy/router"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/creasty/defaults"
 	"github.com/gobuffalo/packr/v2"
-	"github.com/julienschmidt/httprouter"
 	"gopkg.in/dealancer/validate.v2"
 )
 
 var (
 	Prefix, Addr, PromPath                                    string
 	IdleTimeout, ReadTimeout, WriteTimeout, ReadHeaderTimeout time.Duration
+	ServerName                                                = "Depoy"
 )
 
 func init() {
@@ -43,7 +44,7 @@ type StateMgt struct {
 	Gateway *gateway.Gateway
 	Addr    string
 	Prefix  string
-	server  http.Server
+	server  *fasthttp.Server
 	Box     *packr.Box
 }
 
@@ -56,22 +57,21 @@ func NewStateMgt(addr string, g *gateway.Gateway, prefix string) *StateMgt {
 	}
 }
 
-// Start the statemgt webserver
 func (s *StateMgt) Start() {
-	router := httprouter.New()
+	router := router.NewRouter()
 
-	router.Handle("GET", s.Prefix+PromPath, Metrics(promhttp.Handler()))
 	if s.Prefix != "/" {
 		router.Handle("GET", "/healthz", s.HealthzHandler) // Kubernetes static healthcheck path
 	}
+	router.Handle("GET", s.Prefix+"v1/", func(ctx *fasthttp.RequestCtx) {
+		ctx.SetContentType("application/json")
+		ctx.SetStatusCode(200)
+		ctx.SetBody([]byte("Depoy API v1 that enabled access to the Gateway"))
+	})
 	router.Handle("GET", s.Prefix+"healthz", s.HealthzHandler)
 
-	// single page app routes
-	router.Handle("GET", s.Prefix+"dashboard", s.GetIndexPage)
-	router.Handle("GET", s.Prefix+"routes/*filepath", s.GetIndexPage)
-	router.Handle("GET", s.Prefix+"home", s.GetIndexPage)
-	router.Handle("GET", s.Prefix+"login", s.GetIndexPage)
-	router.Handle("GET", s.Prefix+"help", s.GetIndexPage)
+	// webpage
+	router.Handle("GET", s.Prefix+"", serveFiles(s.Box, s.Prefix))
 
 	// Config
 	router.Handle("GET", s.Prefix+"v1/config", s.GetCurrentConfig)
@@ -102,34 +102,27 @@ func (s *StateMgt) Start() {
 	router.Handle("GET", s.Prefix+"v1/monitoring/prometheus", s.GetPromMetrics)
 	router.Handle("GET", s.Prefix+"v1/monitoring/alerts", s.GetActiveAlerts)
 
-	// etc
 	if err := updateBaseUrl(s.Box, s.Prefix); err != nil {
 		log.Fatal(err)
 	}
-	router.NotFound = &StaticFileHandler{Prefix: s.Prefix, Fileserver: http.FileServer(s.Box)}
-	router.PanicHandler = func(w http.ResponseWriter, req *http.Request, e interface{}) {
-		err := fmt.Errorf("Unexpected error occured while handling the request (%v)", e.(error))
-		log.Error(err)
-		returnError(
-			w, req, 500,
-			err,
-			nil)
-		return
-	}
 
-	s.server = http.Server{
-		Addr:              s.Addr,
-		Handler:           middleware.LogRequest(cors.Default().Handler(router)),
-		IdleTimeout:       IdleTimeout,
-		ReadTimeout:       ReadTimeout,
-		WriteTimeout:      WriteTimeout,
-		ReadHeaderTimeout: ReadHeaderTimeout,
+	s.server = &fasthttp.Server{
+		Handler:                       router.ServeHTTP,
+		Name:                          ServerName,
+		Concurrency:                   256 * 1024,
+		DisableKeepalive:              false,
+		ReadTimeout:                   ReadTimeout,
+		WriteTimeout:                  WriteTimeout,
+		IdleTimeout:                   IdleTimeout,
+		MaxConnsPerIP:                 0,
+		MaxRequestsPerConn:            0,
+		TCPKeepalive:                  false,
+		DisableHeaderNamesNormalizing: false,
+		NoDefaultServerHeader:         false,
 	}
-
-	log.Info("Starting statemgt server")
 
 	go func() {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := s.server.ListenAndServe(s.Addr); err != nil {
 			log.Fatalf("statemgt server listen failed with %v\n", err)
 		}
 		log.Debug("Successfully shutdown statemgt server")
@@ -137,12 +130,7 @@ func (s *StateMgt) Start() {
 }
 
 func (s *StateMgt) Stop() {
-	ctxShutDown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer func() {
-		cancel()
-	}()
-
-	if err := s.server.Shutdown(ctxShutDown); err != nil {
+	if err := s.server.Shutdown(); err != nil {
 		log.Fatalf("statemgt server shutdown failed: %v\n", err)
 	}
 }
@@ -152,18 +140,6 @@ func (s *StateMgt) Stop() {
 	Helper functions
 
 */
-
-// StaticFileHandler is used to route requests for static files
-// to the FileServer after replacing the prefix of the Path
-type StaticFileHandler struct {
-	Prefix     string
-	Fileserver http.Handler
-}
-
-func (sfh *StaticFileHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	req.URL.Path = strings.Replace(req.URL.Path, sfh.Prefix, "", 1)
-	sfh.Fileserver.ServeHTTP(w, req)
-}
 
 func updateBaseUrl(box *packr.Box, baseUrl string) error {
 	match := "{{baseUrl}}"
@@ -182,13 +158,7 @@ func updateBaseUrl(box *packr.Box, baseUrl string) error {
 	return fmt.Errorf("Unable to replace baseUrl in file in box")
 }
 
-func Metrics(h http.Handler) httprouter.Handle {
-	return func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-		h.ServeHTTP(w, req)
-	}
-}
-
-func returnError(w http.ResponseWriter, req *http.Request, errCode int, err error, details []string) {
+func returnError(ctx *fasthttp.RequestCtx, errCode int, err error, details []string) {
 	msg := ErrorMessage{
 		Timestamp:  time.Now(),
 		Message:    err.Error(),
@@ -201,40 +171,72 @@ func returnError(w http.ResponseWriter, req *http.Request, errCode int, err erro
 	if err != nil {
 		panic(err)
 	}
-
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(errCode)
-	w.Write(b)
+	ctx.Response.Header.Set("Content-Type", "application/json")
+	ctx.SetStatusCode(errCode)
+	ctx.SetBody(b)
 }
 
-func marshalAndReturn(w http.ResponseWriter, req *http.Request, in interface{}) {
+func marshalAndReturn(ctx *fasthttp.RequestCtx, in interface{}) {
 	b, err := json.Marshal(in)
 
 	if err != nil {
 		log.Errorf(err.Error())
-		returnError(w, req, 500, err, nil)
+		returnError(ctx, 500, err, nil)
 		return
 	}
-	w.Header().Add("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(b)
+	ctx.SetContentType("application/json")
+	ctx.SetStatusCode(200)
+	ctx.SetBody(b)
 }
 
-func readBodyAndUnmarshal(req *http.Request, out interface{}) error {
-	b, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		return err
-	}
-
+func readBodyAndUnmarshal(ctx *fasthttp.RequestCtx, out interface{}) error {
+	var err error
 	defaults.Set(out)
-
-	if err := json.Unmarshal(b, out); err != nil {
+	if err = json.Unmarshal(ctx.Request.Body(), out); err != nil {
 		return err
 	}
 	err = validate.Validate(out)
 	if err != nil {
 		return err
 	}
-
 	return nil
+}
+
+func serveFiles(fs http.FileSystem, prefix string) fasthttp.RequestHandler {
+	return func(ctx *fasthttp.RequestCtx) {
+		path := string(ctx.RequestURI())
+		// remove uri prefix from filesystem path
+		if prefix != "" {
+			path = strings.Replace(path, prefix, "", 1)
+		}
+		// rewrite to index.html
+		if path == "" || path == "/" {
+			path = "index.html"
+		}
+
+	open:
+		file, err := fs.Open(path)
+		if err != nil {
+			// not found
+			path = "index.html"
+			goto open
+		}
+
+		fileInfo, _ := file.Stat()
+		// do not return dirs
+		if fileInfo.IsDir() {
+			ctx.SetStatusCode(404)
+			return
+		}
+		content, err := ioutil.ReadAll(file)
+		if err != nil {
+			ctx.SetStatusCode(500)
+			return
+		}
+		mimeType := mime.TypeByExtension(filepath.Ext(path))
+		ctx.Response.Header.Set("Content-Type", mimeType)
+		ctx.Response.Header.Set("Accept-Ranges", "bytes")
+		ctx.SetStatusCode(200)
+		ctx.SetBody(content)
+	}
 }

@@ -236,7 +236,7 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 				return nil
 			case now := <-time.After(interval):
 				collected, _ := m.ReadRatesOfBackend(backendID, now.Add(-2*interval), now)
-				log.Debugf("Rates of Backend %v: %v", backendID, collected)
+				log.Tracef("Rates of Backend %v: %v", backendID, collected)
 				// loop over every metric that was collected
 				for _, condition := range backend.MetricThreshholds {
 					// get the treshhold for this metric
@@ -282,7 +282,6 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 							alert.Value = currentValue
 							backend.AlertChannel <- *alert
 							delete(backend.activeAlerts, condition.Metric)
-
 							log.Debugf("Resolved Alert for %v", alert)
 						}
 						// goto next metric
@@ -308,7 +307,6 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 		}
 	}
 	return fmt.Errorf("Could not find backend with id %v", backendID)
-
 }
 
 // Listen listens on all channels and adds Metrics to the storage

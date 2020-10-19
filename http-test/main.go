@@ -24,7 +24,6 @@ var (
 func LogRequest(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		before := time.Now()
-
 		defer func() {
 			delta := time.Since(before)
 
@@ -41,6 +40,7 @@ func hello(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer r.Body.Close()
 	time.Sleep(time.Duration(*timeout) * time.Millisecond)
 	counter1++
+	w.Header().Add("backend", *addr)
 	w.WriteHeader(200)
 
 	b := make([]byte, 2900)
@@ -50,6 +50,7 @@ func hello(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 func returnStatusCode(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer r.Body.Close()
+	w.Header().Add("backend", *addr)
 	w.WriteHeader(*statusCode)
 }
 
@@ -57,12 +58,13 @@ func world(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	defer r.Body.Close()
 	time.Sleep(time.Duration(*timeout) * time.Millisecond)
 	counter2++
+	fmt.Println(r.Header)
 
 	b, _ := ioutil.ReadAll(r.Body)
 	fmt.Println(string(b))
 
 	w.Header().Add("Content-Type", "application/json")
-	w.Header().Add("Backend", *addr)
+	w.Header().Add("backend", *addr)
 	w.WriteHeader(200)
 	w.Write([]byte("{\"test\":\"World\"}"))
 }

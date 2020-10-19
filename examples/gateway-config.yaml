@@ -10,9 +10,11 @@ routes:
     rewrite: /
     cookieTTL: 10m
     strategy:
-      type: sticky
-    healthcheck_bool: true
-    timeout: 10s
+      type: shadow
+      targetBackend: b2
+    healthcheckBool: false
+    writeTimeout: 20s
+    readTimeout: 15s
     idleTimeout: 10s
     proxy: ""
     backends:
@@ -34,17 +36,85 @@ routes:
             threshold: 0.3
             activeFor: 5s
             resolveIn: 0s
+      - id: e5ea34d1-55c9-4ede-9635-a0824ffc6888
+        name: b2
+        addr: "http://localhost:9090"
+        weight: 0
+        healthcheckUrl: "http://localhost:9090/"
+        scrapeUrl: "http://localhost:9091/metrics"
+        scrapeMetrics: ["go_goroutines"]
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+            activeFor: 10s
+            resolveIn: 5s
+          - metric: 5xxRate
+            operator: ">"
+            threshold: 0.3
+            activeFor: 5s
+            resolveIn: 0s
   - name: Route2
     prefix: /route2/
     host: "*"
     rewrite: /
     cookieTTL: 10m
     strategy:
-      type: shadow
-      targetBackend: b2
-    healthcheck_bool: true
+      type: sticky
+    healthcheckBool: false
     timeout: 10s
-    idleTimeout: 30s
+    idleTimeout: 10s
+    proxy: ""
+    backends:
+      - id: e5ea34d1-55c9-4ede-9635-a0824ffc6111
+        name: b1
+        addr: "http://localhost:7070"
+        weight: 100
+        healthcheckUrl: "http://localhost:7070/"
+        scrapeUrl: "http://localhost:7071/metrics"
+        scrapeMetrics: ["go_goroutines"]
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+            activeFor: 10s
+            resolveIn: 5s
+          - metric: 5xxRate
+            operator: ">"
+            threshold: 0.3
+            activeFor: 5s
+            resolveIn: 0s
+      - id: e5ea34d1-55c9-4ede-9635-a0824ffc6222
+        name: b2
+        addr: "http://localhost:9090"
+        weight: 0
+        healthcheckUrl: "http://localhost:9090/"
+        scrapeUrl: "http://localhost:9091/metrics"
+        scrapeMetrics: ["go_goroutines"]
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+            activeFor: 10s
+            resolveIn: 5s
+          - metric: 5xxRate
+            operator: ">"
+            threshold: 0.3
+            activeFor: 5s
+            resolveIn: 0s
+  - name: Route3
+    prefix: /route3/
+    host: "*"
+    rewrite: /
+    cookieTTL: 10m
+    strategy:
+      type: header
+      targetBackend: b2
+      headerName: New-Backend
+      headerValue: true
+    healthcheckBool: false
+    timeout: 10s
+    idleTimeout: 10s
     proxy: ""
     backends:
       - name: b1
