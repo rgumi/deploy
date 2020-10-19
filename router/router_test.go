@@ -12,6 +12,17 @@ func testHandle(ctx *fasthttp.RequestCtx) {
 
 var router *Router
 
+func init() {
+	router = NewRouter()
+}
+
+func Test_Handle(t *testing.T) {
+	err := router.Handle("get", "/hello", testHandle)
+	if err != nil {
+		t.Error("Unable to insert handle")
+	}
+}
+
 func Test_Redundant_Handle(t *testing.T) {
 	err := router.Handle("get", "/hello", testHandle)
 	if err == nil {
