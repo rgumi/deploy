@@ -257,7 +257,12 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 	if err != nil {
 		return uuid.UUID{}, err
 	}
-	newBackend.ID = backend.ID
+
+	if backend.ID != uuid.Nil {
+		newBackend.ID = backend.ID
+	} else {
+		log.Infof("Registered backend (ID: %v) does not have a valid ID. Creating new one.", newBackend.ID)
+	}
 
 	for _, existingBackend := range r.Backends {
 		if existingBackend.Name == newBackend.Name {
