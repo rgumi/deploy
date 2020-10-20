@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/rgumi/depoy/config"
-	"github.com/rgumi/depoy/route"
 	log "github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 
@@ -88,7 +87,7 @@ func (s *StateMgt) DeleteRouteByName(ctx *fasthttp.RequestCtx) {
 // UpdateRouteByName removed route and replaces it with new route
 func (s *StateMgt) UpdateRouteByName(ctx *fasthttp.RequestCtx) {
 	myRoute := config.NewInputRoute()
-	routeName := string(ctx.QueryArgs().Peek("route"))
+	routeName := string(ctx.QueryArgs().Peek("name"))
 
 	if err := readBodyAndUnmarshal(ctx, myRoute); err != nil {
 		returnError(ctx, 400, err, nil)
@@ -134,7 +133,7 @@ func (s *StateMgt) UpdateRouteByName(ctx *fasthttp.RequestCtx) {
 
 // AddNewBackendToRoute adds a new backend to the defined route
 func (s *StateMgt) AddNewBackendToRoute(ctx *fasthttp.RequestCtx) {
-	myBackend := new(route.Backend)
+	myBackend := config.NewInputBackend()
 	routeName := string(ctx.QueryArgs().Peek("route"))
 	route, found := s.Gateway.Routes[routeName]
 	if !found {
@@ -148,11 +147,12 @@ func (s *StateMgt) AddNewBackendToRoute(ctx *fasthttp.RequestCtx) {
 	for _, cond := range myBackend.Metricthresholds {
 		cond.Compile()
 	}
-	_, err := route.AddBackend(
-		myBackend.Name, myBackend.Addr, myBackend.Scrapeurl, myBackend.Healthcheckurl,
-		myBackend.Scrapemetrics, myBackend.Metricthresholds, myBackend.Weigth,
-	)
+	newBackend, err := config.ConvertInputBackendToBackend(myBackend)
 	if err != nil {
+		returnError(ctx, 400, err, nil)
+		return
+	}
+	if _, err = route.AddExistingBackend(newBackend); err != nil {
 		returnError(ctx, 400, err, nil)
 		return
 	}
