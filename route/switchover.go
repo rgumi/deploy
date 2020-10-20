@@ -93,9 +93,10 @@ outer:
 			log.Warnf("Killed SwitchOver %v of Route %v", s.ID, s.Route.Name)
 			return
 
-		case _ = <-time.After(s.Timeout):
+		case now := <-time.After(s.Timeout):
+
 			metrics, err := s.Route.MetricsRepo.ReadRatesOfBackend(
-				s.To.ID, time.Now().Add(-s.Timeout), time.Now())
+				s.To.ID, now.Add(-s.Timeout), now)
 			if err != nil {
 				log.Trace(err)
 				continue
@@ -104,31 +105,38 @@ outer:
 			for _, condition := range s.Conditions {
 				if condition.IsTrue(metrics) && s.To.Active {
 					if condition.TriggerTime.IsZero() {
-						condition.TriggerTime = time.Now()
+						// evaluated later by adding activeFor-Duration
+						condition.TriggerTime = now
 					} else {
 						// check if condition was active for long enough
-						if condition.TriggerTime.Add(condition.GetActiveFor()).Before(time.Now()) {
+						if condition.TriggerTime.Add(condition.GetActiveFor()).Before(now) {
 							log.Debugf("Updating status of condition %v %v %v to true",
 								condition.Metric, condition.Operator, condition.Threshold,
 							)
 							condition.Status = true
+
 						}
 					}
+
+					// condition is not true or backend is not active
 				} else {
-					// condition is not met, therefore reset triggerTime
 					condition.TriggerTime = time.Time{}
 					condition.Status = false
 				}
 			}
+
 			// end of cycle, check conditions
 			for _, condition := range s.Conditions {
-				if !condition.Status {
+				// to avoid a failureCounter increment when the trigger is true but the activeFor-duration
+				// is not, check if the triggertime is set
+				if !condition.Status && condition.TriggerTime.IsZero() {
 					// if any condition is not true, cycle is failed
 					log.Debugf("Condition (%s) of Switchover %v (%s) is false",
 						condition.Metric, s.ID, s.Route.Name,
 					)
 					s.FailureCounter++
-					if s.FailureCounter > s.AllowedFailures {
+					// check if allowed failures have been reached - if configured
+					if s.AllowedFailures > 0 && s.FailureCounter > s.AllowedFailures {
 						// failed too often...
 						s.Status = "Failed"
 						s.Stop()
@@ -142,6 +150,7 @@ outer:
 			s.To.UpdateWeight(s.To.Weigth + s.WeightChange)
 			// As both routes are part of the same route, both will be updated
 			s.To.updateWeigth()
+			log.Infof("Switchover %d - Updating weights of Backends by %d", s.ID, s.WeightChange)
 			// reset the conditions
 			for _, condition := range s.Conditions {
 				condition.TriggerTime = time.Time{}
@@ -149,7 +158,7 @@ outer:
 			}
 			if s.From.Weigth <= 0 || s.To.Weigth >= 100 {
 				// switchover was successful, all traffic is forwarded to new backend
-				log.Infof("Switchover %d of %s from %v to %v was successful",
+				log.Infof("Switchover %d -  %s from %v to %v was successful",
 					s.ID, s.Route.Name, s.From.ID, s.To.ID,
 				)
 				s.Status = "Success"
