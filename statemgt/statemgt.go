@@ -78,43 +78,42 @@ func (s *StateMgt) Start() {
 	router.Handle("GET", s.Prefix+"healthz", s.HealthzHandler)
 
 	// webpage
-	router.Handle("GET", s.Prefix+"", serveFiles(s.Box, s.Prefix))
+	router.Handle("GET", s.Prefix+"", middleware.LogRequest(serveFiles(s.Box, s.Prefix)))
 
 	// Config
-	router.Handle("GET", s.Prefix+"v1/config", s.GetCurrentConfig)
-	router.Handle("POST", s.Prefix+"v1/config", s.SetCurrentConfig)
+	router.Handle("GET", s.Prefix+"v1/config", middleware.LogRequest(s.GetCurrentConfig))
+	router.Handle("POST", s.Prefix+"v1/config", middleware.LogRequest(s.SetCurrentConfig))
 
 	// gateway routes
-	router.Handle("GET", s.Prefix+"v1/routes", s.GetRouteByName)
-	router.Handle("DELETE", s.Prefix+"v1/routes", s.DeleteRouteByName)
-	router.Handle("GET", s.Prefix+"v1/routes", s.GetAllRoutes)
-	router.Handle("POST", s.Prefix+"v1/routes", s.CreateRoute)
-	router.Handle("PUT", s.Prefix+"v1/routes", s.UpdateRouteByName)
+	router.Handle("GET", s.Prefix+"v1/routes", middleware.LogRequest(s.GetRouteByName))
+	router.Handle("DELETE", s.Prefix+"v1/routes", middleware.LogRequest(s.DeleteRouteByName))
+	router.Handle("GET", s.Prefix+"v1/routes", middleware.LogRequest(s.GetAllRoutes))
+	router.Handle("POST", s.Prefix+"v1/routes", middleware.LogRequest(s.CreateRoute))
+	router.Handle("PUT", s.Prefix+"v1/routes", middleware.LogRequest(s.UpdateRouteByName))
 
 	// route backends
-	router.Handle("PATCH", s.Prefix+"v1/routes/backends", s.AddNewBackendToRoute)
-	router.Handle("DELETE", s.Prefix+"v1/routes/backends", s.RemoveBackendFromRoute)
+	router.Handle("PATCH", s.Prefix+"v1/routes/backends", middleware.LogRequest(s.AddNewBackendToRoute))
+	router.Handle("DELETE", s.Prefix+"v1/routes/backends", middleware.LogRequest(s.RemoveBackendFromRoute))
 
 	// route switchover
-	router.Handle("POST", s.Prefix+"v1/routes/switchover", s.CreateSwitchover)
-	router.Handle("GET", s.Prefix+"v1/routes/switchover", s.GetSwitchover)
-	router.Handle("DELETE", s.Prefix+"v1/routes/switchover", s.DeleteSwitchover)
+	router.Handle("POST", s.Prefix+"v1/routes/switchover", middleware.LogRequest(s.CreateSwitchover))
+	router.Handle("GET", s.Prefix+"v1/routes/switchover", middleware.LogRequest(s.GetSwitchover))
+	router.Handle("DELETE", s.Prefix+"v1/routes/switchover", middleware.LogRequest(s.DeleteSwitchover))
 
 	// monitoring
-	router.Handle("GET", s.Prefix+"v1/monitoring", s.GetMetricsData)
-	router.Handle("GET", s.Prefix+"v1/monitoring/routes", s.GetMetricsOfAllRoutes)
-	// router.Handle("GET", s.Prefix+"v1/monitoring/backends", s.GetMetricsOfAllBackends)
-	router.Handle("GET", s.Prefix+"v1/monitoring/backends", s.GetMetricsOfBackend)
-	router.Handle("GET", s.Prefix+"v1/monitoring/routes", s.GetMetricsOfRoute)
-	router.Handle("GET", s.Prefix+"v1/monitoring/prometheus", s.GetPromMetrics)
-	router.Handle("GET", s.Prefix+"v1/monitoring/alerts", s.GetActiveAlerts)
+	router.Handle("GET", s.Prefix+"v1/monitoring", middleware.LogRequest(s.GetMetricsData))
+	router.Handle("GET", s.Prefix+"v1/monitoring/routes", middleware.LogRequest(s.GetMetricsOfAllRoutes))
+	router.Handle("GET", s.Prefix+"v1/monitoring/backends", middleware.LogRequest(s.GetMetricsOfBackend))
+	router.Handle("GET", s.Prefix+"v1/monitoring/routes", middleware.LogRequest(s.GetMetricsOfRoute))
+	router.Handle("GET", s.Prefix+"v1/monitoring/prometheus", middleware.LogRequest(s.GetPromMetrics))
+	router.Handle("GET", s.Prefix+"v1/monitoring/alerts", middleware.LogRequest(s.GetActiveAlerts))
 
 	if err := updateBaseUrl(s.Box, s.Prefix); err != nil {
 		log.Fatal(err)
 	}
 
 	s.server = &fasthttp.Server{
-		Handler:                       middleware.LogRequest(router.ServeHTTP),
+		Handler:                       router.ServeHTTP,
 		Name:                          ServerName,
 		Concurrency:                   256 * 1024,
 		DisableKeepalive:              false,
