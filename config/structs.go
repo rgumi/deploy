@@ -31,8 +31,7 @@ type InputGateway struct {
 	Addr         string              `yaml:"addr" json:"addr" default:":8080"`
 	ReadTimeout  util.ConfigDuration `yaml:"read_timeout" json:"readTimeout" default:"\"5s\""`
 	WriteTimeout util.ConfigDuration `yaml:"write_timeout" json:"writeTimeout" default:"\"5s\""`
-	HTTPTimeout  util.ConfigDuration `yaml:"http_timeout" json:"httpTimeout" default:"\"10s\""`
-	IdleTimeout  util.ConfigDuration `yaml:"idle_timeout" json:"idleTimeout" default:"\"5s\""`
+	IdleTimeout  util.ConfigDuration `yaml:"idle_timeout" json:"idleTimeout" default:"\"10s\""`
 	Routes       []*InputRoute       `yaml:"routes" json:"routes"`
 }
 
@@ -237,7 +236,6 @@ func ConvertInputGatewayToGateway(g *InputGateway) *gateway.Gateway {
 		newMetricsRepo,
 		g.ReadTimeout.Duration,
 		g.WriteTimeout.Duration,
-		g.HTTPTimeout.Duration,
 		g.IdleTimeout.Duration,
 	)
 	return newGateway
@@ -247,7 +245,6 @@ func ConvertGatewayToInputGateway(g *gateway.Gateway) *InputGateway {
 		Addr:         g.Addr,
 		ReadTimeout:  util.ConfigDuration{g.ReadTimeout},
 		WriteTimeout: util.ConfigDuration{g.WriteTimeout},
-		HTTPTimeout:  util.ConfigDuration{g.HTTPTimeout},
 		IdleTimeout:  util.ConfigDuration{g.IdleTimeout},
 		Routes:       []*InputRoute{},
 	}

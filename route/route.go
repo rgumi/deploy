@@ -80,7 +80,7 @@ func New(
 		killHealthCheck:     make(chan int, 1),
 		CookieTTL:           cookieTTL,
 		Client: upstreamclient.NewUpstreamclient(readTimeout, writeTimeout, idleTimeout,
-			upstreamclient.MaxIdleConnsPerHost, upstreamclient.TLSVerfiy,
+			upstreamclient.MaxIdleConnsPerHost, upstreamclient.SkipTLSVerify,
 		),
 	}
 

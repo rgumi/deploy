@@ -8,21 +8,20 @@ metadata:
 data:
   gateway-config.yaml: |-
     addr: :8080
-    read_timeout: 10s
-    write_timeout: 10s
-    scrape_interval: 5s
+    readTimeout: 10s
+    writeTimeout: 10s
+    idleTimeout: 10s
     routes:
       - name: Grafana
         prefix: /grafana/
         host: "*"
         rewrite: /grafana/
-        cookieTTL: 2m0s
         strategy:
           type: sticky
-        healthcheck_bool: true
-        timeout: 5s
-        idleTimeout: 30s
-        proxy: ""
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
         backends:
           - name: grafana
             addr: http://grafana-web.monitoring:3000
@@ -43,10 +42,10 @@ data:
         cookieTTL: 2m0s
         strategy:
           type: sticky
-        healthcheck_bool: true
-        timeout: 5s
-        idleTimeout: 30s
-        proxy: ""
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
         backends:
           - name: prometheus
             addr: http://prometheus-web.monitoring:8080
@@ -67,10 +66,10 @@ data:
         cookieTTL: 2m0s
         strategy:
           type: sticky
-        healthcheck_bool: true
-        timeout: 5s
-        idleTimeout: 30s
-        proxy: ""
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
         backends:
           - name: k8s-dashboard
             addr: https://kubernetes-dashboard.kubernetes-dashboard:443
@@ -91,10 +90,10 @@ data:
         cookieTTL: 10m
         strategy:
           type: sticky
-        healthcheck_bool: true
-        timeout: 10s
-        idleTimeout: 30s
-        proxy: ""
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
         backends:
           - name: v0-1-0
             addr: "http://v0-1-0-wabizdummy-svc.depoy-testing:8080"

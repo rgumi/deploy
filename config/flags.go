@@ -18,7 +18,6 @@ var (
 	GatewayAddr  string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
-	HTTPTimeout  time.Duration
 	IdleTimeout  time.Duration
 	// metrics
 	// MetricsChannelPuffersize defines the maximal puffer size of the
@@ -46,7 +45,6 @@ func init() {
 	flag.StringVar(&GatewayAddr, "gateway.addr", ":8080", "The address that the gateway listens on (overwritten by configfile)")
 	ReadTimeout = time.Duration(*flag.Int("gateway.readtimeout", 5, "read timeout of in seconds (overwritten by configfile)")) * time.Second
 	WriteTimeout = time.Duration(*flag.Int("gateway.writeTimeout", 5, "write timeout in seconds (overwritten by configfile)")) * time.Second
-	HTTPTimeout = time.Duration(*flag.Int("gateway.httpTimeout", 10, "read timeout of in seconds (overwritten by configfile)")) * time.Second
 	IdleTimeout = time.Duration(*flag.Int("gateway.idleTimeout", 30, "write timeout in seconds (overwritten by configfile)")) * time.Second
 	// metrics defaults
 	flag.IntVar(&MetricsChannelPuffersize, "metrics.metricsPuffersize", 200, "Size of the puffer for the metric channel")

@@ -11,7 +11,7 @@ import (
 
 var (
 	MaxIdleConnsPerHost, MaxIdleConns int
-	TLSVerfiy                         bool
+	SkipTLSVerify                     bool
 	DisableKeepAlives                 bool
 	currentTime                       *time.Time
 )
@@ -19,7 +19,7 @@ var (
 func init() {
 	flag.IntVar(&MaxIdleConnsPerHost, "client.idleHostConns", 1024, "defines the maxIdleConnsPerHost")
 	flag.IntVar(&MaxIdleConns, "client.idleConns", 1024, "defines the maxIdleConns")
-	flag.BoolVar(&TLSVerfiy, "client.tlsVerify", false, "defines if tls should be verified")
+	flag.BoolVar(&SkipTLSVerify, "client.tlsVerify", true, "defines if tls verification should be skipped")
 	flag.BoolVar(&DisableKeepAlives, "client.keepAlives", true, "defines if http-keep-alive")
 }
 
@@ -39,7 +39,7 @@ func NewUpstreamclient(
 			ReadTimeout:                   readTimeout,
 			WriteTimeout:                  writeTimeout,
 			TLSConfig: &tls.Config{
-				InsecureSkipVerify: tlsVerify,
+				InsecureSkipVerify: SkipTLSVerify,
 			},
 			MaxConnsPerHost:           maxIdleConnsPerHost,
 			MaxIdleConnDuration:       idleTimeout,

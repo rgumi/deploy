@@ -60,7 +60,7 @@ func main() {
 			config.Granulartiy, config.MetricsChannelPuffersize, config.ScrapeMetricsChannelPuffersize,
 		)
 		g = gateway.NewGateway(config.GatewayAddr, newMetricsRepo,
-			config.ReadTimeout, config.WriteTimeout, config.HTTPTimeout, config.IdleTimeout,
+			config.ReadTimeout, config.WriteTimeout, config.IdleTimeout,
 		)
 	}
 	go g.Run()

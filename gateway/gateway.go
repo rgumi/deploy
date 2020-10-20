@@ -24,7 +24,6 @@ type Gateway struct {
 	Addr         string
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
-	HTTPTimeout  time.Duration
 	IdleTimeout  time.Duration
 	Routes       map[string]*route.Route
 	Router       map[string]*router.Router
@@ -36,7 +35,7 @@ type Gateway struct {
 //NewGateway returns a new instance of Gateway
 func NewGateway(
 	addr string, metricsRepo *metrics.Repository,
-	readTimeout, writeTimeout, httpTimeout, idleTimeout time.Duration) *Gateway {
+	readTimeout, writeTimeout, idleTimeout time.Duration) *Gateway {
 
 	g := new(Gateway)
 
@@ -56,7 +55,6 @@ func NewGateway(
 	// set timeouts
 	g.ReadTimeout = readTimeout
 	g.WriteTimeout = writeTimeout
-	g.HTTPTimeout = httpTimeout
 	g.IdleTimeout = idleTimeout
 
 	return g
