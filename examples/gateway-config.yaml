@@ -8,13 +8,13 @@ routes:
     prefix: /route1/
     host: "*"
     rewrite: /
-    cookieTTL: 10m
     strategy:
       type: sticky
     healthcheckBool: true
     writeTimeout: 20s
     readTimeout: 15s
     idleTimeout: 10s
+    cookieTTL: 30m
     proxy: ""
     backends:
       - name: b1

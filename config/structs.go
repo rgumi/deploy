@@ -41,7 +41,7 @@ type InputRoute struct {
 	Methods             []string            `json:"methods" yaml:"methods" default:"[\"GET\", \"POST\", \"PUT\", \"DELETE\", \"PATCH\", \"HEAD\", \"OPTIONS\", \"TRACE\"]"`
 	Host                string              `json:"host" yaml:"host" default:"*"`
 	Rewrite             string              `json:"rewrite" yaml:"rewrite" validate:"empty=false"`
-	CookieTTL           util.ConfigDuration `json:"cookie_ttl" yaml:"cookieTTL" default:"\"5m\""`
+	CookieTTL           util.ConfigDuration `json:"cookie_ttl" yaml:"cookieTTL"`
 	Strategy            *route.Strategy     `json:"strategy" yaml:"strategy" validate:"nil=false"`
 	Switchover          *InputSwitchover    `json:"switchover" yaml:"-"`
 	HealthCheck         *bool               `json:"healthcheck_bool" yaml:"healthcheckBool"`

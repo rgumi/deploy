@@ -3,6 +3,7 @@ package route
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -170,6 +171,10 @@ func StickyHandler(r *Route) func(ctx *fasthttp.RequestCtx) {
 		log.Debugf("Setting new routeCookie for %v", target.ID)
 		c.SetKey(r.cookieName)
 		c.SetValue(target.ID.String())
+		c.SetPath(r.Prefix)
+		if r.CookieTTL > 0 {
+			c.SetExpire(time.Now().Add(r.CookieTTL))
+		}
 		defer fasthttp.ReleaseCookie(c)
 
 	forward:
