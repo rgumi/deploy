@@ -1,36 +1,23 @@
 package middleware
 
 import (
-	"net/http"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/valyala/fasthttp"
+
 	log "github.com/sirupsen/logrus"
 )
 
-func LogRequest(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func LogRequest(handler fasthttp.RequestHandler) fasthttp.RequestHandler {
+	return func(ctx *fasthttp.RequestCtx) {
 		before := time.Now()
 
 		defer func() {
-			delta := time.Since(before)
-
 			log.Infof("%s \"%s %s %s\" %v",
-				r.RemoteAddr, r.Method, r.URL.Path,
-				r.Proto, delta,
+				ctx.RemoteAddr(), ctx.Method(), ctx.URI().String(),
+				string(ctx.Request.Header.UserAgent()), time.Since(before),
 			)
 		}()
-		handler.ServeHTTP(w, r)
-	})
-}
-
-// SetRequestID sets a unique ID for each request. Allows for better tracing
-func SetRequestID(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := uuid.New().String()
-		r.Header.Set("X-Request-ID", id)
-		w.Header().Set("X-Request-ID", id)
-
-		handler.ServeHTTP(w, r)
-	})
+		handler(ctx)
+	}
 }

@@ -43,7 +43,7 @@ spec:
         - name: depoy
           imagePullPolicy: Always
           args:
-            - "--global.loglevel=3"
+            - "--global.loglevel=4"
             - "--global.configfile=/etc/depoy/gateway-config.yaml"
             - "--global.persistconfig=true"
             - "--statemgt.prefix=/depoy/"

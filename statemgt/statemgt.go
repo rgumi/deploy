@@ -11,9 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/valyala/fasthttp"
 
 	"github.com/rgumi/depoy/gateway"
+	"github.com/rgumi/depoy/middleware"
 	"github.com/rgumi/depoy/router"
 	log "github.com/sirupsen/logrus"
 
@@ -23,7 +25,7 @@ import (
 )
 
 var (
-	Prefix, Addr, PromPath                                    string
+	Prefix, Addr, PromPath, PromAddr                          string
 	IdleTimeout, ReadTimeout, WriteTimeout, ReadHeaderTimeout time.Duration
 	ServerName                                                = "Depoy"
 )
@@ -31,7 +33,8 @@ var (
 func init() {
 	flag.StringVar(&Prefix, "statemgt.prefix", "/", "prefix for all requests")
 	flag.StringVar(&Addr, "statemgt.addr", ":8081", "The address that the statemgt listens on")
-	flag.StringVar(&PromPath, "statemgt.prompath", "metrics", "path on which Prometheus metrics are served")
+	flag.StringVar(&PromAddr, "statemgt.promaddr", ":8090", "The address that exposes prometheus metrics")
+	flag.StringVar(&PromPath, "statemgt.prompath", "/metrics", "path on which Prometheus metrics are served")
 	IdleTimeout = time.Duration(*flag.Int("statemgt.idleTimeout", 30, "idle timeout of connections in seconds")) * time.Second
 	ReadTimeout = time.Duration(*flag.Int("statemgt.readTimeout", 5, "read timeout of connections in seconds")) * time.Second
 	WriteTimeout = time.Duration(*flag.Int("statemgt.writeTimeout", 5, "write timeout of connections in seconds")) * time.Second
@@ -60,6 +63,10 @@ func NewStateMgt(addr string, g *gateway.Gateway, prefix string) *StateMgt {
 func (s *StateMgt) Start() {
 	router := router.NewRouter()
 
+	go func() {
+		http.Handle(PromPath, promhttp.Handler())
+		http.ListenAndServe(PromAddr, nil)
+	}()
 	if s.Prefix != "/" {
 		router.Handle("GET", "/healthz", s.HealthzHandler) // Kubernetes static healthcheck path
 	}
@@ -78,27 +85,27 @@ func (s *StateMgt) Start() {
 	router.Handle("POST", s.Prefix+"v1/config", s.SetCurrentConfig)
 
 	// gateway routes
-	router.Handle("GET", s.Prefix+"v1/routes/:name", s.GetRouteByName)
-	router.Handle("DELETE", s.Prefix+"v1/routes/:name", s.DeleteRouteByName)
-	router.Handle("GET", s.Prefix+"v1/routes/", s.GetAllRoutes)
-	router.Handle("POST", s.Prefix+"v1/routes/", s.CreateRoute)
-	router.Handle("PUT", s.Prefix+"v1/routes/:name", s.UpdateRouteByName)
+	router.Handle("GET", s.Prefix+"v1/routes", s.GetRouteByName)
+	router.Handle("DELETE", s.Prefix+"v1/routes", s.DeleteRouteByName)
+	router.Handle("GET", s.Prefix+"v1/routes", s.GetAllRoutes)
+	router.Handle("POST", s.Prefix+"v1/routes", s.CreateRoute)
+	router.Handle("PUT", s.Prefix+"v1/routes", s.UpdateRouteByName)
 
 	// route backends
-	router.Handle("PATCH", s.Prefix+"v1/routes/:name", s.AddNewBackendToRoute)
-	router.Handle("DELETE", s.Prefix+"v1/routes/:name/backends/:id", s.RemoveBackendFromRoute)
+	router.Handle("PATCH", s.Prefix+"v1/routes/backends", s.AddNewBackendToRoute)
+	router.Handle("DELETE", s.Prefix+"v1/routes/backends", s.RemoveBackendFromRoute)
 
 	// route switchover
-	router.Handle("POST", s.Prefix+"v1/routes/:name/switchover", s.CreateSwitchover)
-	router.Handle("GET", s.Prefix+"v1/routes/:name/switchover", s.GetSwitchover)
-	router.Handle("DELETE", s.Prefix+"v1/routes/:name/switchover", s.DeleteSwitchover)
+	router.Handle("POST", s.Prefix+"v1/routes/switchover", s.CreateSwitchover)
+	router.Handle("GET", s.Prefix+"v1/routes/switchover", s.GetSwitchover)
+	router.Handle("DELETE", s.Prefix+"v1/routes/switchover", s.DeleteSwitchover)
 
 	// monitoring
 	router.Handle("GET", s.Prefix+"v1/monitoring", s.GetMetricsData)
-	router.Handle("GET", s.Prefix+"v1/monitoring/routes/", s.GetMetricsOfAllRoutes)
-	router.Handle("GET", s.Prefix+"v1/monitoring/backends/", s.GetMetricsOfAllBackends)
-	router.Handle("GET", s.Prefix+"v1/monitoring/backends/:id", s.GetMetricsOfBackend)
-	router.Handle("GET", s.Prefix+"v1/monitoring/routes/:name", s.GetMetricsOfRoute)
+	router.Handle("GET", s.Prefix+"v1/monitoring/routes", s.GetMetricsOfAllRoutes)
+	// router.Handle("GET", s.Prefix+"v1/monitoring/backends", s.GetMetricsOfAllBackends)
+	router.Handle("GET", s.Prefix+"v1/monitoring/backends", s.GetMetricsOfBackend)
+	router.Handle("GET", s.Prefix+"v1/monitoring/routes", s.GetMetricsOfRoute)
 	router.Handle("GET", s.Prefix+"v1/monitoring/prometheus", s.GetPromMetrics)
 	router.Handle("GET", s.Prefix+"v1/monitoring/alerts", s.GetActiveAlerts)
 
@@ -107,7 +114,7 @@ func (s *StateMgt) Start() {
 	}
 
 	s.server = &fasthttp.Server{
-		Handler:                       router.ServeHTTP,
+		Handler:                       middleware.LogRequest(router.ServeHTTP),
 		Name:                          ServerName,
 		Concurrency:                   256 * 1024,
 		DisableKeepalive:              false,

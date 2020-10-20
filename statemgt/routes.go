@@ -20,7 +20,7 @@ func (s *StateMgt) GetRouteByName(ctx *fasthttp.RequestCtx) {
 	name := string(ctx.QueryArgs().Peek("name"))
 	route := s.Gateway.GetRoute(name)
 	if route == nil {
-		ctx.SetStatusCode(404)
+		s.GetAllRoutes(ctx)
 		return
 	}
 	marshalAndReturn(ctx, config.ConvertRouteToInputRoute(route))

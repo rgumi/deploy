@@ -90,7 +90,7 @@ func (s *StateMgt) GetMetricsOfBackend(ctx *fasthttp.RequestCtx) {
 	backendID, err := uuid.Parse(id)
 	if err != nil {
 		// failure in uuid.Parse
-		returnError(ctx, 400, err, nil)
+		s.GetMetricsOfAllBackends(ctx)
 		return
 	}
 
