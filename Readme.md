@@ -4,22 +4,17 @@
 
 Depoy is an API-Gateway which natively supports Continous Deployment (CD) of RESTful-Application. It evaluates the state of an upstream application by collecting HTTP-Connection metrics and by scraping the Prometheus-Endpoint of the upstream application - if provided. It integrates into Prometheus and offers a reactive web-application for configuration and monitoring.
 
-<object data="https://github.com/rgumi/depoy/raw/master/images/APIGatewayOverview.pdf" type="application/pdf" width="700px" height="700px">
-    <embed src="https://github.com/rgumi/depoy/raw/master/images/APIGatewayOverview.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/rgumi/depoy/raw/master/images/APIGatewayOverview.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
+```{r, out.width="0.3\\linewidth", include=TRUE, fig.align="center", fig.cap=c("APIGatewayOverview.pdf"), echo=FALSE}
+knitr::include_graphics("https://github.com/rgumi/depoy/raw/master/images/APIGatewayOverview.pdf")
+```
 
 ## Architecture
 
 The API-Gateway is built using Go for all backend tasks and Vue for the web-application.
 
-<object data="https://github.com/rgumi/depoy/raw/master/images/OverviewDiagram.pdf" type="application/pdf" width="700px" height="700px">
-    <embed src="https://github.com/rgumi/depoy/raw/master/images/OverviewDiagram.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/rgumi/depoy/raw/master/images/OverviewDiagram.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
-
+```{r, out.width="0.3\\linewidth", include=TRUE, fig.align="center", fig.cap=c("OverviewDiagram.pdf"), echo=FALSE}
+knitr::include_graphics("https://github.com/rgumi/depoy/raw/master/images/OverviewDiagram.pdf")
+```
 
 ## Building
 
