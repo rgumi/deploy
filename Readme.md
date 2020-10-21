@@ -4,13 +4,14 @@
 
 Depoy is an API-Gateway which natively supports Continous Deployment (CD) of RESTful-Application. It evaluates the state of an upstream application by collecting HTTP-Connection metrics and by scraping the Prometheus-Endpoint of the upstream application - if provided. It integrates into Prometheus and offers a reactive web-application for configuration and monitoring.
 
-<img src="./images/APIGatewayOverview.pdf" alt="some text"  width="4200" height="4200">
+[Gateway Overview](https://docs.google.com/viewer?url=https://github.com/rgumi/depoy/raw/master/images/APIGatewayOverview.pdf)
 
 ## Architecture
 
 The API-Gateway is built using Go for all backend tasks and Vue for the web-application.
 
-<img src="./images/OverviewDiagram.pdf" alt="some text"  width="4200" height="4200">
+[Overview Diagram](https://docs.google.com/viewer?url=https://github.com/rgumi/depoy/raw/master/images/OverviewDiagram.pdf)
+
 ## Building
 
 Using the provided ["Dockerfile_multistage"](Dockerfile_multistage) you are able to build the dockerimage yourself. A prebuild image can be found [here](https://hub.docker.com/repository/docker/rgummich/depoy).
