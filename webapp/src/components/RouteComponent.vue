@@ -68,21 +68,15 @@
                 <td>{{ route.healthcheck_bool ? "active" : "inactive" }}</td>
               </tr>
               <tr>
-                <th>Methods</th>
-                <td>
-                  <span
-                    class="method-wrapper"
-                    v-for="method in route.methods"
-                    :key="method"
-                  >
-                    {{ method }}
-                  </span>
-                </td>
-              </tr>
-              <tr>
                 <th>Proxy</th>
                 <td :contenteditable="editable" @blur="onEdit" title="proxy">
                   {{ route.proxy == "" ? "not defined" : route.proxy }}
+                </td>
+              </tr>
+              <tr>
+                <th>Methods</th>
+                <td>
+                  {{ route.methods }}
                 </td>
               </tr>
             </table>
@@ -100,9 +94,15 @@
                 </td>
               </tr>
               <tr>
-                <th>Timeout</th>
-                <td :contenteditable="editable" @blur="onEdit" title="timeout">
-                  {{ route.timeout }}
+                <th>Read Timeout</th>
+                <td :contenteditable="editable" @blur="onEdit" title="read_timeout">
+                  {{ route.read_timeout }}
+                </td>
+              </tr>
+              <tr>
+                <th>Write Timeout</th>
+                <td :contenteditable="editable" @blur="onEdit" title="write_timeout">
+                  {{ route.write_timeout }}
                 </td>
               </tr>
               <tr>
@@ -176,18 +176,12 @@
           </v-row>
         </div>
 
-        <v-divider v-if="showSwitchover"></v-divider>
+        
         <div v-if="showSwitchover">
+          <v-divider v-if="showSwitchover && route.switchover != null"></v-divider>
           <v-row fluid no-gutters class="text" style="padding-bottom: 0;">
-            <h1>Switchover</h1>
+              <Switchover v-if="route.switchover != null" :switchover="route.switchover" />
           </v-row>
-          <v-row fluid no-gutters class="text-center">
-            <v-col>
-              <p v-if="route.switchover == null" >No Switchover defined.</p>
-              <Switchover v-else :switchover="route.switchover" />
-            </v-col>
-          </v-row>
-          
         </div>
 
         <v-divider v-if="showAlerts"></v-divider>
@@ -225,6 +219,7 @@ export default {
     route: Object,
     showAll: Boolean,
     showButtons: Boolean,
+    showSwitchover: Boolean,
     showBackends: Boolean,
     showAlerts: Boolean,
     showConfig: Boolean,
@@ -236,7 +231,6 @@ export default {
   data() {
     return {
       show: Boolean,
-      showSwitchover: true,
       search: "",
       headers: [
         {
@@ -290,6 +284,16 @@ export default {
       return this.$store.getters.getLoading;
     },
     switchoverStatusColor: function() {
+      if (this.route.switchover !== null) {
+        if (this.route.switchover.status == "Failed") {
+          return "error"
+        } else if (this.route.switchover.status == "Running") {
+          return "success"
+        } else if (this.route.switchover.status == "Stopped") {
+          return "success"
+        }
+        return "success";
+      }
       return "success";
     },
     backendsAsList: function() {

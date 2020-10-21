@@ -76,7 +76,7 @@ func (s *StateMgt) GetMetricsData(ctx *fasthttp.RequestCtx) {
 
 func (s *StateMgt) GetMetricsOfBackend(ctx *fasthttp.RequestCtx) {
 
-	id := string(ctx.QueryArgs().Peek("id"))
+	id := string(ctx.QueryArgs().Peek("backend"))
 
 	timeframe := getTimeDurationFromURLQuery("timeframe", ctx, DefaultTimeframe)
 	granularity := getTimeDurationFromURLQuery("granularity", ctx, timeframe)

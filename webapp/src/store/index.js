@@ -81,11 +81,12 @@ export default new Vuex.Store({
         route = "";
       }
       axios
-        .get(this.state.baseUrl + "v1/monitoring/routes/" + route, {
+        .get(this.state.baseUrl + "v1/monitoring/routes" , {
           data: {},
           params: {
-            timeframe: this.state.timeframe,
-            granularity: this.state.granularity,
+            "route": route,
+            "timeframe": this.state.timeframe,
+            "granularity": this.state.granularity,
           },
           timeout: 2000,
         })
@@ -130,9 +131,10 @@ export default new Vuex.Store({
         backend = "";
       }
       axios
-        .get(this.state.baseUrl + "v1/monitoring/backends/" + backend, {
+        .get(this.state.baseUrl + "v1/monitoring/backends", {
           data: {},
           params: {
+            "backend": backend,
             timeframe: this.state.timeframe,
             granularity: this.state.granularity,
           },
@@ -187,7 +189,13 @@ export default new Vuex.Store({
       state.loading = true;
       console.log(routeName);
       axios
-        .delete(this.state.baseUrl + "v1/routes/" + routeName)
+        .delete(this.state.baseUrl + "v1/routes", {
+          data: {},
+          params: {
+            "name": routeName
+          },
+          timeout: 2000,
+        })
         .then((response) => {
           if (response.status == 200) {
             // route successfully deleted
@@ -216,9 +224,46 @@ export default new Vuex.Store({
       console.log(`Delete backend ${dObj.backend} from Route ${dObj.route}`);
       state.loading = true;
       axios
-        .delete(
-          `${this.state.baseUrl}v1/routes/${dObj.route}/backends/${dObj.backend}`
-        )
+        .delete(this.state.baseUrl + "v1/routes/backends", {
+          data: {},
+          params: {
+            "route": dObj.route,
+            "backend": dObj.backend,
+          },
+          timeout: 2000,
+        })
+        .then((response) => {
+          if (response.status == 200) {
+            // route successfully deleted
+            this.commit("pullRoute");
+          }
+          state.loading = false;
+        })
+        .catch((error) => {
+          state.loading = false;
+          console.error(error);
+          eventBus.$emit("showEvent", {
+            icon: "mdi-alert",
+            icon_color: "error",
+            title: "Error",
+            message: error.message,
+          });
+        });
+    },
+    deleteSwitchover: async function(state, routeName) {
+      if (state.editing) {
+        return;
+      }
+      console.log(`Delete switchover from Route ${routeName}`);
+      state.loading = true;
+      axios
+        .delete(this.state.baseUrl + "v1/routes/switchover", {
+          data: {},
+          params: {
+            "route": routeName,
+          },
+          timeout: 2000,
+        })
         .then((response) => {
           if (response.status == 200) {
             // route successfully deleted

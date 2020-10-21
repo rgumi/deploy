@@ -1,23 +1,10 @@
 <template>
-  <div>
-    <v-row style="height:52px;">
-      <h1>Conditions</h1>
-      <v-spacer />
-      <v-icon
-        v-if="editable"
-        size="28"
-        class="addCondition"
-        @click="addCondition"
-        >mdi-plus</v-icon
-      >
-    </v-row>
-    <v-row>
       <v-data-table
         :headers="headers"
         :items="conditions"
         :hide-default-footer="true"
         :disable-pagination="true"
-        style="width: 100%; overflow: scroll; max-height: 210px;"
+        style="width: 100%; height: 100%; overflow: scroll;"
       >
         <template v-slot:item="row">
           <tr>
@@ -39,8 +26,6 @@
           </tr>
         </template>
       </v-data-table>
-    </v-row>
-  </div>
 </template>
 
 <script>

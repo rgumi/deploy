@@ -99,6 +99,7 @@ func (r *Router) RemoveHandle(method, prefix string) error {
 func (r *Router) ServeHTTP(ctx *fasthttp.RequestCtx) {
 	defer func() {
 		if err := recover(); err != nil {
+			log.Errorf("Recovered from Error: %v", err.(error))
 			r.ErrorHandler(ctx, err.(error))
 		}
 	}()

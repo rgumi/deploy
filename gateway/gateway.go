@@ -8,6 +8,7 @@ import (
 	"github.com/valyala/fasthttp/reuseport"
 
 	"github.com/rgumi/depoy/metrics"
+	"github.com/rgumi/depoy/middleware"
 	"github.com/rgumi/depoy/route"
 	"github.com/rgumi/depoy/router"
 	log "github.com/sirupsen/logrus"
@@ -78,7 +79,9 @@ func (g *Gateway) Reload() {
 		// add all routes to the router
 		for _, method := range routeItem.Methods {
 			// for each http-method add a handler to the router
-			newRouter[routeItem.Host].Handle(method, routeItem.Prefix, routeItem.GetHandler())
+			newRouter[routeItem.Host].Handle(method, routeItem.Prefix,
+				middleware.LogRequest(routeItem.GetHandler()),
+			)
 		}
 	}
 	// overwrite existing tree with new

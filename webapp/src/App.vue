@@ -149,10 +149,10 @@ table tr:last-child td {
 
 .method-wrapper {
   background: rgba(0, 0, 0, 0.2);
-  margin-bottom: 5px;
   padding: 5px;
   border-radius: 15%;
-  margin-right: 5px;
+  margin-right: 8px;
+  margin-bottom: 10px;
 }
 .id-text {
   padding: 1vh;

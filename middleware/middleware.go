@@ -13,9 +13,9 @@ func LogRequest(handler fasthttp.RequestHandler) fasthttp.RequestHandler {
 		before := time.Now()
 
 		defer func() {
-			log.Infof("%s \"%s %s %s\" %v",
+			log.Infof("%s \"%s %s %s\" %d %v",
 				ctx.RemoteAddr(), ctx.Method(), ctx.URI().String(),
-				string(ctx.Request.Header.UserAgent()), time.Since(before),
+				string(ctx.Request.Header.UserAgent()), ctx.Response.StatusCode(), time.Since(before),
 			)
 		}()
 		handler(ctx)

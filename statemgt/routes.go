@@ -179,8 +179,10 @@ func (s *StateMgt) RemoveBackendFromRoute(ctx *fasthttp.RequestCtx) {
 		returnError(ctx, 404, fmt.Errorf("Could not find route"), nil)
 		return
 	}
-	route.RemoveBackend(backendID)
-
+	if err = route.RemoveBackend(backendID); err != nil {
+		returnError(ctx, 400, err, nil)
+		return
+	}
 	marshalAndReturn(ctx, config.ConvertRouteToInputRoute(route))
 }
 

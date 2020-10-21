@@ -43,6 +43,7 @@
           <v-row v-for="item in configuredRoutes" :key="item.name">
             <RouteComponent
               :showBackends="true"
+              :showSwitchover="false"
               :showButtons="true"
               :showAll="showAll"
               :showConfig="false"

@@ -83,7 +83,7 @@
           <RouteComponent
             :editable="editable"
             :showAlerts="false"
-            :showAllProps="true"
+            :showConfig="true"
             :showBackends="false"
             :showButtons="false"
             :showAll="showAll"
@@ -92,8 +92,19 @@
         </div>
       </v-col>
     </v-row>
+
     <v-row>
-      <v-col xs12 class="text-center" mt-3>
+      <v-col class="text-center" mt-3>
+         <SwitchoverComponent 
+          v-on:deleteMe="deleteSwitchover($event)"
+          v-if="selectedRoute !== null && selectedRoute.switchover !== null" 
+          :switchover="selectedRoute.switchover" 
+          :showAll="showAll" />
+      </v-col>
+    </v-row>
+
+    <v-row>
+      <v-col class="text-center" mt-3>
         <p v-if="backends === []">No backend found.</p>
         <div v-else>
           <BackendComponent
@@ -113,12 +124,14 @@
 <script>
 import RouteComponent from "@/components/RouteComponent.vue";
 import BackendComponent from "@/components/BackendComponent.vue";
+import SwitchoverComponent from "@/components/SwitchoverComponent";
 import store from "@/store/index";
 export default {
   name: "Route",
   components: {
     RouteComponent,
-    BackendComponent
+    BackendComponent,
+    SwitchoverComponent
   },
   data: () => {
     return {
@@ -161,6 +174,9 @@ export default {
         route: this.selectedRoute.name,
         backend: id
       });
+    },
+    deleteSwitchover: function() {
+      this.$store.commit("deleteSwitchover", this.selectedRoute.name);
     }
   },
   computed: {
