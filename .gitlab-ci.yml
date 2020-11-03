@@ -54,7 +54,7 @@ build:vue:
   needs: []
   tags:
     - run_docker
-  image: node
+  image: node:12
   script:
     - cd webapp
     - echo $PROXY
