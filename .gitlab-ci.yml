@@ -57,6 +57,9 @@ build:vue:
   image: node
   script:
     - cd webapp
+    - echo $HTTP_PROXY
+    - npm config set proxy $HTTP_PROXY
+    - npm config set https-proxy $HTTP_PROXY
     - npm install
     - npm run build
   artifacts:
