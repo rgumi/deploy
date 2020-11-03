@@ -39,7 +39,6 @@ data:
         prefix: /prom/
         host: "*"
         rewrite: /prom/
-        cookieTTL: 2m0s
         strategy:
           type: canary
         healthcheckBool: true
@@ -63,7 +62,6 @@ data:
         prefix: /
         host: "*"
         rewrite: /
-        cookieTTL: 2m0s
         strategy:
           type: canary
         healthcheckBool: true
@@ -87,7 +85,6 @@ data:
         prefix: /wahub/
         host: "*"
         rewrite: /watest/
-        cookieTTL: 10m
         strategy:
           type: canary
         healthcheckBool: true

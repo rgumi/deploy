@@ -1,53 +1,100 @@
-addr: :8080
-readTimeout: 5s
-writeTimeout: 5s
-idleTimeout: 10s
-httpTimeout: 10s
-routes:
-  - name: Route1
-    prefix: /route1/
-    host: "*"
-    rewrite: /
-    strategy:
-      type: sticky
-    healthcheckBool: true
-    writeTimeout: 20s
-    readTimeout: 15s
+    addr: :8080
+    readTimeout: 10s
+    writeTimeout: 10s
     idleTimeout: 10s
-    cookieTTL: 30m
-    proxy: ""
-    backends:
-      - name: b1
-        addr: "http://localhost:7070"
-        weight: 100
-        healthcheckUrl: "http://localhost:7070/"
-        scrapeUrl: "http://localhost:7071/metrics"
-        scrapeMetrics: ["go_goroutines"]
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            activeFor: 10s
-            resolveIn: 5s
-          - metric: 5xxRate
-            operator: ">"
-            threshold: 0.3
-            activeFor: 5s
-            resolveIn: 0s
-      - name: b2
-        addr: "http://localhost:9090"
-        weight: 0
-        healthcheckUrl: "http://localhost:9090/"
-        scrapeUrl: "http://localhost:9091/metrics"
-        scrapeMetrics: ["go_goroutines"]
-        metricThresholds:
-          - metric: ResponseTime
-            operator: ">"
-            threshold: 1000
-            activeFor: 10s
-            resolveIn: 5s
-          - metric: 5xxRate
-            operator: ">"
-            threshold: 0.3
-            activeFor: 5s
-            resolveIn: 0s
+    routes:
+      - name: Grafana
+        prefix: /grafana/
+        host: "*"
+        rewrite: /grafana/
+        strategy:
+          type: canary
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
+        backends:
+          - name: grafana
+            addr: http://grafana-web.monitoring:3000
+            weight: 100
+            metricThresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+      - name: Prometheus
+        prefix: /prom/
+        host: "*"
+        rewrite: /prom/
+        strategy:
+          type: canary
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
+        backends:
+          - name: prometheus
+            addr: http://prometheus-web.monitoring:8080
+            weight: 100
+            metricThresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+      - name: Kubernetes Dashboard
+        prefix: /
+        host: "*"
+        rewrite: /
+        strategy:
+          type: canary
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
+        backends:
+          - name: k8s-dashboard
+            addr: https://kubernetes-dashboard.kubernetes-dashboard:443
+            weight: 100
+            metricThresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+              - metric: 6xxRate
+                operator: ">"
+                threshold: 0.1
+                active_for: 10s
+      - name: WAHub Dummy
+        prefix: /wahub/
+        host: "*"
+        rewrite: /watest/
+        strategy:
+          type: canary
+        healthcheckBool: true
+        readTimeout: 5s
+        writeTimeout: 5s
+        idleTimeout: 10s
+        backends:
+          - name: v0-1-0
+            addr: "http://v0-1-0-wabizdummy-svc.depoy-testing:8080"
+            weight: 100
+            healthcheckUrl: "http://v0-1-0-wabizdummy-svc.depoy-testing:8081/prometheus"
+            metricThresholds:          
+              - metric: ResponseTime
+                operator: ">"
+                threshold: 1000
+                active_for: 10s
+                resolve_in: 5s
+              - metric: 5xxRate
+                operator: ">"
+                threshold: 0.3
+                active_for: 5s
+                resolve_in: 20s

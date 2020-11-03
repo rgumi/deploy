@@ -45,7 +45,7 @@ spec:
           args:
             - "--global.loglevel=4"
             - "--global.configfile=/etc/depoy/gateway-config.yaml"
-            - "--global.persistconfig=true"
+            - "--global.persistconfig=false"
             - "--statemgt.prefix=/depoy/"
           image: depoy
           resources:
@@ -65,13 +65,13 @@ spec:
             httpGet:
               path: /healthz
               port: admin
-            initialDelaySeconds: 3
+            initialDelaySeconds: 5
             periodSeconds: 3
           readinessProbe:
             httpGet:
               path: /healthz
               port: admin
-            initialDelaySeconds: 3
+            initialDelaySeconds: 5
             periodSeconds: 3
           volumeMounts:
             - name: depoy-config-volume
