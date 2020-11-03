@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	g *gateway.Gateway
+	gw *gateway.Gateway
 )
 
 func main() {
@@ -44,7 +44,8 @@ func main() {
 	if config.ConfigFile != "" {
 		newGateway := config.LoadFromFile(config.ConfigFile)
 		if newGateway != nil {
-			g = newGateway
+			log.Info("Using configured Gateway")
+			gw = newGateway
 		} else {
 			panic(fmt.Errorf("Unable to recreate the Gateway specified in file"))
 		}
@@ -54,13 +55,13 @@ func main() {
 			storage.NewLocalStorage(config.RetentionPeriod, config.Granulartiy),
 			config.Granulartiy, config.MetricsChannelPuffersize, config.ScrapeMetricsChannelPuffersize,
 		)
-		g = gateway.NewGateway(config.GatewayAddr, newMetricsRepo,
+		gw = gateway.NewGateway(config.GatewayAddr, newMetricsRepo,
 			config.ReadTimeout, config.WriteTimeout, config.IdleTimeout,
 		)
 	}
-	go g.Run()
+	go gw.Run()
 	log.Warnf("Gateway listening on Addr %s", config.GatewayAddr)
-	st := statemgt.NewStateMgt(statemgt.Addr, g, statemgt.Prefix)
+	st := statemgt.NewStateMgt(statemgt.Addr, gw, statemgt.Prefix)
 
 	// package static files into binary
 	box := packr.New("files", distFilepath)

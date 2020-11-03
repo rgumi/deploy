@@ -2,6 +2,7 @@ package config
 
 import (
 	"io/ioutil"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -51,7 +52,7 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 
 // LoadFromFile can be used at startup to read the config from a yaml-file
 func LoadFromFile(file string) *gateway.Gateway {
-
+	start := time.Now()
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		panic(err)
@@ -60,6 +61,7 @@ func LoadFromFile(file string) *gateway.Gateway {
 	if err != nil {
 		panic(err)
 	}
+	log.Infof("Finished initialization of Gateway from file in %v", time.Since(start))
 	return g
 }
 
