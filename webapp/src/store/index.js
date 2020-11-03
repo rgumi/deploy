@@ -17,7 +17,7 @@ export default new Vuex.Store({
     routeMetrics: new Map(),
     backendMetrics: new Map(),
     timeframe: 120,
-    granularity: 10,
+    granularity: 5,
     editing: false,
   },
   actions: {
