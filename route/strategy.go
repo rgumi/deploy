@@ -135,7 +135,7 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 }
 
 // CanaryHandler uses a Canary Strategy and selects a backend for forwarding
-// based on its weight. StickyHandler also sets a session cookie so that all
+// based on its weight. CanaryHandler also sets a session cookie so that all
 // following requests are forwarded to the same backend
 func CanaryHandler(r *Route) func(ctx *fasthttp.RequestCtx) {
 	return func(ctx *fasthttp.RequestCtx) {

@@ -112,7 +112,7 @@ func NewMetricsRepository(
 
 	channel := make(chan *Metrics, metricChannelPuffersize)
 	scrapeMetricsChannel := make(chan ScrapeMetrics, scrapeMetricChannelPuffersize)
-	log.Info("Created new metricsRepository")
+	log.Info("Created new MetricsRepo")
 	repo := &Repository{
 		Storage:              st,
 		PromMetrics:          NewPromMetrics(),
@@ -143,7 +143,7 @@ func (m *Repository) RegisterBackend(
 			return nil, fmt.Errorf("instance with ID %v already exists", key)
 		}
 	}
-
+	log.Infof("Registering new Backend %v of %s in MetricsRepo", backendID, routeName)
 	newBackend := &MonitoredBackend{
 		ID:                 backendID,
 		Route:              routeName,
@@ -161,13 +161,16 @@ func (m *Repository) RegisterBackend(
 	}
 
 	// add to PromMetrics
+	log.Infof("Registering new PromMetric %v of %s in MetricsRepo", backendID, routeName)
 	m.PromMetrics.RegisterRouteBackend(routeName, backendID)
+
 	if newBackend.ScrapeURL != nil {
 		go m.jobLoop(newBackend)
 	}
 
 	// append to the list
 	m.Backends[backendID] = newBackend
+	log.Infof("Successfully registered %v of %s in MetricsRepo", backendID, routeName)
 	return newBackend.AlertChannel, nil
 }
 
@@ -319,7 +322,7 @@ func (m *Repository) Listen() {
 		case metrics := <-m.InChannel:
 			log.Trace(metrics)
 			// update PromMetrics
-			go m.PromMetrics.Update(
+			m.PromMetrics.Update(
 				float64(metrics.UpstreamResponseTime), float64(metrics.ContentLength),
 				metrics.ResponseStatus, metrics.RequestMethod, metrics.Route, metrics.BackendID)
 
@@ -400,10 +403,8 @@ func (m *Repository) jobLoop(b *MonitoredBackend) {
 		select {
 		case _ = <-b.stopScraping:
 			return
-
-		default:
+		case _ = <-time.After(b.ScrapeInterval):
 			m.scrapeJob(b)
-			time.Sleep(b.ScrapeInterval)
 		}
 	}
 

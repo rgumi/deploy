@@ -28,10 +28,10 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 	newGateway := ConvertInputGatewayToGateway(existingGateway)
 	for _, existingRoute := range existingGateway.Routes {
 		if err := defaults.Set(existingRoute); err != nil {
-			panic(err)
+			return nil, err
 		}
 
-		log.Debugf("Adding existing route %v to  new Gateway", existingRoute.Name)
+		log.Infof("Adding existing route %v to  new Gateway", existingRoute.Name)
 		newRoute, err := ConvertInputRouteToRoute(existingRoute)
 		if err != nil {
 			return nil, err
@@ -40,13 +40,18 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 			return nil, err
 		}
 		err = existingRoute.Strategy.Copy(newRoute)
+		if err != nil {
+			return nil, err
+		}
 		err = newGateway.RegisterRoute(newRoute)
 		if err != nil {
 			return nil, err
 		}
 		newRoute.Reload()
+		log.Warnf("Successfully reloaded route %s", newRoute.Name)
 	}
 	newGateway.Reload()
+	log.Warnf("Successfully reloaded Gateway")
 	return newGateway, nil
 }
 
@@ -55,11 +60,11 @@ func LoadFromFile(file string) *gateway.Gateway {
 	start := time.Now()
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	g, err := ParseFromBinary(yaml.Unmarshal, b)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	log.Infof("Finished initialization of Gateway from file in %v", time.Since(start))
 	return g

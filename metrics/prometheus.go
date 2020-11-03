@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 )
 
 // PromMetric stores all metrics of a Backend for the runtime
@@ -91,16 +92,16 @@ func NewPromMetrics() *PromMetrics {
 }
 
 func (p *PromMetrics) RegisterRouteBackend(routeName string, backend uuid.UUID) {
+	log.Debugf("Trying to register new PromMetric for %v of %s", backend, routeName)
 	p.mux.Lock()
-	defer p.mux.Unlock()
 
 	if _, found := p.Metrics[routeName]; !found {
 		p.Metrics[routeName] = make(map[uuid.UUID]*PromMetric)
-
 	}
 	p.Metrics[routeName][backend] = new(PromMetric)
 
-	// already exist
+	p.mux.Unlock()
+	log.Debugf("Successfully registered new PromMetric for %v of %s", backend, routeName)
 }
 
 func (p *PromMetrics) RemoveRouteBackend(routeName string, backend uuid.UUID) {
@@ -116,13 +117,9 @@ func (p *PromMetrics) Update(
 	responseTime, contentLength float64,
 	responseStatus int, requestMethod string, routeName string, backend uuid.UUID) {
 
-	p.mux.Lock()
-	defer p.mux.Unlock()
-
 	promMetric, found := p.Metrics[routeName][backend]
 	if !found {
-		// not registered
-		return
+		return // not registered
 	}
 
 	TotalHTTPRequests.With(
@@ -148,6 +145,9 @@ func (p *PromMetrics) Update(
 			"code":    strconv.Itoa(responseStatus),
 			"method":  requestMethod},
 	).Set(p.GetAvgContentLength(routeName, backend))
+
+	p.mux.Lock()
+	defer p.mux.Unlock()
 
 	promMetric.TotalResponses++
 
@@ -185,6 +185,7 @@ func (p *PromMetrics) Update(
 func (p *PromMetrics) GetAvgResponseTime(routeName string, backend uuid.UUID) float64 {
 	p.mux.RLock()
 	defer p.mux.RUnlock()
+
 	if val, found := p.Metrics[routeName][backend]; found {
 		return val.ResponseTime
 	}
@@ -196,6 +197,7 @@ func (p *PromMetrics) GetAvgResponseTime(routeName string, backend uuid.UUID) fl
 func (p *PromMetrics) GetAvgContentLength(routeName string, backend uuid.UUID) float64 {
 	p.mux.RLock()
 	defer p.mux.RUnlock()
+
 	if val, found := p.Metrics[routeName][backend]; found {
 		return val.ContentLength
 	}

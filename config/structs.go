@@ -206,7 +206,7 @@ func ConvertInputRouteToRoute(r *InputRoute) (*route.Route, error) {
 
 	for _, backend := range r.Backends {
 		if backend.ID == uuid.Nil {
-			log.Warnf("Setting new uuid for %s", r.Name)
+			log.Warnf("Setting new uuid for Backend of %s", r.Name)
 			backend.ID = uuid.New()
 		}
 		for _, cond := range backend.Metricthresholds {

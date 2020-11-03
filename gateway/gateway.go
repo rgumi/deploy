@@ -156,7 +156,7 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 	defer g.mux.Unlock()
 
 	var err error
-	log.Debugf("Trying to register new route %s", newRoute.Name)
+	log.Infof("Trying to register new route %s", newRoute.Name)
 
 	if newRoute.Name == "" {
 		return fmt.Errorf("Route.Name cannot be empty")
@@ -165,12 +165,13 @@ func (g *Gateway) RegisterRoute(newRoute *route.Route) error {
 		return err
 	}
 	if g.MetricsRepo == nil {
-		panic(fmt.Errorf("Gateway MetricsRepo is nil"))
+		return fmt.Errorf("Gateway MetricsRepo is nil")
 	}
 	log.Debugf("Setting up MetricsRepo for %s", newRoute.Name)
 	newRoute.MetricsRepo = g.MetricsRepo
 
 	g.Routes[newRoute.Name] = newRoute
+	log.Infof("Successfully registered new route %s", newRoute.Name)
 	return nil
 }
 

@@ -42,13 +42,11 @@ func main() {
 	log.SetLevel(log.Level(config.LogLevel))
 	// read config from file if configured
 	if config.ConfigFile != "" {
-		newGateway := config.LoadFromFile(config.ConfigFile)
-		if newGateway != nil {
-			log.Info("Using configured Gateway")
-			gw = newGateway
-		} else {
-			panic(fmt.Errorf("Unable to recreate the Gateway specified in file"))
+		gw = config.LoadFromFile(config.ConfigFile)
+		if gw == nil {
+			log.Fatal(fmt.Errorf("Unable to recreate the Gateway specified in file"))
 		}
+		log.Info("Using configured Gateway")
 	} else {
 		// if no config file is configured, a new instance will be started
 		_, newMetricsRepo := metrics.NewMetricsRepository(

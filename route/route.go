@@ -174,17 +174,21 @@ func (r *Route) Reload() {
 				backend.Metricthresholds = append(backend.Metricthresholds, mustHaveCondition)
 			}
 
-			log.Infof("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
+			log.Debugf("Registering %v of %s to MetricsRepository", backend.ID, r.Name)
 			backend.AlertChan, _ = r.MetricsRepo.RegisterBackend(
 				r.Name, backend.ID, backend.Scrapeurl, backend.Scrapemetrics,
 				r.ScrapeInterval, backend.Metricthresholds,
 			)
+
 			// start monitoring the registered backend
+			log.Debugf("Starting monitoring goroutine of %v of %s", backend.ID, r.Name)
 			go r.MetricsRepo.Monitor(backend.ID, r.MonitoringInterval)
 			// starts listening on alertChan
+			log.Debugf("Starting listening goroutine of %v of %s", backend.ID, r.Name)
 			go backend.Monitor()
 		}
 
+		log.Debugf("Starting initial healthcheck of %v of %s", backend.ID, r.Name)
 		if r.HealthCheck {
 			go r.validateStatus(backend)
 		} else {
@@ -195,7 +199,6 @@ func (r *Route) Reload() {
 
 func (r *Route) validateStatus(backend *Backend) {
 	log.Debugf("Executing validateStatus on %v", backend.ID)
-
 	if r.healthCheck(backend) {
 		log.Debugf("Finished healtcheck of %v successfully", backend.ID)
 		backend.UpdateStatus(true)
