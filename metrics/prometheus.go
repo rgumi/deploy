@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
@@ -22,6 +23,8 @@ type PromMetric struct {
 	GetRequest        int64
 	PostRequest       int64
 	DeleteRequest     int64
+	PutRequest        int64
+	PatchRequest      int64
 }
 
 type PromMetrics struct {
@@ -116,45 +119,72 @@ func (p *PromMetrics) Update(
 	p.mux.Lock()
 	defer p.mux.Unlock()
 
-	var newMetric *PromMetric
-	var found bool
-
-	if newMetric, found = p.Metrics[routeName][backend]; !found {
+	promMetric, found := p.Metrics[routeName][backend]
+	if !found {
 		// not registered
 		return
 	}
 
-	newMetric.TotalResponses++
+	TotalHTTPRequests.With(
+		prometheus.Labels{
+			"route":   routeName,
+			"backend": backend.String(),
+			"code":    strconv.Itoa(responseStatus),
+			"method":  requestMethod},
+	).Inc()
+
+	AvgResponseTime.With(
+		prometheus.Labels{
+			"route":   routeName,
+			"backend": backend.String(),
+			"code":    strconv.Itoa(responseStatus),
+			"method":  requestMethod},
+	).Set(p.GetAvgResponseTime(routeName, backend))
+
+	AvgContentLength.With(
+		prometheus.Labels{
+			"route":   routeName,
+			"backend": backend.String(),
+			"code":    strconv.Itoa(responseStatus),
+			"method":  requestMethod},
+	).Set(p.GetAvgContentLength(routeName, backend))
+
+	promMetric.TotalResponses++
 
 	switch status := responseStatus; {
 	case status < 300:
-		newMetric.ResponseStatus200++
+		promMetric.ResponseStatus200++
 	case status < 400:
-		newMetric.ResponseStatus300++
+		promMetric.ResponseStatus300++
 	case status < 500:
-		newMetric.ResponseStatus400++
+		promMetric.ResponseStatus400++
 	case status < 600:
-		newMetric.ResponseStatus500++
+		promMetric.ResponseStatus500++
 	default:
-		newMetric.ResponseStatus600++
+		promMetric.ResponseStatus600++
 	}
 
 	switch method := requestMethod; {
 	case method == "GET":
-		newMetric.GetRequest++
+		promMetric.GetRequest++
 	case method == "POST":
-		newMetric.PostRequest++
+		promMetric.PostRequest++
 	case method == "DELETE":
-		newMetric.DeleteRequest++
+		promMetric.DeleteRequest++
+	case method == "PUT":
+		promMetric.PutRequest++
+	case method == "PATCH":
+		promMetric.PatchRequest++
 	}
-
-	newMetric.ResponseTime = floatingAverage(newMetric.ResponseTime, responseTime, float64(newMetric.TotalResponses))
-	newMetric.ContentLength = floatingAverage(newMetric.ContentLength, contentLength, float64(newMetric.TotalResponses))
+	promMetric.ResponseTime = floatingAverage(promMetric.ResponseTime, responseTime, float64(promMetric.TotalResponses))
+	promMetric.ContentLength = floatingAverage(promMetric.ContentLength, contentLength, float64(promMetric.TotalResponses))
 }
 
 // GetAvgResponseTime returns the average response time of the given route/backend
 // if no route/backend is found, -1 is returned
 func (p *PromMetrics) GetAvgResponseTime(routeName string, backend uuid.UUID) float64 {
+	p.mux.RLock()
+	defer p.mux.RUnlock()
 	if val, found := p.Metrics[routeName][backend]; found {
 		return val.ResponseTime
 	}
@@ -164,6 +194,8 @@ func (p *PromMetrics) GetAvgResponseTime(routeName string, backend uuid.UUID) fl
 // GetAvgContentLength returns the average response time of the given route/backend
 // if no route/backend is found, -1 is returned
 func (p *PromMetrics) GetAvgContentLength(routeName string, backend uuid.UUID) float64 {
+	p.mux.RLock()
+	defer p.mux.RUnlock()
 	if val, found := p.Metrics[routeName][backend]; found {
 		return val.ContentLength
 	}

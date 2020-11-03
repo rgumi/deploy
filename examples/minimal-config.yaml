@@ -1,0 +1,33 @@
+routes:
+  - name: Route1
+    prefix: /route1/
+    rewrite: /
+    strategy:
+      type: canary
+    backends:
+      - name: backend1
+        addr: http://localhost:7070
+        weight: 100
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+          - metric: "5xxRate"
+            operator: ">"
+            threshold: 0.2
+          - metric: "4xxRate"
+            operator: ">"
+            threshold: 0.3
+      - name: backend2
+        addr: http://localhost:9090
+        weight: 0
+        metricThresholds:
+          - metric: ResponseTime
+            operator: ">"
+            threshold: 1000
+          - metric: "5xxRate"
+            operator: ">"
+            threshold: 0.2
+          - metric: "4xxRate"
+            operator: ">"
+            threshold: 0.3

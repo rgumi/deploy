@@ -51,8 +51,8 @@ func NewUpstreamclient(
 }
 
 func (c *Upstreamclient) Send(req *fasthttp.Request, m *metrics.Metrics) (*fasthttp.Response, error) {
-	start := time.Now()
 	resp := fasthttp.AcquireResponse()
+	start := time.Now()
 	if err := c.client.Do(req, resp); err != nil {
 		return nil, err
 	}

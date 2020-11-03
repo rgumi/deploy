@@ -48,18 +48,16 @@ func (st *LocalStorage) Job() {
 	for {
 		select {
 		case _ = <-st.killChan:
-			// exit loop
-			return
+			return // exit loop
 		case _ = <-time.After(st.Granularity):
 			go func() {
 				// Lock & Unlock data
 				st.mux.Lock()
 				st.pufferMux.Lock()
 				defer st.mux.Unlock()
-
-				st.readPuffer()
+				st.readPuffer() // merge puffer into data
 				st.pufferMux.Unlock()
-				st.deleteOldData()
+				st.deleteOldData() // cleanup data
 			}()
 		}
 	}
@@ -162,6 +160,43 @@ func (st *LocalStorage) ReadRoute(route string, start, end time.Time) (Metric, e
 	return Metric{}, fmt.Errorf("Could not find provided route %v", route)
 }
 
+func (st *LocalStorage) readPuffer() {
+	now := time.Now()
+	for routeName, routeData := range st.puffer {
+		for backendID, backendData := range routeData {
+			// no new data
+			if len(st.puffer[routeName][backendID]) == 0 {
+				continue
+			}
+			if _, found := st.data[routeName]; !found {
+				st.data[routeName] = make(map[uuid.UUID]map[time.Time]Metric)
+				st.data[routeName][backendID] = make(map[time.Time]Metric)
+			} else {
+				if _, found := st.data[routeName][backendID]; !found {
+					st.data[routeName][backendID] = make(map[time.Time]Metric)
+				}
+			}
+			// write pufferdata to data
+			st.data[routeName][backendID][now] = makeAverageBackend(backendData)
+			// empty puffer
+			st.puffer[routeName][backendID] = []Metric{}
+		}
+	}
+}
+func (st *LocalStorage) deleteOldData() {
+	now := time.Now()
+	for _, routeData := range st.data { // for each route
+		for _, backendData := range routeData { // for each backend of route
+			for timestamp := range backendData { // for each timestamp
+				// "full table scan" as go maps are not sorted
+				if timestamp.Add(st.RetentionPeriod).Before(now) {
+					delete(backendData, timestamp) // metric is out of retention period => delete it
+				}
+			}
+		}
+	}
+}
+
 /*
 	Helper functions
 
@@ -202,45 +237,4 @@ func makeAverageBackend(in []Metric) Metric {
 	}
 
 	return finalMetric
-}
-
-func (st *LocalStorage) readPuffer() {
-	now := time.Now()
-	for routeName, routeData := range st.puffer {
-		for backendID, backendData := range routeData {
-			// no new data
-			if len(st.puffer[routeName][backendID]) == 0 {
-				continue
-			}
-			if _, found := st.data[routeName]; !found {
-				st.data[routeName] = make(map[uuid.UUID]map[time.Time]Metric)
-				st.data[routeName][backendID] = make(map[time.Time]Metric)
-			} else {
-				if _, found := st.data[routeName][backendID]; !found {
-					st.data[routeName][backendID] = make(map[time.Time]Metric)
-				}
-			}
-			// write pufferdata to data
-			st.data[routeName][backendID][now] = makeAverageBackend(backendData)
-			// empty puffer
-			st.puffer[routeName][backendID] = []Metric{}
-		}
-	}
-}
-func (st *LocalStorage) deleteOldData() {
-	now := time.Now()
-	// for each route
-	for _, routeData := range st.data {
-		// for each backend of route
-		for _, backendData := range routeData {
-			// for each timestamped, averaged metric of backend
-			for timestamp := range backendData {
-				// "full table scan" as go maps are not sorted
-				if timestamp.Add(st.RetentionPeriod).Before(now) {
-					// metric is out of retention period => delete it
-					delete(backendData, timestamp)
-				}
-			}
-		}
-	}
 }

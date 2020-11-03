@@ -38,7 +38,7 @@ func ParseFromBinary(unmarshal UnmarshalFunc, b []byte) (*gateway.Gateway, error
 		if err = existingRoute.Strategy.Validate(newRoute); err != nil {
 			return nil, err
 		}
-		err = existingRoute.Strategy.Reset(newRoute)
+		err = existingRoute.Strategy.Copy(newRoute)
 		err = newGateway.RegisterRoute(newRoute)
 		if err != nil {
 			return nil, err

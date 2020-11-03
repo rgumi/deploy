@@ -65,7 +65,6 @@ func (c *Condition) Compile() func(m map[string]float64) {
 // NewCondition returns a new condition for the given parameters
 // Initializes correctly by setting up IsTrue to a conditional function
 func NewCondition(metric, operator string, threshhold float64, activeFor, resolveIn time.Duration) *Condition {
-
 	if metric == "" || operator == "" || activeFor == 0 {
 		panic(fmt.Errorf("Parameters cannot be empty"))
 	}

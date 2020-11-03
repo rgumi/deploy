@@ -312,52 +312,22 @@ func (m *Repository) Monitor(backendID uuid.UUID, interval time.Duration) error 
 // Listen listens on all channels and adds Metrics to the storage
 // alarms when a treshhold is reached
 func (m *Repository) Listen() {
-
 	for {
 		select {
-		// received the metrics struct with backendID and all metrics
+		case _ = <-m.shutdown:
+			return // stop listening
 		case metrics := <-m.InChannel:
 			log.Trace(metrics)
-
 			// update PromMetrics
-
 			go m.PromMetrics.Update(
 				float64(metrics.UpstreamResponseTime), float64(metrics.ContentLength),
 				metrics.ResponseStatus, metrics.RequestMethod, metrics.Route, metrics.BackendID)
 
-			// update Prometheus Metrics
-
-			TotalHTTPRequests.With(
-				prometheus.Labels{
-					"route":   metrics.Route,
-					"backend": metrics.BackendID.String(),
-					"code":    strconv.Itoa(metrics.ResponseStatus),
-					"method":  metrics.RequestMethod},
-			).Inc()
-
-			AvgResponseTime.With(
-				prometheus.Labels{
-					"route":   metrics.Route,
-					"backend": metrics.BackendID.String(),
-					"code":    strconv.Itoa(metrics.ResponseStatus),
-					"method":  metrics.RequestMethod},
-			).Set(m.PromMetrics.GetAvgResponseTime(metrics.Route, metrics.BackendID))
-
-			AvgContentLength.With(
-				prometheus.Labels{
-					"route":   metrics.Route,
-					"backend": metrics.BackendID.String(),
-					"code":    strconv.Itoa(metrics.ResponseStatus),
-					"method":  metrics.RequestMethod},
-			).Set(m.PromMetrics.GetAvgContentLength(metrics.Route, metrics.BackendID))
-
-			// Get Scrape Metrics and persist to Storage
 			backend, found := m.Backends[metrics.BackendID]
-			// check if backend exists (to avoid nil pointer exc)
-			if !found {
+			if !found { // check if backend exists (to avoid nil pointer exc)
 				continue
 			}
-			scrapeMetrics := backend.ScrapeMetricPuffer
+			scrapeMetrics := backend.ScrapeMetricPuffer // Get Scrape Metrics for last interval
 			if scrapeMetrics == nil {
 				m.Storage.Write(
 					metrics.Route, metrics.BackendID, nil, metrics.UpstreamResponseTime,
@@ -367,21 +337,15 @@ func (m *Repository) Listen() {
 					metrics.Route, metrics.BackendID, scrapeMetrics, metrics.UpstreamResponseTime,
 					metrics.ContentLength, metrics.ResponseStatus)
 			}
-			MetricsPool.Put(metrics)
+			ReleaseMetrics(metrics) // return obj to obj-pool
 
 		case scrapeMetrics := <-m.scrapeMetricsChannel:
-
+			log.Trace(scrapeMetrics)
 			backend, found := m.Backends[scrapeMetrics.BackendID]
-
-			// check if backend exists (to avoid nil pointer exc)
-			if !found {
+			if !found { // check if backend exists (to avoid nil pointer exc)
 				continue
 			}
-			log.Trace(scrapeMetrics)
 			backend.ScrapeMetricPuffer = scrapeMetrics.Metrics
-
-		case _ = <-m.shutdown:
-			return
 		}
 	}
 }
@@ -656,4 +620,11 @@ func contains(s []string, e string) bool {
 		}
 	}
 	return false
+}
+
+func AcquireMetrics() *Metrics {
+	return MetricsPool.Get().(*Metrics)
+}
+func ReleaseMetrics(m *Metrics) {
+	MetricsPool.Put(m)
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 
 	"github.com/rgumi/depoy/config"
@@ -37,10 +36,6 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
 	}()
-
-	// set gc interval to reduce cpu load
-	runtime.SetCPUProfileRate(config.GCRate)
-
 	// set global config
 	flag.Parse()
 	// log.SetFormatter(&log.JSONFormatter{})

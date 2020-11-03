@@ -22,12 +22,7 @@ func (s *Strategy) Validate(newRoute *Route) (err error) {
 
 	switch t := strings.ToLower(s.Type); t {
 
-	case "sticky":
-		if newRoute == nil {
-			return fmt.Errorf("Parameter route cannot be nil")
-		}
-
-	case "slippery":
+	case "canary":
 		if newRoute == nil {
 			return fmt.Errorf("Parameter route cannot be nil")
 		}
@@ -48,12 +43,12 @@ func (s *Strategy) Validate(newRoute *Route) (err error) {
 	return nil
 }
 
-// Reset converts an old strategy into a new strategy-instance
+// Copy converts an old strategy into a new strategy-instance
 // and sets it for the provided route
-func (s *Strategy) Reset(newRoute *Route) error {
+func (s *Strategy) Copy(newRoute *Route) error {
 	switch t := strings.ToLower(s.Type); t {
-	case "sticky":
-		strat, err := NewStickyStrategy(newRoute)
+	case "canary":
+		strat, err := NewCanaryStrategy(newRoute)
 		if err != nil {
 			return err
 		}
@@ -78,10 +73,10 @@ func (s *Strategy) Reset(newRoute *Route) error {
 	return nil
 }
 
-func NewStickyStrategy(r *Route) (*Strategy, error) {
+func NewCanaryStrategy(r *Route) (*Strategy, error) {
 	st := &Strategy{
-		Type:    "sticky",
-		Handler: StickyHandler(r),
+		Type:    "canary",
+		Handler: CanaryHandler(r),
 	}
 	return st, st.Validate(r)
 }
@@ -139,10 +134,10 @@ func NewShadowStrategy(r *Route, shadowBackend string) (*Strategy, error) {
 	}, nil
 }
 
-// StickyHandler uses a Canary Strategy and selects a backend for forwarding
+// CanaryHandler uses a Canary Strategy and selects a backend for forwarding
 // based on its weight. StickyHandler also sets a session cookie so that all
 // following requests are forwarded to the same backend
-func StickyHandler(r *Route) func(ctx *fasthttp.RequestCtx) {
+func CanaryHandler(r *Route) func(ctx *fasthttp.RequestCtx) {
 	return func(ctx *fasthttp.RequestCtx) {
 		var err error
 		var target *Backend
@@ -183,7 +178,9 @@ func StickyHandler(r *Route) func(ctx *fasthttp.RequestCtx) {
 		ctx.Request.CopyTo(req)
 		appendXForwardForHeader(req, ctx.RemoteAddr().String())
 		delRequestHopHeader(req)
-		r.HTTPDo(req, target, HTTPReturn(ctx, c))
+		if err = r.HTTPDo(req, target, HTTPReturn(ctx, c)); err != nil {
+			ctx.Error(handleNetError(err))
+		}
 	}
 }
 
@@ -200,7 +197,9 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 		appendXForwardForHeader(req, ctx.RemoteAddr().String())
 
 		if len(ctx.Request.Header.Peek(headerName)) > 0 {
-			r.HTTPDo(req, target, HTTPReturn(ctx, nil))
+			if err = r.HTTPDo(req, target, HTTPReturn(ctx, nil)); err != nil {
+				ctx.Error(handleNetError(err))
+			}
 			return
 		}
 
@@ -210,7 +209,9 @@ func HeaderHandler(r *Route, headerName, headerValue string, target *Backend) fu
 			ctx.Error("No Upstream Host Available", 503)
 			return
 		}
-		r.HTTPDo(req, target, HTTPReturn(ctx, nil))
+		if err = r.HTTPDo(req, target, HTTPReturn(ctx, nil)); err != nil {
+			ctx.Error(handleNetError(err))
+		}
 	}
 }
 

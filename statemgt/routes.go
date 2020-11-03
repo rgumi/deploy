@@ -57,7 +57,7 @@ func (s *StateMgt) CreateRoute(ctx *fasthttp.RequestCtx) {
 		returnError(ctx, 400, err, nil)
 		return
 	}
-	err = myRoute.Strategy.Reset(newRoute)
+	err = myRoute.Strategy.Copy(newRoute)
 	if err != nil {
 		returnError(ctx, 400, err, nil)
 		return
@@ -110,7 +110,7 @@ func (s *StateMgt) UpdateRouteByName(ctx *fasthttp.RequestCtx) {
 		returnError(ctx, 400, err, nil)
 		return
 	}
-	err = myRoute.Strategy.Reset(newRoute)
+	err = myRoute.Strategy.Copy(newRoute)
 	if err != nil {
 		returnError(ctx, 400, err, nil)
 		return

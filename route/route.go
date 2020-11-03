@@ -289,11 +289,9 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 func (r *Route) StopAll() {
 	r.killHealthCheck <- 1
 	r.RemoveSwitchOver()
-
 	for backendID := range r.Backends {
 		r.RemoveBackend(backendID)
 	}
-
 }
 func (r *Route) RemoveBackend(backendID uuid.UUID) error {
 	log.Warnf("Removing %s from %s", backendID, r.Name)
@@ -308,7 +306,6 @@ func (r *Route) RemoveBackend(backendID uuid.UUID) error {
 	if r.MetricsRepo != nil {
 		r.MetricsRepo.RemoveBackend(backendID)
 	}
-
 	r.Backends[backendID].Stop()
 	delete(r.Backends, backendID)
 	return nil
@@ -413,8 +410,8 @@ forward:
 	}
 
 	if force {
-		// Overwrite the current Strategy with StickyStrategy
-		strategy, err := NewStickyStrategy(r)
+		// Overwrite the current Strategy with CanaryStrategy
+		strategy, err := NewCanaryStrategy(r)
 		if err != nil {
 			return nil, err
 		}
@@ -463,9 +460,9 @@ func (r *Route) RemoveSwitchOver() {
 func (r *Route) HTTPDo(
 	req *fasthttp.Request,
 	target *Backend,
-	f func(*fasthttp.Response)) error {
+	returnResp func(*fasthttp.Response)) error {
 
-	m := metrics.MetricsPool.Get().(*metrics.Metrics)
+	m := metrics.AcquireMetrics()
 	m.Route = r.Name
 	m.BackendID = target.ID
 	m.RequestMethod = string(req.Header.Method())
@@ -478,10 +475,13 @@ func (r *Route) HTTPDo(
 	req.SetRequestURI(uri.String())
 	resp, err := r.Client.Send(req, m)
 	if err != nil {
+		m.ResponseStatus = 600
+		m.ContentLength = -1
+		r.MetricsRepo.InChannel <- m
 		return err
 	}
 	defer fasthttp.ReleaseResponse(resp)
-	f(resp)
+	returnResp(resp)
 	m.ResponseStatus = resp.StatusCode()
 	m.ContentLength = int64(resp.Header.ContentLength())
 	r.MetricsRepo.InChannel <- m
