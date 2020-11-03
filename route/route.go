@@ -87,7 +87,6 @@ func New(
 	if route.HealthCheck {
 		go route.RunHealthCheckOnBackends()
 	}
-
 	return route, nil
 }
 
@@ -289,7 +288,7 @@ func (r *Route) AddExistingBackend(backend *Backend) (uuid.UUID, error) {
 	return newBackend.ID, nil
 }
 
-func (r *Route) StopAll() {
+func (r *Route) Delete() {
 	r.killHealthCheck <- 1
 	r.RemoveSwitchOver()
 	for backendID := range r.Backends {
@@ -357,12 +356,14 @@ func (r *Route) RunHealthCheckOnBackends() {
 		case _ = <-r.killHealthCheck:
 			log.Warnf("Stopping healthcheck-loop of %s", r.Name)
 			return
-		default:
+		case _ = <-time.After(r.HealthCheckInterval):
+			if r.MetricsRepo == nil || r.Client == nil {
+				continue
+			}
 			for _, backend := range r.Backends {
 				go r.healthCheck(backend)
 			}
 		}
-		time.Sleep(r.HealthCheckInterval)
 	}
 
 }

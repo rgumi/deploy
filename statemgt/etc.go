@@ -17,21 +17,14 @@ func (s *StateMgt) HealthzHandler(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *StateMgt) GetCurrentConfig(ctx *fasthttp.RequestCtx) {
-	cfg, err := s.Gateway.ReadConfig()
-	if err != nil {
-		returnError(ctx, 500, err, nil)
-		return
-	}
-	marshalAndReturn(ctx, cfg)
+	marshalAndReturn(ctx, config.ConvertGatewayToInputGateway(s.Gateway))
 }
 
 func (s *StateMgt) SetCurrentConfig(ctx *fasthttp.RequestCtx) {
-
 	if string(ctx.Request.Header.ContentType()) != "application/json" {
 		returnError(ctx, 400, fmt.Errorf("Content-Type must be application/json"), nil)
 		return
 	}
-
 	b := ctx.Request.Body()
 	newGateway, err := config.ParseFromBinary(json.Unmarshal, b)
 	if err != nil {

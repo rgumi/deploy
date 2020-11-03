@@ -185,7 +185,7 @@ func (g *Gateway) RemoveRoute(name string) *route.Route {
 	if route, exists := g.Routes[name]; exists {
 		log.Warnf("Removing %s from Gateway.Routes", name)
 
-		route.StopAll()
+		route.Delete()
 
 		delete(g.Routes, name)
 

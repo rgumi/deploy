@@ -75,9 +75,7 @@ func (s *StateMgt) GetMetricsData(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *StateMgt) GetMetricsOfBackend(ctx *fasthttp.RequestCtx) {
-
 	id := string(ctx.QueryArgs().Peek("backend"))
-
 	timeframe := getTimeDurationFromURLQuery("timeframe", ctx, DefaultTimeframe)
 	granularity := getTimeDurationFromURLQuery("granularity", ctx, timeframe)
 
@@ -86,27 +84,33 @@ func (s *StateMgt) GetMetricsOfBackend(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// parse uuid
+	if id == "" {
+		// no id supplied => return for all backends
+		s.GetMetricsOfAllBackends(ctx)
+		return
+	}
 	backendID, err := uuid.Parse(id)
 	if err != nil {
-		// failure in uuid.Parse
-		s.GetMetricsOfAllBackends(ctx)
+		// invalid id supplied
+		returnError(ctx, 400, fmt.Errorf("Backend does not exist"), nil)
 		return
 	}
 
 	data, err := s.Gateway.MetricsRepo.ReadBackend(backendID, time.Now().Add(-timeframe), time.Now(), granularity)
-
 	if err != nil {
 		returnError(ctx, 400, err, nil)
 		return
 	}
 	marshalAndReturn(ctx, data)
-
 }
 
 // GetMetricsOfRoute returns all metrics for the route
 func (s *StateMgt) GetMetricsOfRoute(ctx *fasthttp.RequestCtx) {
 	routeName := string(ctx.QueryArgs().Peek("route"))
+	if routeName == "" {
+		s.GetMetricsOfAllRoutes(ctx)
+		return
+	}
 
 	timeframe := getTimeDurationFromURLQuery("timeframe", ctx, DefaultTimeframe)
 	granularity := getTimeDurationFromURLQuery("granularity", ctx, timeframe)
@@ -117,7 +121,6 @@ func (s *StateMgt) GetMetricsOfRoute(ctx *fasthttp.RequestCtx) {
 	}
 
 	data, err := s.Gateway.MetricsRepo.ReadRoute(routeName, time.Now().Add(-timeframe), time.Now(), granularity)
-
 	if err != nil {
 		returnError(ctx, 400, err, nil)
 		return
@@ -136,7 +139,6 @@ func (s *StateMgt) GetPromMetrics(ctx *fasthttp.RequestCtx) {
 			metrics = metricsOfRoute
 		}
 	} else if backend != "" {
-
 		backendID, err := uuid.Parse(backend)
 		if err != nil {
 			err := fmt.Errorf("Unable to parse backendID from query parameter (%v)", err)
@@ -144,7 +146,6 @@ func (s *StateMgt) GetPromMetrics(ctx *fasthttp.RequestCtx) {
 			returnError(ctx, 400, err, nil)
 			return
 		}
-
 		for _, b := range s.Gateway.MetricsRepo.PromMetrics.Metrics {
 			for id := range b {
 				if id == backendID {
@@ -153,6 +154,7 @@ func (s *StateMgt) GetPromMetrics(ctx *fasthttp.RequestCtx) {
 			}
 		}
 	} else {
+		// return all
 		metrics = s.Gateway.MetricsRepo.PromMetrics.Metrics
 	}
 	marshalAndReturn(ctx, metrics)

@@ -17,11 +17,18 @@ import (
 // GetRouteByName returns the route with given name
 func (s *StateMgt) GetRouteByName(ctx *fasthttp.RequestCtx) {
 	name := string(ctx.QueryArgs().Peek("name"))
-	route := s.Gateway.GetRoute(name)
-	if route == nil {
+	if name == "" {
+		// no name supplied => return all routes
 		s.GetAllRoutes(ctx)
 		return
 	}
+	route := s.Gateway.GetRoute(name)
+	if route == nil {
+		// route with name not found => return 404
+		returnError(ctx, 404, fmt.Errorf("Route does not exist"), nil)
+		return
+	}
+	// route with name found => return route
 	marshalAndReturn(ctx, config.ConvertRouteToInputRoute(route))
 }
 
@@ -117,11 +124,11 @@ func (s *StateMgt) UpdateRouteByName(ctx *fasthttp.RequestCtx) {
 	}
 	// remove first
 	s.Gateway.RemoveRoute(newRoute.Name)
+	// add new
 	if err = s.Gateway.RegisterRoute(newRoute); err != nil {
 		returnError(ctx, 500, err, nil)
 		return
 	}
-
 	newRoute.Reload()
 	s.Gateway.Reload()
 	marshalAndReturn(ctx, config.ConvertRouteToInputRoute(newRoute))

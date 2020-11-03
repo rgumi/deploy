@@ -62,7 +62,6 @@ func NewStateMgt(addr string, g *gateway.Gateway, prefix string) *StateMgt {
 
 func (s *StateMgt) Start() {
 	router := router.NewRouter()
-
 	go func() {
 		http.Handle(PromPath, promhttp.Handler())
 		http.ListenAndServe(PromAddr, nil)
@@ -73,7 +72,7 @@ func (s *StateMgt) Start() {
 	router.Handle("GET", s.Prefix+"v1/", func(ctx *fasthttp.RequestCtx) {
 		ctx.SetContentType("application/json")
 		ctx.SetStatusCode(200)
-		ctx.SetBody([]byte("Depoy API v1 that enabled access to the Gateway"))
+		ctx.SetBody([]byte("Depoy API v1 that enables access to the Gateways state"))
 	})
 	router.Handle("GET", s.Prefix+"healthz", s.HealthzHandler)
 
@@ -102,7 +101,6 @@ func (s *StateMgt) Start() {
 
 	// monitoring
 	router.Handle("GET", s.Prefix+"v1/monitoring", middleware.LogRequest(s.GetMetricsData))
-	router.Handle("GET", s.Prefix+"v1/monitoring/routes", middleware.LogRequest(s.GetMetricsOfAllRoutes))
 	router.Handle("GET", s.Prefix+"v1/monitoring/backends", middleware.LogRequest(s.GetMetricsOfBackend))
 	router.Handle("GET", s.Prefix+"v1/monitoring/routes", middleware.LogRequest(s.GetMetricsOfRoute))
 	router.Handle("GET", s.Prefix+"v1/monitoring/prometheus", middleware.LogRequest(s.GetPromMetrics))
