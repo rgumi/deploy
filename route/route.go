@@ -430,9 +430,9 @@ forward:
 	} else {
 		// The Strategy must be canary (sticky or slippery) because otherwise
 		// the traffic cannot be increased/switched-over
-		if strings.ToLower(r.Strategy.Type) != "sticky" && strings.ToLower(r.Strategy.Type) != "slippery" {
+		if strings.ToLower(r.Strategy.Type) != "canary" {
 			return nil, fmt.Errorf(
-				"Switchover is only supported with Strategy \"sticky\" or \"slippery\"")
+				"Switchover is only supported with Strategy \"canary\" not \"%s\"", r.Strategy.Type)
 		}
 	}
 

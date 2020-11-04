@@ -9,6 +9,7 @@ WORKDIR /home/depoy
 COPY ./depoy ./
 VOLUME /home/depoy/data
 
+EXPOSE 8090/tcp
 EXPOSE 8080/tcp
 EXPOSE 8443/tcp
 EXPOSE 8081/tcp
